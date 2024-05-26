@@ -7,58 +7,92 @@ const filmSchema = mongoose.Schema(
       type: String,
       required: true,
     },
-    content: {
-      title: { type: String, required: true },
-      audioLanguage: { type: String, required: true },
-      embeddedSubtitles: { type: Boolean },
-      subtitlesLanguages: [
-        {
-          Language: { type: String },
-          file: { type: String },
-        },
-      ],
-      runtime: { type: String, required: true },
-      YearOfProduction: { type: String, required: true },
-      genre: { type: [String], required: true },
-      tags: { type: [String] },
-      plotSummary: {
-        type: String,
-        required: true,
+    comingSoon: {
+      type: Boolean,
+      default: false,
+    },
+    title: {
+      type: String,
+      required: true,
+    },
+    YearOfProduction: { type: String, required: true },
+    rated: {
+      type: String,
+    },
+    released: {
+      type: String,
+    },
+    runtime: { type: String, required: true },
+    genre: { type: [String], required: true },
+    tags: { type: [String] },
+    plotSummary: {
+      type: String,
+      required: true,
+    },
+    overview: {
+      type: String,
+      required: true,
+    },
+    audioLanguages: [{ iso_639_1: String, name: String }],
+    embeddedSubtitles: { type: Boolean },
+    subtitlesLanguages: [
+      {
+        Language: { type: String },
+        file: { type: String },
       },
-      plotSynopsis: {
-        type: String,
-        required: true,
+    ],
+    country: String,
+    copyright: String,
+    actors: { type: [String], required: true, default: [] },
+    directors: { type: [String], required: true, default: [] },
+    producers: { type: [String], required: true, default: [] },
+    writers: { type: [String], required: true, default: [] },
+    soundcore: { type: [String], required: true, default: [] },
+    auidencetarget: { type: String },
+    auidenceAgeGroup: { type: String },
+    visibility: { type: String },
+    filmType: { type: String, required: true },
+    filmModel: {
+      type: String,
+      required: true,
+    },
+    trailer: [
+      {
+        trailerType: String,
+        videoTrailerLink: String,
       },
+    ],
+    youtubeTrailer: String,
+    localTrailer: String,
+    fullVideoLink: String,
+    posters: {
+      type: [String],
     },
-    castandcrew: {
-      cast: { type: [String], required: true, default: [] },
-      directors: { type: [String], required: true, default: [] },
-      producers: { type: [String], required: true, default: [] },
-      writers: { type: [String], required: true, default: [] },
-      soundcore: { type: [String], required: true, default: [] },
+    backdrops: {
+      type: [String],
     },
-    checksandvisibility: {
-      auidencetarget: {type:String},
-      auidenceAgeGroup: { type: String },
-      visibility: {type: String}
-    },
-    thumbnails: {
-      mainThumbNail: { type: String },
-      secondaryThumbNails: [String]
-    },
-    trailer: {
-      trailerType: { type: String },
-      trailerLink: { type: String },
-      trailerVideo: {type:String},
-    },
+    inTheatres: [
+      {
+        Background: String,
+        ImageLeftAlign: String,
+      },
+    ],
     status: {
       type: String,
       default: "offline",
     },
     views: {
       type: Number,
-      default: 0
-    }
+      default: 0,
+    },
+    averageRating: {
+      type: Number,
+      default: 0,
+    },
+    totalRatings: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );

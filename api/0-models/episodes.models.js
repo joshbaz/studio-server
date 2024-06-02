@@ -3,38 +3,86 @@ import mongoose from "mongoose";
 const episodeSchema = mongoose.Schema(
   {
     _id: mongoose.Schema.Types.ObjectId,
-    email: {
+    seriesId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "films",
+      
+    },
+    seasonCounter: { type: String, required: true },
+    episodeCounter: { type: String, required: true },
+    episodeTitle: { type: String, required: true },
+    YearOfProduction: { type: String },
+    rated: { type: String },
+    released: {
+      type: String,
+    },
+    runtime: { type: String, required: true },
+    genre: { type: [String], required: true },
+    tags: { type: [String] },
+    plotSummary: {
       type: String,
       required: true,
     },
-    password: { type: String, required: true },
-    firstname: { type: String, required: true },
-    lastname: { type: String, required: true },
-    privileges: { type: String },
-    role: {
+    overview: {
       type: String,
-      default: "admin",
-    },
-    img: { type: String },
-    createdDate: { type: Date },
-    phoneNumber: { type: String, required: true },
-    active: {
-      type: Boolean,
-      default: false,
       required: true,
     },
-    deactivated: {
-      type: Boolean,
-      default: false,
+    audioLanguages: [{ iso_639_1: String, name: String }],
+    embeddedSubtitles: { type: Boolean },
+    subtitlesLanguages: [
+      {
+        Language: { type: String },
+        file: { type: String },
+      },
+    ],
+    country: String,
+    copyright: String,
+    actors: { type: [String], required: true, default: [] },
+    directors: { type: [String], required: true, default: [] },
+    producers: { type: [String], required: true, default: [] },
+    writers: { type: [String], required: true, default: [] },
+    soundcore: { type: [String], required: true, default: [] },
+    auidencetarget: { type: String },
+    auidenceAgeGroup: { type: String },
+    visibility: { type: String },
+    filmType: { type: String, required: true },
+    filmModel: {
+      type: String,
+      required: true,
     },
+    youtubeTrailer: { type: String },
+    localTrailer: { type: String },
+    fullVideoLink: String,
+    posters: {
+      type: [String],
+    },
+    backdrops: {
+      type: [String],
+    },
+    inTheatres: [
+      {
+        Background: String,
+        ImageLeftAlign: String,
+      },
+    ],
     status: {
       type: String,
       default: "offline",
     },
-    oneTimePassword: String,
-    passwordExpiration: Date,
+    views: {
+      type: Number,
+      default: 0,
+    },
+    averageRating: {
+      type: Number,
+      default: 0,
+    },
+    totalRatings: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true }
 );
 
-export default mongoose.model("episode", episodeSchema);
+export default mongoose.model("episodes", episodeSchema);

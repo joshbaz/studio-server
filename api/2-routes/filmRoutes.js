@@ -1,5 +1,5 @@
 import express from "express";
-import { addFilm, getFilmBySearch, getFilmByTag, getFilmWeb, getSingleFilm, updateFilm,  watchFilm2, watchFilmLink, watchFilms, watchtrailerFilms } from "../1-controllers/filmControllers.js";
+import { addEpisode, addFilm, getFilmBySearch, getFilmByTag, getFilmWeb, getSingleFilm, updateFilm,  watchFilm2, watchFilmLink2, watchFilms, watchtrailerFilms } from "../1-controllers/filmControllers.js";
 import { verifyToken } from "../4-middleware/verifyToken.js";
 import multer from "multer";
 const router = express.Router();
@@ -13,7 +13,8 @@ const upload = multer({
 
 router.post("/create", upload.single("film"), addFilm);
 router.put("/:id", verifyToken, updateFilm);
-router.get("/web/:keys/:t", watchFilmLink);
+router.put("/add/episode/:id", addEpisode);
+router.get("/web/:keys/:t", watchFilmLink2);
 router.get("/:keys", watchFilm2);
 router.get("/", getFilmWeb)
 router.get("/sfilm/:id", getSingleFilm)

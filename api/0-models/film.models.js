@@ -93,6 +93,22 @@ const filmSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
+    seasons: [
+      {
+        seasonTitle: { type: String },
+        seasonCounter: { type: String },
+        totalEpisodes: { type: String },
+        episodes: [
+          {
+            episodeId: {
+              type: mongoose.Schema.Types.ObjectId,
+              ref: "episodes",
+              
+            },
+          },
+        ],
+      },
+    ],
   },
   { timestamps: true }
 );

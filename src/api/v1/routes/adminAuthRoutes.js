@@ -5,10 +5,24 @@ import {
    register,
 } from '../controllers/adminAuth.controllers.js';
 import { body } from 'express-validator';
-import AdminModel from '../models/admin.models.js';
 import { verifyToken } from '../middleware/verifyToken.js';
+import prisma from '../../../utils/db.mjs';
 
 const router = express.Router();
+
+// email validation function
+const customRegisterFunc = async (value) => {
+   const existingUser = await prisma.admin.findUnique({
+      where: {
+         email: value,
+      },
+   });
+   if (existingUser) {
+      return res.status(409).json({ message: 'Email already exists!!' });
+   }
+
+   return true;
+};
 
 router.post(
    '/register',
@@ -17,13 +31,7 @@ router.post(
       body('email')
          .isEmail()
          .withMessage('Please insert a valid Email')
-         .custom((value, { req }) => {
-            return AdminModel.findOne({ email: value }).then((emails) => {
-               if (emails) {
-                  return Promise.reject('Email already exists!!');
-               }
-            });
-         })
+         .custom(customRegisterFunc)
          .normalizeEmail(),
       body('password')
          .trim()
@@ -32,12 +40,43 @@ router.post(
    ],
    register
 );
-router.get('/login', (req, res) => {
-   res.json({ message: 'login successful', name: 'admin', role: 'admin' });
+
+const customFunc = async (value) => {
+   const existingUser = await prisma.admin.findUnique({
+      where: {
+         email: value,
+      },
+   });
+   if (!existingUser) {
+      return res.status(401).json({ message: 'User not found' });
+   }
+
+   return true;
+};
+router.get(
+   '/login',
+   [
+      body('email')
+         .isEmail()
+         .withMessage('Please enter a valid email')
+         .custom(customFunc)
+         .normalizeEmail(),
+      body('password')
+         .trim()
+         .isLength({ min: 6 })
+         .withMessage('Invalid password'),
+   ],
+   login
+);
+
+// check if cookie tokens are valid
+router.post('/verifytoken', verifyToken, (req, res) => {
+   console.log(req.userId);
+   res.status(200).json({ message: 'Token is valid' });
 });
 
-router.post('/logout', logout);
+router.post('/logout', verifyToken, logout);
 
-router.post('/google', login);
+// router.post('/google', login);
 
 export default router;

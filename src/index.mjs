@@ -17,7 +17,6 @@ app.start = async () => {
    const port = env.PORT || 4500;
    app.set('port', port);
 
-   // TODO: customize app here...
    customizeApp(app);
 
    server = http.createServer(app);

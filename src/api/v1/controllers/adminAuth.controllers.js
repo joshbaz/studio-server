@@ -1,10 +1,11 @@
 import bcrypt from 'bcryptjs';
-import mongoose from 'mongoose';
+// import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
 import Moments from 'moment-timezone';
 import AdminModel from '../models/admin.models.js';
 import { validationResult } from 'express-validator';
 import { env } from '../../../env.mjs';
+import prisma from '../../../utils/db.mjs';
 
 export const register = async (req, res, next) => {
    try {
@@ -29,36 +30,58 @@ export const register = async (req, res, next) => {
       const createdDate = Moments(new Date()).tz('Africa/Kampala');
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      const adminUser = new AdminModel({
-         _id: new mongoose.Types.ObjectId(),
-         email,
-         password: hashedPassword,
-         firstname,
-         lastname,
-         privileges,
-         role,
-         phoneNumber,
-         createdDate,
+      // const adminUser = new AdminModel({
+      //    _id: new mongoose.Types.ObjectId(),
+      //    email,
+      //    password: hashedPassword,
+      //    firstname,
+      //    lastname,
+      //    privileges,
+      //    role,
+      //    phoneNumber,
+      //    createdDate,
+      // });
+
+      const adminUser = await prisma.admin.create({
+         data: {
+            email,
+            password: hashedPassword,
+            firstname,
+            lastname,
+            privileges,
+            role,
+            phoneNumber,
+            createdDate,
+         },
       });
 
-      await adminUser.save();
+      // await adminUser.save();
 
-      res.status(201).json(`administrator with email ${email} registered`);
+      return res.status(201).json({
+         message: `administrator with email ${adminUser?.email} registered`,
+      });
    } catch (error) {
       // if (!error.statusCode) {
       //    error.statusCode = 500;
       // }
-      res.status(500).json({ message: 'Something went wrong' });
-      next(error);
+      console.log('error', error.message);
+      return res.status(500).json({ message: 'Something went wrong' });
+      // next(error);
    }
 };
 
 export const login = async (req, res, next) => {
    try {
-      const { username, password, staySigned } = req.body;
+      const { email, password, staySigned } = req.body;
 
-      const findOneUser = await AdminModel.findOne({ email: username });
-      if (!findOneUser) {
+      const existingUser = await prisma.admin.findUnique({
+         where: {
+            email,
+         },
+      });
+
+      // const findOneUser = await AdminModel.findOne({ email: username });
+      if (!existingUser) {
          // const error = new Error('Invalid Credentials - e');
          // error.statusCode = 404;
          // throw error;
@@ -68,7 +91,7 @@ export const login = async (req, res, next) => {
 
       // console.log("user", outputUser);
 
-      if (findOneUser.deactivated) {
+      if (existingUser.deactivated) {
          // const error = new Error('User deactivated');
          // error.statusCode = 404;
          // throw error;
@@ -77,7 +100,7 @@ export const login = async (req, res, next) => {
 
       const comparePassword = await bcrypt.compare(
          password,
-         findOneUser.password
+         existingUser.password
       );
 
       if (!comparePassword) {
@@ -89,8 +112,8 @@ export const login = async (req, res, next) => {
 
       const token = jwt.sign(
          {
-            email: findOneUser.email,
-            userId: findOneUser._id,
+            email: existingUser.email,
+            userId: existingUser.id,
          },
          env.SECRETVA,
          staySigned === false ? { expiresIn: '24h' } : { expiresIn: '30d' }
@@ -109,22 +132,23 @@ export const login = async (req, res, next) => {
       //   res.setHeader("Set-Cookie", "test=" + "myValue").json("success");
       let age = 1000 * 60 * 60 * 24 * 7;
 
-      const { ...userInfo } = findOneUser;
+      const { password: Omit, ...userInfo } = existingUser;
 
-      let { password: userPassword, ...outputUser } = userInfo; //userInfo?._doc;
+      // let { password: userPassword, ...outputUser } = userInfo; //userInfo?._doc;
       res.cookie('token', token, {
          httpOnly: true,
          //secure: true,
          maxAge: age,
       })
          .status(200)
-         .json(outputUser);
+         .json({ user: userInfo, token: token });
    } catch (error) {
       // if (!error.statusCode) {
       //    error.statusCode = 500;
       // }
       // next(error);
-      res.status(500).json({ message: 'Something went wrong' });
+      res.status(500).json({ message: 'Something went wrong!!' });
+      next(error);
    }
 };
 

@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import api from './api/index.js';
+import api from './api/index.mjs';
 // import dotenv from 'dotenv';
 // import mongoose from 'mongoose';
 // import bluebird from 'bluebird';

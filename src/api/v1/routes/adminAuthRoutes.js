@@ -6,7 +6,7 @@ import {
 } from '../controllers/adminAuth.controllers.js';
 import { body } from 'express-validator';
 import { verifyToken } from '../middleware/verifyToken.js';
-import prisma from '@src/utils/db.mjs';
+import prisma from '@/utils/db.mjs';
 
 const router = express.Router();
 

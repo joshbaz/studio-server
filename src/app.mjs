@@ -1,7 +1,7 @@
 import * as express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
-import api from '@src/api/index.mjs';
+import api from '@/api/index.mjs';
 
 /**
  * @module app

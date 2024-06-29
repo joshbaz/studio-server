@@ -4,9 +4,7 @@
       "module": "NodeNext",
       "baseUrl": ".",
       "paths": {
-         "@src/*": ["src/*"],
-         "@utils": ["src/utils"],
-         "@api": ["src/api"]
+         "@/*": ["src/*"]
       }
    },
    "exclude": ["node_modules", "dist"],

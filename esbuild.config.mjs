@@ -4,7 +4,7 @@ esbuild
    .context({
       entryPoints: ['src/index.mjs'],
       alias: {
-         '@src/*': './src/*',
+         '@/*': './src/*',
       },
       platform: 'node',
       bundle: true,

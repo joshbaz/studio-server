@@ -1,6 +1,6 @@
 // import mongoose from 'mongoose';
 // import adminModels from '../v1/0-models/admin.models.js';
-import prisma from '../../../utils/db.mjs';
+import prisma from '@/utils/db.mjs';
 
 export const updateUser = async (req, res, next) => {
    try {

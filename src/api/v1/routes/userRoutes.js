@@ -8,7 +8,7 @@ import {
 import { body } from 'express-validator';
 
 import { verifyToken } from '../middleware/verifyToken.js';
-import prisma from '../../../utils/db.mjs';
+import prisma from '@/utils/db.mjs';
 
 const router = express.Router();
 

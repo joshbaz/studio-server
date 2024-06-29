@@ -90,8 +90,6 @@ export const loginUser = async (req, res, next) => {
          staySigned === false ? { expiresIn: '24h' } : { expiresIn: '30d' }
       );
 
-      console.log(token);
-
       let age = 1000 * 60 * 60 * 24 * 7;
       const { password: Omit, ...userInfo } = existingUser;
 

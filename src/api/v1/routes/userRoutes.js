@@ -4,6 +4,8 @@ import {
    getUser,
    deleteUser,
    createUser,
+   getUsers,
+   loginUser,
 } from '../controllers/userControllers.js';
 import { body } from 'express-validator';
 
@@ -24,6 +26,18 @@ const customEmailFunc = async (value) => {
    }
 };
 
+const customEmailFuncLogin = async (value) => {
+   const user = await prisma.user.findUnique({
+      where: {
+         email: value,
+      },
+   });
+
+   if (!user) {
+      throw new Error('Invalid email or password');
+   }
+};
+
 router.post(
    '/register',
    [
@@ -34,8 +48,20 @@ router.post(
    ],
    createUser
 );
+router.post(
+   '/login',
+   [
+      body('email')
+         .isEmail()
+         .withMessage('Please enter a valid email')
+         .custom(customEmailFuncLogin),
+      body('password').isLength({ min: 6 }),
+   ],
+   loginUser
+);
 router.put('/:id', verifyToken, updateUser);
 router.get('/find/:id', verifyToken, getUser);
+router.get('/findall', verifyToken, getUsers);
 router.delete('/:id', verifyToken, deleteUser);
 
 export default router;

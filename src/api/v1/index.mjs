@@ -11,6 +11,7 @@ const endpoints = [
    // { path: '/user', router: UserRoutes },
 ];
 
+
 // map the endpoints to the router
 endpoints.forEach((endpoint) => router.use(endpoint.path, endpoint.router));
 

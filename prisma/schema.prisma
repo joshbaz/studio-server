@@ -31,3 +31,18 @@ model admin {
   createdDate       DateTime  @default(now())
   createdAt         DateTime  @default(now())
 }
+
+model User {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  email             String    @unique
+  password          String
+  firstname         String
+  lastname          String
+  username          String
+  role              String    @default("user")
+  phoneNumber       String
+  createdAt         DateTime  @default(now())
+  accountVerified   Boolean   @default(false)
+  oneTimePassword   String?
+  passwordExpiresAt DateTime?
+}

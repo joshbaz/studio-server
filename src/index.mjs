@@ -1,8 +1,8 @@
 import express from 'express';
 
 import http from 'http';
-import { env } from './env.mjs';
-import customizeApp from './app.js';
+import { env } from '@src/env.mjs';
+import customizeApp from '@src/app.mjs';
 
 let server;
 const app = express();

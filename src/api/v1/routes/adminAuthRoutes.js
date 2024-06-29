@@ -6,23 +6,27 @@ import {
 } from '../controllers/adminAuth.controllers.js';
 import { body } from 'express-validator';
 import { verifyToken } from '../middleware/verifyToken.js';
-import prisma from '../../../utils/db.mjs';
+import prisma from '@src/utils/db.mjs';
 
 const router = express.Router();
 
 // email validation function
-const customRegisterFunc = async (value) => {
+const customRegisterFunc = async (value, { res }) => {
    const existingUser = await prisma.admin.findUnique({
       where: {
          email: value,
       },
    });
    if (existingUser) {
-      return res.status(409).json({ message: 'Email already exists!!' });
+      throw new Error('Email already in use');
    }
 
    return true;
 };
+
+router.get('/', (req, res) => {
+   res.status(200).json({ message: 'Admin Auth Route' });
+});
 
 router.post(
    '/register',
@@ -48,7 +52,7 @@ const customFunc = async (value) => {
       },
    });
    if (!existingUser) {
-      return res.status(401).json({ message: 'User not found' });
+      throw new Error('Invalid credentials');
    }
 
    return true;

@@ -14,7 +14,7 @@ import {
    watchtrailerFilms,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
-import { filmSchema } from '../validationschemas/index.js';
+import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
 import multer from 'multer';
 import { validateData } from '../middleware/validateBody.mjs';
 
@@ -25,8 +25,14 @@ const upload = multer({
 });
 
 router.post('/create', verifyToken, validateData(filmSchema), createFilm);
+router.put(
+   '/update/:filmId',
+   verifyToken,
+   validateData(filmSchemaUpdate),
+   updateFilm
+);
 router.post('/upload', upload.single('film'), addFilm);
-router.put('/:id', verifyToken, updateFilm);
+// router.put('/:id', verifyToken, updateFilm);
 router.put('/add/episode/:id', addEpisode);
 router.get('/web/:keys/:t', watchFilmLink2);
 router.get('/:keys', watchFilm2);

@@ -37,6 +37,30 @@ const s3 = new S3Client({
 });
 
 /**
+ * @name isVerifiedAdmin
+ * @description Check if the admin is verified
+ * @param {String} adminId 
+ * @param {import("express").Request} res 
+ * @returns void
+ */
+async function isVerifiedAdmin(adminId, res) {
+   const existingAdmin = await prisma.admin.findUnique({
+      where: { id: adminId },
+      select: { role: true, deactivated: true },
+   });
+   if (!existingAdmin) {
+      return res
+         .status(404)
+         .json({ message: 'You cannot perform this action' });
+   }
+   if (existingAdmin.role !== 'admin' || existingAdmin.deactivated) {
+      return res
+         .status(403)
+         .json({ message: 'You are not authorized to perform this action' });
+   }
+}
+
+/**
  * @name createFilm
  * @description Create a new film
  * @type {import('express').RequestHandler}
@@ -45,21 +69,7 @@ export const createFilm = async (req, res, next) => {
    try {
       const { title, overview, plotSummary, releaseDate, adminId } = req.body;
 
-      const isVerifiedAdmin = await prisma.admin.findUnique({
-         where: {
-            id: adminId,
-         },
-         select: {
-            role: true,
-            deactivated: true,
-         },
-      });
-
-      if (!isVerifiedAdmin || isVerifiedAdmin.deactivated) {
-         return res
-            .status(403)
-            .json({ message: 'You are not authorized to perform this action' });
-      }
+      await isVerifiedAdmin(adminId, res);
 
       const newFilm = await prisma.film.create({
          data: {
@@ -73,6 +83,36 @@ export const createFilm = async (req, res, next) => {
       res.status(201).json({
          message: 'Film created successfully',
          film: newFilm,
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+      next(error);
+   }
+};
+
+/**
+ * @name updateFilm
+ * @description function to update film details
+ * @type {import('express').RequestHandler}
+ */
+export const updateFilm = async (req, res, next) => {
+   try {
+      const { filmId } = req.params;
+      const { adminId, ...rest } = req.body;
+
+      await isVerifiedAdmin(adminId, res);
+
+      const updatedFilm = await prisma.film.update({
+         where: { id: filmId },
+         data: { ...rest },
+      });
+
+      res.status(200).json({
+         message: 'Film updated successfully',
+         film: updatedFilm,
       });
    } catch (error) {
       if (!error.statusCode) {
@@ -137,16 +177,6 @@ export const addFilm = async (req, res, next) => {
       //     //response.redirect("/success");
       //     res.status(200).json("done")
       // });
-   } catch (error) {
-      if (!error.statusCode) {
-         error.statusCode = 500;
-      }
-      next(error);
-   }
-};
-
-export const updateFilm = async (req, res, next) => {
-   try {
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;

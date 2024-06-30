@@ -144,10 +144,11 @@ model trailer {
 }
 
 model poster {
-  id      String  @id @default(auto()) @map("_id") @db.ObjectId
-  type    String
-  url     String
-  isCover Boolean @default(false)
+  id         String  @id @default(auto()) @map("_id") @db.ObjectId
+  type       String
+  url        String
+  isCover    Boolean @default(false)
+  isBackdrop Boolean @default(false)
 
   film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId String? @db.ObjectId
@@ -225,11 +226,13 @@ model video {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   url        String
   format     String
-  fps        String
-  resolution String
-  bitrate    String
-  size       String
-  codec      String
+  name       String
+  fps        String?
+  resolution String?
+  bitrate    String?
+  size       String?
+  codec      String?
+  encoding   String?
   film       film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId     String?  @db.ObjectId
   createdAt  DateTime @default(now())

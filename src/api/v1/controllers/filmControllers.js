@@ -10,7 +10,7 @@ import {
 import { env } from '@/env.mjs';
 import { uploadToBucket } from '@/utils/uploadToBucket.mjs';
 import prisma from '@/utils/db.mjs';
-import { z } from 'zod';
+import { url } from 'inspector';
 
 // const bucketName = process.env.bucketName;
 // const spacesEndpoint = process.env.spacesEndPoint;
@@ -39,8 +39,8 @@ const s3 = new S3Client({
 /**
  * @name isVerifiedAdmin
  * @description Check if the admin is verified
- * @param {String} adminId 
- * @param {import("express").Request} res 
+ * @param {String} adminId
+ * @param {import("express").Request} res
  * @returns void
  */
 async function isVerifiedAdmin(adminId, res) {
@@ -57,6 +57,24 @@ async function isVerifiedAdmin(adminId, res) {
       return res
          .status(403)
          .json({ message: 'You are not authorized to perform this action' });
+   }
+}
+
+/**
+ * @name formatFileSize
+ * @description Format file size to human readable format (KB, MB, GB)
+ * @param {Number} size
+ * @returns {String}
+ */
+function formatFileSize(size) {
+   if (size < 1024) {
+      return `${size} B`;
+   } else if (size < 1024 ** 2) {
+      return `${(size / 1024).toFixed(2)} KB`;
+   } else if (size < 1024 ** 3) {
+      return `${(size / 1024 ** 2).toFixed(2)} MB`;
+   } else {
+      return `${(size / 1024 ** 3).toFixed(2)} GB`;
    }
 }
 
@@ -114,6 +132,62 @@ export const updateFilm = async (req, res, next) => {
          message: 'Film updated successfully',
          film: updatedFilm,
       });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+      next(error);
+   }
+};
+
+/**
+ * @name upload film to bucket
+ * @description function to upload film to bucket and get signed url
+ * @type {import('express').RequestHandler}
+ */
+export const uploadFilm = async (req, res, next) => {
+   try {
+      const { filmId } = req.params;
+      const { adminId, ...rest } = req.body;
+
+      await isVerifiedAdmin(adminId, res);
+
+      const film = await prisma.film.findUnique({
+         where: { id: filmId },
+      });
+      if (!film) {
+         return res.status(404).json({ message: 'Film not found' });
+      }
+
+      // get the file from the request
+      const file = req.file;
+      if (!file) {
+         return res.status(400).json({ message: 'No file uploaded' });
+      }
+
+      const bucketParams = {
+         bucketName: filmId,
+         key: file.originalname,
+         buffer: file.buffer,
+         contentType: file.mimetype,
+      };
+
+      const data = await uploadToBucket(bucketParams);
+      const videoData = {
+         url: data.url,
+         format: file.mimetype,
+         name: file.originalname, // used as the key in the bucket
+         size: formatFileSize(file.size),
+         encoding: file.encoding,
+         filmId,
+      };
+
+      // create a video record with all the details including the signed url
+      const newVideo = await prisma.video.create({
+         data: videoData,
+      });
+      res.status(200).json({ url: 'Upload successful', video: newVideo });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;

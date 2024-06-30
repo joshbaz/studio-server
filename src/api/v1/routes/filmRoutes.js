@@ -8,6 +8,7 @@ import {
    getFilmWeb,
    getSingleFilm,
    updateFilm,
+   uploadFilm,
    watchFilm2,
    watchFilmLink2,
    watchFilms,
@@ -31,7 +32,13 @@ router.put(
    validateData(filmSchemaUpdate),
    updateFilm
 );
-router.post('/upload', upload.single('film'), addFilm);
+router.post(
+   '/upload/:filmId',
+   verifyToken,
+   // validateData(filmSchemaUpdate),
+   upload.single('film'),
+   uploadFilm
+);
 // router.put('/:id', verifyToken, updateFilm);
 router.put('/add/episode/:id', addEpisode);
 router.get('/web/:keys/:t', watchFilmLink2);

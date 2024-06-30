@@ -1,5 +1,4 @@
 import { ZodError } from 'zod';
-
 import { StatusCodes } from 'http-status-codes';
 
 /**
@@ -16,7 +15,7 @@ export function validateData(schema) {
       } catch (error) {
          if (error instanceof ZodError) {
             const errorMessages = error.errors.map((issue) => ({
-               message: `${issue.path.join('.')} is ${issue.message}`,
+               message: issue.message,
             }));
             res.status(StatusCodes.BAD_REQUEST).json({
                error: 'Invalid data',

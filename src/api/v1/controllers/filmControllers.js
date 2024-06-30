@@ -66,7 +66,7 @@ export const createFilm = async (req, res, next) => {
             title,
             overview,
             plotSummary,
-            releaseDate,
+            releaseDate: new Date(releaseDate).toISOString(),
          },
       });
 

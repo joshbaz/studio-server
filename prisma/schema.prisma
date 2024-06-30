@@ -33,16 +33,206 @@ model admin {
 }
 
 model User {
-  id                String    @id @default(auto()) @map("_id") @db.ObjectId
-  email             String    @unique
+  id                String         @id @default(auto()) @map("_id") @db.ObjectId
+  email             String         @unique
   password          String
   firstname         String
   lastname          String
   username          String
-  role              String    @default("user")
+  role              String         @default("user")
   phoneNumber       String
-  createdAt         DateTime  @default(now())
-  accountVerified   Boolean   @default(false)
+  createdAt         DateTime       @default(now())
+  accountVerified   Boolean        @default(false)
   oneTimePassword   String?
   passwordExpiresAt DateTime?
+  Watchhistory      Watchhistory[]
+  watched           watched[]
+}
+
+model Watchhistory {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  watched         watched[]
+  lengthInHistory Int       @default(0)
+  completed       Boolean   @default(false)
+  film            film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId          String?   @db.ObjectId
+  user            User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String?   @db.ObjectId
+  createdAt       DateTime  @default(now())
+}
+
+model watched {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  time      DateTime @default(now())
+  season    season?  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId  String?  @db.ObjectId
+  episode   episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId String?  @db.ObjectId
+  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String?  @db.ObjectId
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @db.ObjectId
+  createdAt DateTime @default(now())
+
+  Watchhistory   Watchhistory? @relation(fields: [watchhistoryId], references: [id])
+  watchhistoryId String?       @db.ObjectId
+}
+
+model film {
+  id                String             @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  overview          String
+  plotSummary       String
+  releaseDate       DateTime
+  comingSoon        Boolean            @default(false)
+  yearOfProduction  Int?
+  released          String?
+  runtime           String?
+  genre             String?
+  tags              String[]
+  type              String             @default("movie")
+  audioLanguages    audioLanguage[]
+  embeddedSubtitles Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  subtitleLanguage  subtitleLanguage[]
+  country           String?
+  copyright         String?
+  audienceTarget    String?
+  audienceAgeGroup  String?
+  visibility        String?
+  filmModel         String?
+  status            String             @default("offline")
+  trailers          trailer[]
+  posters           poster[]
+  cast              cast[]
+  stats             stats[]
+  season            season[]
+  video             video[]
+  Watchhistory      Watchhistory[]
+  watched           watched[]
+  crew              crew[]
+
+  @@index([title], name: "title_index")
+}
+
+model audioLanguage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String
+  iso_639_1 String
+  createdAt DateTime @default(now())
+
+  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId String? @db.ObjectId
+}
+
+model subtitleLanguage {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  language  String
+  createdAt DateTime @default(now())
+
+  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId String? @db.ObjectId
+}
+
+model trailer {
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  type      String
+  videoURL  String
+  isYoutube Boolean
+  film      film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String? @db.ObjectId
+}
+
+model poster {
+  id      String  @id @default(auto()) @map("_id") @db.ObjectId
+  type    String
+  url     String
+  isCover Boolean @default(false)
+
+  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId String? @db.ObjectId
+}
+
+model crew {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  cast           cast[]
+  producer       String
+  coProducers    String[]
+  director       String
+  writers        String[]
+  music          String[]
+  cinematography String[]
+  editing        String[]
+  production     String[]
+  animation      String[]
+  soundcore      String[]
+  casting        String[]
+  createdBy      String
+  createdAt      DateTime @default(now())
+  film           film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId         String?  @db.ObjectId
+}
+
+model cast {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  name     String
+  role     String
+  imageURL String
+  film     film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId   String? @db.ObjectId
+  crew     crew?   @relation(fields: [crewId], references: [id])
+  crewId   String? @db.ObjectId
+}
+
+model stats {
+  id            String  @id @default(auto()) @map("_id") @db.ObjectId
+  views         Int     @default(0)
+  likes         Int     @default(0)
+  dislikes      Int     @default(0)
+  rating        Int     @default(0)
+  averageRating Float   @default(0)
+  totalRating   Int     @default(0)
+  shares        Int
+  film          film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId        String? @db.ObjectId
+}
+
+model season {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  overview  String
+  season    Int
+  episodes  episode[]
+  film      film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String?   @db.ObjectId
+  createdAt DateTime  @default(now())
+  watched   watched[]
+}
+
+model episode {
+  id        String    @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  overview  String
+  episode   Int       @default(1)
+  video     video[]
+  season    season?   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId  String?   @db.ObjectId
+  createdAt DateTime  @default(now())
+  watched   watched[]
+}
+
+model video {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  url        String
+  format     String
+  fps        String
+  resolution String
+  bitrate    String
+  size       String
+  codec      String
+  film       film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId     String?  @db.ObjectId
+  createdAt  DateTime @default(now())
+  episode    episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId  String?  @db.ObjectId
 }

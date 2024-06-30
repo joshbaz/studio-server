@@ -5,6 +5,11 @@ import { validationResult } from 'express-validator';
 import { env } from '@/env.mjs';
 import prisma from '@/utils/db.mjs';
 
+/**
+ *@name register
+ *@description register a new admin
+ *@type {import('express').RequestHandler}
+ */
 export const register = async (req, res, next) => {
    try {
       const errors = validationResult(req);
@@ -50,6 +55,11 @@ export const register = async (req, res, next) => {
    }
 };
 
+/**
+ *@name login
+ *@description login a user
+ *@type {import('express').RequestHandler}
+ */
 export const login = async (req, res, next) => {
    try {
       const { email, password, staySigned } = req.body;
@@ -107,16 +117,17 @@ export const login = async (req, res, next) => {
    }
 };
 
-export const logout = (req, res, next) => {
+/**
+ *@name logout
+ *@description logout a user
+ *@type {import('express').RequestHandler}
+ */
+export const logout = (_, res) => {
    try {
       res.clearCookie('token')
          .status(200)
          .json({ message: 'Logout Successful' });
    } catch (error) {
-      // if (!error.statusCode) {
-      //    error.statusCode = 500;
-      // }
-      // next(error);
-      res.status(500).json({ message: 'Something went wrong' });
+      return res.status(500).json({ message: 'Something went wrong' });
    }
 };

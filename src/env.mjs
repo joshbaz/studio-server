@@ -11,6 +11,14 @@ export const env = createEnv({
          .default(''),
       PORT: z.number({ message: 'PORT should be a number' }).default(4500),
       SECRETVA: z.string({ message: 'SECRETIVA is required' }),
+      DO_SPACESENDPOINT: z.string({ message: 'Spaces endpoint is required' }),
+      DO_SPACESBUCKET: z.string({ message: 'Spaces bucket name is required' }),
+      DO_SPACEACCESSKEY: z.string({
+         message: 'Spaces access key is required',
+      }),
+      DO_SPACESECRETKEY: z.string({
+         message: 'Spaces secret key is required',
+      }),
    },
    runtimeEnv: process.env,
 });

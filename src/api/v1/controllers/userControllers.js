@@ -1,5 +1,3 @@
-// import mongoose from 'mongoose';
-// import adminModels from '../v1/0-models/admin.models.js';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
@@ -106,6 +104,27 @@ export const loginUser = async (req, res, next) => {
       }
       next(error);
       res.status(500).json({ message: 'Something went wrong!!' });
+      next(error);
+   }
+};
+
+/**
+ *@name logout
+ *@description logout user
+ *@type {import('express').RequestHandler}
+ */
+export const logout = async (req, res, next) => {
+   try {
+      if (req.params.id !== req?.userId) {
+         return res
+            .status(403)
+            .json({ message: 'You are not authorized to perform this action' });
+      }
+      res.clearCookie('token').status(200).json({ message: 'Logged out' });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
       next(error);
    }
 };

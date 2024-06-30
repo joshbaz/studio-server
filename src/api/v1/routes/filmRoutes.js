@@ -2,6 +2,7 @@ import express from 'express';
 import {
    addEpisode,
    addFilm,
+   createFilm,
    getFilmBySearch,
    getFilmByTag,
    getFilmWeb,
@@ -12,17 +13,19 @@ import {
    watchFilms,
    watchtrailerFilms,
 } from '../controllers/filmControllers.js';
-import { verifyToken } from '../v1/4-middleware/verifyToken.js';
+import { verifyToken } from '../middleware/verifyToken.js';
+import { filmSchema } from '../validationschemas/index.js';
 import multer from 'multer';
+import { validateData } from '../middleware/validateBody.mjs';
+
 const router = express.Router();
-import dotenv from 'dotenv';
-dotenv.config();
 
 const upload = multer({
    storage: multer.memoryStorage(),
 });
 
-router.post('/create', upload.single('film'), addFilm);
+router.post('/create', verifyToken, validateData(filmSchema), createFilm);
+router.post('/upload', upload.single('film'), addFilm);
 router.put('/:id', verifyToken, updateFilm);
 router.put('/add/episode/:id', addEpisode);
 router.get('/web/:keys/:t', watchFilmLink2);

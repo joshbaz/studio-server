@@ -1,28 +1,25 @@
-import filmModels from '../v1/0-models/film.models.js';
-import episodeModels from '../v1/0-models/episodes.models.js';
-import dotenv from 'dotenv';
+// import filmModels from '../v1/0-models/film.models.js';
+// import episodeModels from '../v1/0-models/episodes.models.js';
 import fs from 'fs';
-dotenv.config();
 import {
    S3Client,
    CreateBucketCommand,
    GetObjectCommand,
    HeadObjectCommand,
 } from '@aws-sdk/client-s3';
+import { env } from '@/env.mjs';
+import { uploadToBucket } from '@/utils/uploadToBucket.mjs';
+import prisma from '@/utils/db.mjs';
+import { z } from 'zod';
 
-//import { pipeline } from "stream";
-//import { promisify } from "util";
+// const bucketName = process.env.bucketName;
+// const spacesEndpoint = process.env.spacesEndPoint;
+// const region = process.env.region;
 
-//const pipelineAsync = promisify(pipeline);
-//const spacesEndpoint = new aws.Endpoint(process.env.spacesEndPoint);
-const bucketName = process.env.bucketName;
-const spacesEndpoint = process.env.spacesEndPoint;
-const region = process.env.region;
-
-const credentials = {
-   accessKeyId: process.env.DS_AccessKey,
-   secretAccessKey: process.env.DS_SecretKey,
-};
+// const credentials = {
+//    accessKeyId: process.env.DS_AccessKey,
+//    secretAccessKey: process.env.DS_SecretKey,
+// };
 // const spaceClient = new createClient({
 //   region,
 //   endpoint: spacesEndpoint,
@@ -32,12 +29,59 @@ const credentials = {
 const s3 = new S3Client({
    region: 'fra1',
    credentials: {
-      accessKeyId: process.env.DS_AccessKey,
-      secretAccessKey: process.env.DS_SecretKey,
+      accessKeyId: env.DO_SPACEACCESSKEY,
+      secretAccessKey: env.DO_SPACESECRETKEY,
    },
-   endpoint: spacesEndpoint,
+   endpoint: env.DO_SPACESENDPOINT,
    forcePathStyle: true,
 });
+
+/**
+ * @name createFilm
+ * @description Create a new film
+ * @type {import('express').RequestHandler}
+ */
+export const createFilm = async (req, res, next) => {
+   try {
+      const { title, overview, plotSummary, releaseDate, adminId } = req.body;
+
+      const isVerifiedAdmin = await prisma.admin.findUnique({
+         where: {
+            id: adminId,
+         },
+         select: {
+            role: true,
+            deactivated: true,
+         },
+      });
+
+      if (!isVerifiedAdmin || isVerifiedAdmin.deactivated) {
+         return res
+            .status(403)
+            .json({ message: 'You are not authorized to perform this action' });
+      }
+
+      const newFilm = await prisma.film.create({
+         data: {
+            title,
+            overview,
+            plotSummary,
+            releaseDate,
+         },
+      });
+
+      res.status(201).json({
+         message: 'Film created successfully',
+         film: newFilm,
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+      next(error);
+   }
+};
 
 export const addFilm = async (req, res, next) => {
    try {

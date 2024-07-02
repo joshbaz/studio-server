@@ -8,7 +8,7 @@ import {
    HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { env } from '@/env.mjs';
-import { uploadToBucket } from '@/utils/uploadToBucket.mjs';
+import { s3Client, uploadToBucket } from '@/utils/uploadToBucket.mjs';
 import prisma from '@/utils/db.mjs';
 import { url } from 'inspector';
 
@@ -196,6 +196,101 @@ export const uploadFilm = async (req, res, next) => {
       next(error);
    }
 };
+
+/**
+ * @name streamFilm
+ * @description function to stream film from bucket to client
+ * @type {import('express').RequestHandler}
+ */
+export const streamFilm = async (req, res, next) => {
+   try {
+      const { filmId } = req.params;
+
+      const film = await prisma.film.findUnique({
+         where: { id: filmId },
+      });
+      if (!film) {
+         return res.status(404).json({ message: 'Film not found' });
+      }
+
+      const video = await prisma.video.findFirst({
+         where: { filmId },
+      });
+
+      console.log('video', video);
+      if (!video) {
+         return res.status(404).json({ message: 'No video found' });
+      }
+
+      const streamParams = {
+         bucketName: filmId,
+         key: video.name,
+      };
+
+      console.log('streamParams', streamParams);
+
+      const command = new GetObjectCommand({
+         Bucket: streamParams.bucketName,
+         Key: streamParams.key,
+      });
+      const response = await s3Client.send(command);
+
+      console.log('response', response);
+
+      // HeadObjectCommand(streamParams, async (err, data) => {
+      //    if (err) {
+      //       console.log(err);
+      //       return res.status(500).send('Internal Server Error');
+      //    }
+
+      //    console.log('data', data);
+      //    let { ContentLength, ContentType, AcceptRanges } = data;
+      //    const CHUNK_SIZE = 10 ** 6;
+      //    if (range) {
+      //       const parts = range.replace(/bytes=/, '').split('-');
+      //       console.log('starts here', parts);
+      //       const start = parseInt(parts[0], 10);
+      //       const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
+
+      //       const chunkSize = end - start + 1;
+      //       const headers = {
+      //          'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
+      //          'Accept-Ranges': 'bytes',
+      //          'Content-Length': chunkSize,
+      //          'Content-Type': ContentType,
+      //       };
+
+      //       res.writeHead(206, headers);
+
+      //       //readable stream
+      //       const stream = s3Client
+      //          .getObject({ ...streamParams, Range: `bytes=${start}-${end}` })
+      //          .createReadStream();
+
+      //       stream.pipe(res);
+      //    } else {
+      //       console.log('No headers - starts here');
+      //       //no range provided.
+      //       const headers = {
+      //          'Content-Length': ContentLength,
+      //          'Content-Type': ContentType,
+      //       };
+
+      //       res.writeHead(200, headers);
+      //       s3Client.getObject(streamParams).createReadStream().pipe(res);
+      //    }
+      // });
+      // stream.pipe(res);
+      res.status(200).json({ message: 'Stream successful' });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+      next(error);
+   }
+};
+
 
 export const addFilm = async (req, res, next) => {
    try {

@@ -19,6 +19,7 @@ export const env = createEnv({
       DO_SPACESECRETKEY: z.string({
          message: 'Spaces secret key is required',
       }),
+      CLIENT_URL: z.string().optional(),
    },
    runtimeEnv: process.env,
 });

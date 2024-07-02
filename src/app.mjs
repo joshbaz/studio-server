@@ -2,6 +2,7 @@ import * as express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import api from '@/api/index.mjs';
+import { env } from './env.mjs';
 
 /**
  * @module app
@@ -14,32 +15,40 @@ export default function customizeApp(app) {
    app.use(express.json());
    app.use(express.urlencoded({ extended: false }));
 
-   app.use(
-      cors({
-         origin: process.env.CLIENT_URL,
-         credentials: true,
-      })
-   );
+   /**
+    * @name corsOptions
+    * @description Cors options
+    * @type {cors.CorsOptions}
+    */
+   const corsOptions = {
+      origin: [env.CLIENT_URL],
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      preflightContinue: false,
+      credentials: true,
+   };
 
+   app.use(cors(corsOptions));
    app.use(cookieParser());
+
    // API routes
    app.use('/api', api);
 
-   // Error handling
-   // 404
-   app.use((req, res) => {
+   // Error handling - 404
+   app.use((_, res) => {
       res.status(404).send({
          status: 404,
          message: 'The requested resource was not found',
       });
    });
 
-   // 5xx
-   app.use((err, req, res, next) => {
-      console.error(err);
+   //Error handling - 5xx
+   app.use((err, _, res) => {
+      if (!err.statusCode) {
+         err.statusCode = 500;
+      }
       res.status(500).send({
          status: 500,
-         message: 'An unexpected error occurred',
+         message: `Internal Server Error: ${err.message}`,
       });
    });
 }

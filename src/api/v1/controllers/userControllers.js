@@ -82,7 +82,7 @@ export const loginUser = async (req, res, next) => {
       const token = jwt.sign(
          {
             email: existingUser.email,
-            userId: existingUser.id,
+            id: existingUser.id,
          },
          env.SECRETVA,
          staySigned === false ? { expiresIn: '24h' } : { expiresIn: '30d' }
@@ -115,11 +115,14 @@ export const loginUser = async (req, res, next) => {
  */
 export const logout = async (req, res, next) => {
    try {
-      if (req.params.id !== req?.userId) {
+      const { id } = req.params;
+      console.log(req?.userId);
+      if (!id || !req.userId)
+         return res.status(400).json({ message: 'User id not passed' });
+      if (req.userId !== id)
          return res
-            .status(403)
-            .json({ message: 'You are not authorized to perform this action' });
-      }
+            .status(401)
+            .json({ message: 'You can not perform this action' });
       res.clearCookie('token').status(200).json({ message: 'Logged out' });
    } catch (error) {
       if (!error.statusCode) {
@@ -170,19 +173,63 @@ export const updateUser = async (req, res, next) => {
  */
 export const getUsers = async (_, res, next) => {
    try {
+      console.log('getting users...');
       const users = await prisma.user.findMany();
       const usersWithoutPassword = users.map((user) => {
          const { password: Omit, ...userInfo } = user;
          return userInfo;
       });
-      res.status(200).json({ users: usersWithoutPassword });
+
+      return res.status(200).json({ users: usersWithoutPassword });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      res.status(500).json({
+      return res.status(500).json({
          message: error.message ?? 'Something went wrong',
       });
+      // next(error);
+   }
+};
+
+/**
+ *@name getUserProfile
+ *@description get a user profile
+ *@type {import('express').RequestHandler}
+ */
+export const getUserProfile = async (req, res, next) => {
+   try {
+      const { userId } = req.params;
+
+      if (!userId)
+         return res.status(400).json({ message: 'User id not passed' });
+
+      const user = await prisma.user.findUnique({
+         where: {
+            id: userId,
+         },
+         select: {
+            id: true,
+            email: true,
+            firstname: true,
+            lastname: true,
+            phoneNumber: true,
+            createdAt: true,
+            accountVerified: true,
+         },
+      });
+
+      if (!user) {
+         return res.status(404).json({ message: 'User not found' });
+      }
+
+      return res.status(200).json({ user });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+      res.status(500).json({ message: 'Something went wrong!!' });
       next(error);
    }
 };
@@ -194,6 +241,10 @@ export const getUsers = async (_, res, next) => {
  */
 export const getUser = async (req, res, next) => {
    try {
+      if (!req.params.id) {
+         return res.status(400).json({ message: 'User id not passed' });
+      }
+
       const user = await prisma.user.findUnique({
          where: {
             id: req.params.id,

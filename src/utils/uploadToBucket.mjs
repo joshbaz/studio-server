@@ -54,15 +54,24 @@ export const uploadToBucket = async ({
 
       const { $metadata: Omit, ETag, ...response } = await upload.done();
 
-      // console.log('uploadParams', uploadParams);
-
-      // const command = new PutObjectCommand(uploadParams);
-      // const response = await s3Client.send(command);
-
       return {
          url: `${env.DO_SPACESENDPOINT}/${key}`,
          ...response,
       };
+   } catch (error) {
+      throw new Error(error.message);
+   }
+};
+
+/**
+ * @name streamFromBucket
+ * @description Stream file from Digital Ocean Spaces
+ * @param {Pick<"bucketName"|"key", UploadToBucketParams>} params
+ * @returns {Promise<string>}
+ */
+export const streamFromBucket = async ({ bucketName, key }) => {
+   try {
+      // TODO: Implement streaming from Digital Ocean Spaces
    } catch (error) {
       throw new Error(error.message);
    }

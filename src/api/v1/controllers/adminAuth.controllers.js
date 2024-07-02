@@ -90,7 +90,7 @@ export const login = async (req, res, next) => {
       const token = jwt.sign(
          {
             email: existingUser.email,
-            userId: existingUser.id,
+            id: existingUser.id,
          },
          env.SECRETVA,
          staySigned === false ? { expiresIn: '24h' } : { expiresIn: '30d' }
@@ -102,7 +102,7 @@ export const login = async (req, res, next) => {
 
       res.cookie('token', token, {
          httpOnly: true,
-         //secure: true,
+         secure: process.env.NODE_ENV === 'production',
          maxAge: age,
       })
          .status(200)
@@ -118,16 +118,69 @@ export const login = async (req, res, next) => {
 };
 
 /**
+ *@name getProfile
+ *@description get a admin profile
+ *@type {import('express').RequestHandler}
+ */
+export const getProfile = async (req, res, next) => {
+   try {
+      const { adminId } = req.params;
+
+      if (!adminId)
+         return res.status(400).json({ message: 'Admin id not passed' });
+
+      const admin = await prisma.admin.findUnique({
+         where: {
+            id: adminId,
+         },
+         select: {
+            id: true,
+            email: true,
+            firstname: true,
+            lastname: true,
+            phoneNumber: true,
+            role: true,
+            privileges: true,
+            createdDate: true,
+         },
+      });
+
+      if (!admin) {
+         return res.status(404).json({ message: 'Admin not found' });
+      }
+
+      return res.status(200).json({ admin });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+      res.status(500).json({ message: 'Something went wrong!!' });
+      next(error);
+   }
+};
+
+/**
  *@name logout
  *@description logout a user
  *@type {import('express').RequestHandler}
  */
-export const logout = (_, res) => {
+export const logout = async (req, res, next) => {
    try {
-      res.clearCookie('token')
-         .status(200)
-         .json({ message: 'Logout Successful' });
+      const { id } = req.params;
+      if (!id || !req.userId)
+         return res.status(400).json({ message: 'Admin id not passed' });
+      if (req.userId !== id)
+         return res
+            .status(401)
+            .json({ message: 'You can not perform this action' });
+      res.clearCookie('token').status(200).json({ message: 'Logged out' });
    } catch (error) {
-      return res.status(500).json({ message: 'Something went wrong' });
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+      res.status(500).json({ message: 'Something went wrong!!' });
+      next(error);
    }
 };

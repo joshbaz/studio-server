@@ -7,6 +7,7 @@ import {
    getUsers,
    loginUser,
    logout,
+   getUserProfile,
 } from '../controllers/userControllers.js';
 import { body } from 'express-validator';
 
@@ -60,6 +61,7 @@ router.post(
    ],
    loginUser
 );
+router.get('/me/:userId', verifyToken, getUserProfile);
 router.post('/logout/:id', verifyToken, logout);
 router.put('/:id', verifyToken, updateUser);
 router.get('/find/:id', verifyToken, getUser);

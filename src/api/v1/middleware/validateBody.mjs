@@ -10,6 +10,7 @@ import { StatusCodes } from 'http-status-codes';
 export function validateData(schema) {
    return (req, res, next) => {
       try {
+         console.log(req);
          schema.parse(req.body);
          next();
       } catch (error) {

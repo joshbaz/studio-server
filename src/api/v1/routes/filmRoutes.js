@@ -7,6 +7,7 @@ import {
    getFilmByTag,
    getFilmWeb,
    getSingleFilm,
+   streamFilm,
    updateFilm,
    uploadFilm,
    watchFilm2,
@@ -32,13 +33,8 @@ router.put(
    validateData(filmSchemaUpdate),
    updateFilm
 );
-router.post(
-   '/upload/:filmId',
-   verifyToken,
-   // validateData(filmSchemaUpdate),
-   upload.single('film'),
-   uploadFilm
-);
+router.post('/upload/:filmId', verifyToken, upload.single('film'), uploadFilm);
+router.get('/stream/:filmId/', verifyToken, streamFilm); // TODO: add a payment middleware to check if the user has paid for the film based on the subscription plan
 // router.put('/:id', verifyToken, updateFilm);
 router.put('/add/episode/:id', addEpisode);
 router.get('/web/:keys/:t', watchFilmLink2);

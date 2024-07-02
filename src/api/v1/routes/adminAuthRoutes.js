@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+   getProfile,
    login,
    logout,
    register,
@@ -57,7 +58,7 @@ const customFunc = async (value) => {
 
    return true;
 };
-router.get(
+router.post(
    '/login',
    [
       body('email')
@@ -73,14 +74,11 @@ router.get(
    login
 );
 
+router.get('/me/:adminId', verifyToken, getProfile);
 // check if cookie tokens are valid
 router.post('/verifytoken', verifyToken, (req, res) => {
-   console.log(req.userId);
    res.status(200).json({ message: 'Token is valid' });
 });
-
-router.post('/logout', verifyToken, logout);
-
-// router.post('/google', login);
+router.post('/logout/:id', verifyToken, logout);
 
 export default router;

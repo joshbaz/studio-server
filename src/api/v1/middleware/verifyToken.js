@@ -8,14 +8,25 @@ import { env } from '@/env.mjs';
  * @returns void
  */
 export const verifyToken = (req, res, next) => {
-   const token = req.cookies.token;
+   try {
+      const token = req.cookies.token;
 
-   if (!token) return res.status(401).json({ message: 'Not Authenticated!' });
+      if (!token) {
+         return res.status(401).json({ message: 'Not Authenticated!' });
+      }
 
-   jwt.verify(token, env.SECRETVA, async (err, payload) => {
-      if (err) return res.status(403).json({ message: 'Token is not Valid!' });
+      jwt.verify(token, env.SECRETVA, async (err, payload) => {
+         if (err) {
+            return res.status(403).json({ message: 'Token is not Valid!' });
+         }
 
-      req.userId = payload.userId;
-      next();
-   });
+         req.userId = payload.id;
+         next();
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(500).json({ message: 'Something went wrong' });
+   }
 };

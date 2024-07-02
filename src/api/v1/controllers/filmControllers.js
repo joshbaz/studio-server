@@ -291,6 +291,26 @@ export const streamFilm = async (req, res, next) => {
    }
 };
 
+/**
+ * @name fetchFilms
+ * @description function to fetch all films
+ * @type {import('express').RequestHandler}
+ */
+
+export const fetchFilms = async (_, res,next) => {
+   try {
+      const films = await prisma.film.findMany();
+      res.status(200).json({ films });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+      next(error);
+   }
+
+}
+
 
 export const addFilm = async (req, res, next) => {
    try {

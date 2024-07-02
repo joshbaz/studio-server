@@ -1,6 +1,7 @@
 import * as express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 import api from '@/api/index.mjs';
 import { env } from './env.mjs';
 
@@ -26,8 +27,16 @@ export default function customizeApp(app) {
       preflightContinue: false,
       credentials: true,
    };
-
    app.use(cors(corsOptions));
+
+   // Rate limiter
+   const limiter = rateLimit({
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // limit each IP to 100 requests per windowMs
+   });
+   app.use(limiter);
+
+   // Cookie parser
    app.use(cookieParser());
 
    // API routes

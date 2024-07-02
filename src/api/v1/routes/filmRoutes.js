@@ -13,6 +13,7 @@ import {
    watchFilm2,
    watchFilmLink2,
    watchFilms,
+   fetchFilms,
    watchtrailerFilms,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
@@ -34,7 +35,8 @@ router.put(
    updateFilm
 );
 router.post('/upload/:filmId', verifyToken, upload.single('film'), uploadFilm);
-router.get('/stream/:filmId/', verifyToken, streamFilm); // TODO: add a payment middleware to check if the user has paid for the film based on the subscription plan
+router.get('/stream/:filmId/', verifyToken, streamFilm);
+router.get('/all', verifyToken, fetchFilms);
 // router.put('/:id', verifyToken, updateFilm);
 router.put('/add/episode/:id', addEpisode);
 router.get('/web/:keys/:t', watchFilmLink2);

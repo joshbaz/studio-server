@@ -1,5 +1,9 @@
 import { env } from '@/env.mjs';
-import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+   S3Client,
+   PutObjectCommand,
+   DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 
 export const s3Client = new S3Client({
@@ -72,6 +76,28 @@ export const uploadToBucket = async ({
 export const streamFromBucket = async ({ bucketName, key }) => {
    try {
       // TODO: Implement streaming from Digital Ocean Spaces
+   } catch (error) {
+      throw new Error(error.message);
+   }
+};
+
+/**
+ * @name deleteFromBucket
+ * @description Delete file from Digital Ocean Spaces
+ * @param {Pick<"bucketName"|"key", UploadToBucketParams>} params
+ * @returns {Promise<string>}
+ */
+export const deleteFromBucket = async ({ bucketName, key }) => {
+   try {
+      console.log(bucketName, key);
+      const deleteParams = {
+         Bucket: bucketName,
+         Key: key,
+      };
+
+      const command = new DeleteObjectCommand(deleteParams);
+      const response = await s3Client.send(command);
+      return response;
    } catch (error) {
       throw new Error(error.message);
    }

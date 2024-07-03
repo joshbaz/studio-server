@@ -1,30 +1,11 @@
-// import filmModels from '../v1/0-models/film.models.js';
-// import episodeModels from '../v1/0-models/episodes.models.js';
-import fs from 'fs';
 import {
    S3Client,
-   CreateBucketCommand,
    GetObjectCommand,
    HeadObjectCommand,
 } from '@aws-sdk/client-s3';
 import { env } from '@/env.mjs';
-import { s3Client, uploadToBucket } from '@/utils/uploadToBucket.mjs';
+import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
 import prisma from '@/utils/db.mjs';
-import { url } from 'inspector';
-
-// const bucketName = process.env.bucketName;
-// const spacesEndpoint = process.env.spacesEndPoint;
-// const region = process.env.region;
-
-// const credentials = {
-//    accessKeyId: process.env.DS_AccessKey,
-//    secretAccessKey: process.env.DS_SecretKey,
-// };
-// const spaceClient = new createClient({
-//   region,
-//   endpoint: spacesEndpoint,
-//   credentials,
-// });
 
 const s3 = new S3Client({
    region: 'fra1',
@@ -149,7 +130,7 @@ export const updateFilm = async (req, res, next) => {
 export const uploadFilm = async (req, res, next) => {
    try {
       const { filmId } = req.params;
-      const { adminId, ...rest } = req.body;
+      const { adminId } = req.body;
 
       await isVerifiedAdmin(adminId, res);
 
@@ -205,89 +186,74 @@ export const uploadFilm = async (req, res, next) => {
 export const streamFilm = async (req, res, next) => {
    try {
       const { filmId } = req.params;
+      const range = req.headers.range;
+
+      if (!range) {
+         return res.status(400).json({ message: 'Range header is required' });
+      }
 
       const film = await prisma.film.findUnique({
          where: { id: filmId },
       });
+
       if (!film) {
          return res.status(404).json({ message: 'Film not found' });
       }
 
+      // find video related to the film
       const video = await prisma.video.findFirst({
          where: { filmId },
       });
 
-      console.log('video', video);
       if (!video) {
          return res.status(404).json({ message: 'No video found' });
       }
 
+      // create stream parameters
       const streamParams = {
-         bucketName: filmId,
-         key: video.name,
+         Bucket: filmId,
+         Key: video.name,
       };
 
-      console.log('streamParams', streamParams);
+      const data = await s3Client.send(new HeadObjectCommand(streamParams));
 
-      const command = new GetObjectCommand({
-         Bucket: streamParams.bucketName,
-         Key: streamParams.key,
-      });
-      const response = await s3Client.send(command);
+      let { ContentLength, ContentType } = data;
 
-      console.log('response', response);
+      // const parts = range.replace(/bytes=/, '').split('-');
+      // const start = parseInt(parts[0], 10);
+      // const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
 
-      // HeadObjectCommand(streamParams, async (err, data) => {
-      //    if (err) {
-      //       console.log(err);
-      //       return res.status(500).send('Internal Server Error');
-      //    }
+      // console.log('start', start, 'end', end);
 
-      //    console.log('data', data);
-      //    let { ContentLength, ContentType, AcceptRanges } = data;
-      //    const CHUNK_SIZE = 10 ** 6;
-      //    if (range) {
-      //       const parts = range.replace(/bytes=/, '').split('-');
-      //       console.log('starts here', parts);
-      //       const start = parseInt(parts[0], 10);
-      //       const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
+      const CHUNK_SIZE = 20 ** 6; // 2MB
+      const start = Number(range.replace(/\D/g, ''));
+      const end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
 
-      //       const chunkSize = end - start + 1;
-      //       const headers = {
-      //          'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
-      //          'Accept-Ranges': 'bytes',
-      //          'Content-Length': chunkSize,
-      //          'Content-Type': ContentType,
-      //       };
+      const chunkSize = end - start + 1;
+      const headers = {
+         'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
+         'Accept-Ranges': 'bytes',
+         'Content-Length': chunkSize,
+         'Content-Type': ContentType,
+      };
 
-      //       res.writeHead(206, headers);
+      // send the headers
+      res.writeHead(206, headers);
 
-      //       //readable stream
-      //       const stream = s3Client
-      //          .getObject({ ...streamParams, Range: `bytes=${start}-${end}` })
-      //          .createReadStream();
+      // readable stream
+      const stream = await s3Client.send(
+         new GetObjectCommand({
+            ...streamParams,
+            Range: `bytes=${start}-${end}`,
+         })
+      );
 
-      //       stream.pipe(res);
-      //    } else {
-      //       console.log('No headers - starts here');
-      //       //no range provided.
-      //       const headers = {
-      //          'Content-Length': ContentLength,
-      //          'Content-Type': ContentType,
-      //       };
-
-      //       res.writeHead(200, headers);
-      //       s3Client.getObject(streamParams).createReadStream().pipe(res);
-      //    }
-      // });
-      // stream.pipe(res);
-      res.status(200).json({ message: 'Stream successful' });
+      stream.Body.pipe(res);
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      res.status(error.statusCode).json({ message: error.message });
-      next(error);
+      return res.status(error.statusCode).json({ message: error.message });
    }
 };
 
@@ -297,7 +263,7 @@ export const streamFilm = async (req, res, next) => {
  * @type {import('express').RequestHandler}
  */
 
-export const fetchFilms = async (_, res,next) => {
+export const fetchFilms = async (_, res, next) => {
    try {
       const films = await prisma.film.findMany();
       res.status(200).json({ films });
@@ -308,9 +274,7 @@ export const fetchFilms = async (_, res,next) => {
       res.status(error.statusCode).json({ message: error.message });
       next(error);
    }
-
-}
-
+};
 
 export const addFilm = async (req, res, next) => {
    try {
@@ -1129,6 +1093,50 @@ export const getFilmBySearch = async (req, res, next) => {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
+      next(error);
+   }
+};
+
+/**
+ *
+ * @name deleteFilm
+ * @description function to delete a film
+ * @type {import('express').RequestHandler}
+ */
+export const deleteFilm = async (req, res, next) => {
+   try {
+      const { filmId } = req.params;
+      const { adminId } = req.body;
+
+      await isVerifiedAdmin(adminId, res);
+
+      const videos = await prisma.video.findMany({
+         where: { filmId },
+      });
+
+      console.log('videos', videos, filmId);
+
+      if (videos.length > 0) {
+         for (let video of videos) {
+            await deleteFromBucket({ bucketName: filmId, key: video.name });
+         }
+      } else {
+         return res.status(404).json({ message: 'No videos found' });
+      }
+
+      const film = await prisma.film.delete({
+         where: { id: filmId },
+      });
+
+      res.status(200).json({
+         film,
+         message: `Deleted ${film.title} successfully`,
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
       next(error);
    }
 };

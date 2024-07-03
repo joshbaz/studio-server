@@ -15,6 +15,7 @@ import {
    watchFilms,
    fetchFilms,
    watchtrailerFilms,
+   deleteFilm,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
@@ -48,5 +49,6 @@ router.get('/tags', getFilmByTag);
 router.get('/search', getFilmBySearch);
 
 router.post('/trailer/:id', verifyToken, watchtrailerFilms);
+router.delete('/delete/:filmId', verifyToken, deleteFilm);
 
 export default router;

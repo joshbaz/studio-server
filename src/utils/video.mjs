@@ -1,10 +1,6 @@
 import { env } from '@/env.mjs';
-import {
-   S3Client,
-   PutObjectCommand,
-   DeleteObjectCommand,
-} from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 
 export const s3Client = new S3Client({
    region: 'fra1',
@@ -22,6 +18,7 @@ export const s3Client = new S3Client({
  * @property {string} key
  * @property {Buffer} buffer
  * @property {string} contentType
+ * @property {boolean} isPublic
  */
 
 /**
@@ -35,6 +32,7 @@ export const uploadToBucket = async ({
    key,
    buffer,
    contentType,
+   isPublic,
 }) => {
    try {
       const uploadParams = {
@@ -42,6 +40,7 @@ export const uploadToBucket = async ({
          Bucket: bucketName,
          Body: buffer,
          ContentType: contentType,
+         ACL: isPublic ? 'public-read' : 'private',
       };
 
       const upload = new Upload({
@@ -59,7 +58,7 @@ export const uploadToBucket = async ({
       const { $metadata: Omit, ETag, ...response } = await upload.done();
 
       return {
-         url: `${env.DO_SPACESENDPOINT}/${key}`,
+         url: `${env.DO_SPACESENDPOINT}/${bucketName}/${key}`,
          ...response,
       };
    } catch (error) {

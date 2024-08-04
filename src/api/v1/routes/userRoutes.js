@@ -8,15 +8,18 @@ import {
    loginUser,
    logout,
    getUserProfile,
+   sendOTP,
+   verifyOTP,
 } from '../controllers/userControllers.js';
 import { body } from 'express-validator';
+import rateLimit from 'express-rate-limit';
 
 import { verifyToken } from '../middleware/verifyToken.js';
 import prisma from '@/utils/db.mjs';
 
 const router = express.Router();
 
-const customEmailFunc = async (value) => {
+const customEmailFunc = async (value, req) => {
    const user = await prisma.user.findUnique({
       where: {
          email: value,
@@ -24,32 +27,62 @@ const customEmailFunc = async (value) => {
    });
 
    if (user) {
-      throw new Error('This email is already in use');
+      throw new Error('Something went wrong. Please try again');
    }
 };
 
-const customEmailFuncLogin = async (value) => {
+const customPhoneNumberFunc = async (value) => {
+   console.log('customPhoneNumberFunc', value);
    const user = await prisma.user.findUnique({
       where: {
-         email: value,
+         phoneNumber: value,
+      },
+   });
+
+   console.log('user', user);
+
+   if (user) {
+      return res.status(400).json({ message: 'Something went wrong' });
+   }
+};
+
+const customEmailFuncLogin = async (value, _, res) => {
+   const user = await prisma.user.findUnique({
+      where: {
+         email: value.email,
       },
    });
 
    if (!user) {
-      throw new Error('Invalid email or password');
+      return res
+         .status(400)
+         .json({ message: 'Something went wrong, while logging in' });
    }
 };
 
 router.post(
    '/register',
-   [
-      body('email')
-         .isEmail()
-         .withMessage('Please enter a valid email')
-         .custom(customEmailFunc),
-   ],
+   // [
+   //    body('email')
+   //       .isEmpty()
+   //       .isEmail()
+   //       .withMessage('Please enter a valid email or phone number')
+   //       .custom(customEmailFunc),
+   //    body('phoneNumber')
+   //       .isEmpty()
+   //       .isMobilePhone(['en-UG', 'en-KE'])
+   //       .withMessage('Please enter a valid email or phone number')
+   //       .custom(customPhoneNumberFunc),
+   // ],
    createUser
 );
+const otpLimiter = rateLimit({
+   windowMs: 10 * 60 * 1000,
+   max: 5,
+   message: 'Too many requests from this IP, please try again after 10 minutes',
+});
+router.post('/sendotp', otpLimiter, sendOTP);
+router.post('/verifyotp', otpLimiter, verifyOTP);
 router.post(
    '/login',
    [

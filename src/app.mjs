@@ -22,7 +22,11 @@ export default function customizeApp(app) {
     * @type {cors.CorsOptions}
     */
    const corsOptions = {
-      origin: [env.CLIENT_URL],
+      origin: [
+         env.CLIENT_URL,
+         'http://localhost:8081',
+         'http://192.168.0.184:4500',
+      ],
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
       preflightContinue: false,
       credentials: true,
@@ -52,6 +56,7 @@ export default function customizeApp(app) {
 
    //Error handling - 5xx
    app.use((err, _, res) => {
+      console.error(err);
       if (!err.statusCode) {
          err.statusCode = 500;
       }

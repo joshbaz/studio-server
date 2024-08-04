@@ -21,25 +21,173 @@ const s3 = new S3Client({
  * @name isVerifiedAdmin
  * @description Check if the admin is verified
  * @param {String} adminId
- * @param {import("express").Request} res
+ * @param {import("express").Response} res
  * @returns void
  */
-async function isVerifiedAdmin(adminId, res) {
+async function verifyAdmin(adminId, res) {
+   if (!adminId) {
+      const error = new Error(
+         'You do not have the right permissions for this action'
+      );
+      error.statusCode = 400;
+      throw error;
+   }
+   console.log('adminId', adminId);
    const existingAdmin = await prisma.admin.findUnique({
       where: { id: adminId },
       select: { role: true, deactivated: true },
    });
    if (!existingAdmin) {
-      return res
-         .status(404)
-         .json({ message: 'You cannot perform this action' });
+      const error = new Error('You cannot perform this action');
+      error.statusCode = 404;
+      throw error;
    }
    if (existingAdmin.role !== 'admin' || existingAdmin.deactivated) {
-      return res
-         .status(403)
-         .json({ message: 'You are not authorized to perform this action' });
+      const error = new Error('You are not authorized to perform this action');
+      error.statusCode = 403;
+      throw error;
    }
 }
+
+/**
+ * @name checkUploadPermission
+ * @description function to check upload permission
+ * @param {Express.Request} req
+ * @param {Express.Response} res
+ * @param {String} adminId
+ * @returns  {Promise<File>}
+ */
+
+async function checkUploadPermission(req, res, adminId) {
+   await verifyAdmin(adminId, res);
+
+   const { filmId } = req.params;
+
+   if (!filmId) {
+      return res.status(400).json({ message: 'No film selected' });
+   }
+   const film = await prisma.film.findUnique({
+      where: { id: filmId },
+   });
+
+   if (!film) {
+      const error = new Error('Film not found');
+      error.statusCode = 404;
+      throw error;
+   }
+
+   // get the file from the request
+   const file = req.file;
+   console.log('file', file);
+   if (!file) {
+      const error = new Error('No file uploaded');
+      error.statusCode = 400;
+      throw error;
+   }
+
+   return { film, file };
+}
+
+/**
+ * @name streamVideo
+ * @description function to stream video from bucket to client return a video stream
+ * @param {Object} params
+ * @param {String} params.bucketName
+ * @param {String} params.key
+ * @param {String} params.range
+ * @param {import('express').Response} res
+ * @returns {Promise<import('@aws-sdk/client-s3').GetObjectCommandOutput>} stream
+ */
+export const streamVideo = async ({ bucketName, key, range }, res) => {
+   // create stream parameters
+   const streamParams = {
+      Bucket: bucketName,
+      Key: key,
+   };
+
+   const data = await s3Client.send(new HeadObjectCommand(streamParams));
+
+   let { ContentLength, ContentType } = data;
+
+   console.log('Data', data);
+   console.log('Range', range);
+   const CHUNK_SIZE = 10 ** 6; // 1MB
+
+   if (!range) {
+      console.log('No headers - starts here');
+      let start = 0;
+      let end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
+      console.log('end', end);
+      while (start < ContentLength) {
+         const ranges = `bytes=${start}-${end}`;
+         const headers = {
+            'Content-Range': `${ranges}/${ContentLength}`,
+            'Accept-Ranges': 'bytes',
+            'Content-Length': end - start + 1,
+            'Content-Type': ContentType,
+         };
+
+         res.writeHead(206, headers);
+         start = end;
+
+         if (start < ContentLength) {
+            res.flushHeaders(); // Send the chunk immediately
+         }
+
+         return s3Client.send(
+            new GetObjectCommand({ ...streamParams, Range: ranges })
+         );
+         // s3Cli.send(
+         //    new GetObjectCommand({ ...streamParams, Range: ranges }),
+         //    (err, streamData) => {
+         //       if (err) {
+         //          res.status(500).json('error');
+         //       }
+         //       let stream = streamData.Body;
+         //       res.write(stream);
+         //       start = end;
+         //       end = Math.min(start + MAX_CHUNK_SIZE, ContentLength);
+         //       if (start < ContentLength) {
+         //          res.flushHeaders(); // Send the chunk immediately
+         //       }
+         //    }
+         // );
+      }
+
+      res.end();
+   }
+
+   // range : bytes=NAN-
+   const parts = range.replace(/bytes=/, '').split('-');
+   const start = parseInt(parts[0], 10);
+   const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
+   // const start = Number(range.replace(/\D/g, ''));
+   // const end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
+
+   console.log('Start:', start);
+   console.log('End:', end);
+
+   const chunkSize = end - start + 1;
+   const headers = {
+      'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunkSize,
+      'Content-Type': ContentType,
+   };
+
+   console.log('headers', headers);
+
+   // send the headers
+   res.writeHead(206, headers);
+
+   // readable stream
+   return s3Client.send(
+      new GetObjectCommand({
+         ...streamParams,
+         Range: `bytes=${start}-${end}`,
+      })
+   );
+};
 
 /**
  * @name formatFileSize
@@ -68,7 +216,7 @@ export const createFilm = async (req, res, next) => {
    try {
       const { title, overview, plotSummary, releaseDate, adminId } = req.body;
 
-      await isVerifiedAdmin(adminId, res);
+      await verifyAdmin(adminId, res);
 
       const newFilm = await prisma.film.create({
          data: {
@@ -102,7 +250,7 @@ export const updateFilm = async (req, res, next) => {
       const { filmId } = req.params;
       const { adminId, ...rest } = req.body;
 
-      await isVerifiedAdmin(adminId, res);
+      await verifyAdmin(adminId, res);
 
       const updatedFilm = await prisma.film.update({
          where: { id: filmId },
@@ -131,21 +279,7 @@ export const uploadFilm = async (req, res, next) => {
    try {
       const { filmId } = req.params;
       const { adminId } = req.body;
-
-      await isVerifiedAdmin(adminId, res);
-
-      const film = await prisma.film.findUnique({
-         where: { id: filmId },
-      });
-      if (!film) {
-         return res.status(404).json({ message: 'Film not found' });
-      }
-
-      // get the file from the request
-      const file = req.file;
-      if (!file) {
-         return res.status(400).json({ message: 'No file uploaded' });
-      }
+      const { file } = await checkUploadPermission(req, res, adminId);
 
       const bucketParams = {
          bucketName: filmId,
@@ -183,14 +317,9 @@ export const uploadFilm = async (req, res, next) => {
  * @description function to stream film from bucket to client
  * @type {import('express').RequestHandler}
  */
-export const streamFilm = async (req, res, next) => {
+export const streamFilm = async (req, res) => {
    try {
       const { filmId } = req.params;
-      const range = req.headers.range;
-
-      if (!range) {
-         return res.status(400).json({ message: 'Range header is required' });
-      }
 
       const film = await prisma.film.findUnique({
          where: { id: filmId },
@@ -209,43 +338,54 @@ export const streamFilm = async (req, res, next) => {
          return res.status(404).json({ message: 'No video found' });
       }
 
-      // create stream parameters
-      const streamParams = {
-         Bucket: filmId,
-         Key: video.name,
-      };
+      const stream = await streamVideo(
+         { bucketName: filmId, key: video.name, range: req.headers.range },
+         res
+      );
 
-      const data = await s3Client.send(new HeadObjectCommand(streamParams));
+      stream.Body.pipe(res);
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      return res.status(error.statusCode).json({ message: error.message });
+   }
+};
 
-      let { ContentLength, ContentType } = data;
+/**
+ * @name streamTrailer
+ * @description function to stream trailer from bucket to client return a video stream
+ * @type {import('express').RequestHandler}
+ */
+export const streamTrailer = async (req, res) => {
+   try {
+      const { filmId, trailerId } = req.params;
+      const range = req.headers.range;
 
-      // const parts = range.replace(/bytes=/, '').split('-');
-      // const start = parseInt(parts[0], 10);
-      // const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
+      if (!range) {
+         return res.status(400).json({ message: 'Range header is required' });
+      }
 
-      // console.log('start', start, 'end', end);
+      const film = await prisma.film.findUnique({
+         where: { id: filmId },
+      });
 
-      const CHUNK_SIZE = 20 ** 6; // 2MB
-      const start = Number(range.replace(/\D/g, ''));
-      const end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
+      if (!film) {
+         return res.status(404).json({ message: 'Film not found' });
+      }
 
-      const chunkSize = end - start + 1;
-      const headers = {
-         'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
-         'Accept-Ranges': 'bytes',
-         'Content-Length': chunkSize,
-         'Content-Type': ContentType,
-      };
+      // find video related to the film
+      const trailer = await prisma.trailer.findFirst({
+         where: { filmId, id: trailerId },
+      });
 
-      // send the headers
-      res.writeHead(206, headers);
+      if (!trailer) {
+         return res.status(404).json({ message: 'No video found' });
+      }
 
-      // readable stream
-      const stream = await s3Client.send(
-         new GetObjectCommand({
-            ...streamParams,
-            Range: `bytes=${start}-${end}`,
-         })
+      const stream = await streamVideo(
+         { bucketName: filmId, key: trailer.name, range },
+         res
       );
 
       stream.Body.pipe(res);
@@ -262,10 +402,14 @@ export const streamFilm = async (req, res, next) => {
  * @description function to fetch all films
  * @type {import('express').RequestHandler}
  */
-
 export const fetchFilms = async (_, res, next) => {
    try {
-      const films = await prisma.film.findMany();
+      const films = await prisma.film.findMany({
+         include: {
+            posters: true,
+            trailers: true,
+         },
+      });
       res.status(200).json({ films });
    } catch (error) {
       if (!error.statusCode) {
@@ -273,6 +417,208 @@ export const fetchFilms = async (_, res, next) => {
       }
       res.status(error.statusCode).json({ message: error.message });
       next(error);
+   }
+};
+
+/**
+ *
+ * @name fetchFilm
+ * @description function to fetch a film by id
+ * @type {import('express').RequestHandler}
+ */
+export const fetchFilm = async (req, res, next) => {
+   try {
+      const { filmId } = req.params;
+      if (!filmId) {
+         return res.status(400).json({ message: 'No film id provided' });
+      }
+
+      const film = await prisma.film.findUnique({
+         where: { id: filmId },
+         include: {
+            posters: true,
+            cast: true,
+            crew: true,
+            trailers: true,
+            stats: true,
+            video: true,
+         },
+      });
+
+      if (!film) {
+         return res.status(404).json({ message: 'Film not found' });
+      }
+
+      res.status(200).json({ film });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+   }
+};
+/**
+ *
+ * @name fetchSimilarFilms
+ * @description function to fetch similar films
+ * @type {import('express').RequestHandler}
+ */
+export const fetchSimilarFilms = async (req, res, next) => {
+   try {
+      const { filmId } = req.params;
+
+      if (!filmId) {
+         return res.status(400).json({ message: 'No film id provided' });
+      }
+
+      console.log('filmId', filmId);
+
+      const film = await prisma.film.findUnique({
+         where: { id: filmId },
+      });
+
+      console.log('film', film);
+
+      if (!film) {
+         return res.status(404).json({ message: 'Film not found' });
+      }
+
+      // const posts = await article
+      //    .find({ $text: { $search: title } }, { score: { $meta: 'textScore' } })
+      //    .sort({ score: { $meta: 'textScore' } })
+      //    .limit(5)
+      //    .select(['-updated', '-summary', '-featured', '-tags']);
+
+      const similar = await prisma.$runCommandRaw(`
+            db.getCollection('articles').find(
+            { $text: { $search: ${film.overview} } },
+            { score: { $meta: 'textScore' } }
+         )
+         .sort({ score: { $meta: 'textScore' } })
+         .limit(5)
+         .project({ updated: 0, summary: 0, featured: 0, tags: 0 })
+         .toArray()
+  `);
+
+      console.log('similar', similar);
+
+      // const similarFilms = await prisma.film.findMany({
+      //    where: {
+      //       // id: { $not: filmId },
+      //       $text: { $search: film.title },
+      //       score: { $meta: 'textScore' },
+      //    },
+      //    include: {
+      //       posters: true,
+      //       trailers: true,
+      //    },
+      //    orderBy: { score: { $meta: 'textScore' } },
+      //    take: 5,
+      // });
+
+      res.status(200).json({ films: similarFilms });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+   }
+};
+
+/**
+ *
+ * @name addPosters
+ * @description function to add posters to film
+ * @type {import('express').RequestHandler}
+ */
+export const uploadPoster = async (req, res, next) => {
+   try {
+      const { filmId } = req.params;
+      const { adminId, isCover, isBackdrop } = req.body;
+
+      const { file: poster } = await checkUploadPermission(req, res, adminId);
+
+      console.log('poster', poster);
+
+      const bucketParams = {
+         bucketName: filmId,
+         key: poster.originalname,
+         buffer: poster.buffer,
+         contentType: poster.mimetype,
+         isPublic: true,
+      };
+
+      const data = await uploadToBucket(bucketParams);
+      const posterData = {
+         url: data.url,
+         type: poster.mimetype,
+         isCover: isCover === 'true' ? true : false,
+         isBackdrop: isBackdrop === 'true' ? true : false,
+         filmId,
+      };
+
+      // create a new poster
+      const newPoster = await prisma.poster.create({
+         data: posterData,
+      });
+
+      res.status(201).json({
+         poster: newPoster,
+         message: 'Poster added successfully',
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(error.statusCode).json({ message: error.message });
+      next(error);
+   }
+};
+
+/**
+ *
+ * @name upload trailer
+ * @description function to upload trailer to bucket and get signed url
+ * @type {import('express').RequestHandler}
+ */
+export const uploadTrailer = async (req, res) => {
+   try {
+      const { filmId } = req.params;
+      const { adminId } = req.body;
+
+      const { file } = await checkUploadPermission(req, adminId);
+
+      const bucketParams = {
+         bucketName: filmId,
+         key: file.originalname,
+         buffer: file.buffer,
+         contentType: file.mimetype,
+      };
+
+      const data = await uploadToBucket(bucketParams);
+      const trailerData = {
+         url: data.url,
+         format: file.mimetype,
+         name: file.originalname, // used as the key in the bucket
+         size: formatFileSize(file.size),
+         encoding: file.encoding,
+         filmId,
+      };
+
+      // create a new trailer
+      const newTrailer = await prisma.trailer.create({
+         data: trailerData,
+      });
+
+      res.status(201).json({
+         trailer: newTrailer,
+         message: 'Trailer added successfully',
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      return res.status(error.statusCode).json({ message: error.message });
    }
 };
 
@@ -1108,7 +1454,7 @@ export const deleteFilm = async (req, res, next) => {
       const { filmId } = req.params;
       const { adminId } = req.body;
 
-      await isVerifiedAdmin(adminId, res);
+      await verifyAdmin(adminId, res);
 
       const videos = await prisma.video.findMany({
          where: { filmId },

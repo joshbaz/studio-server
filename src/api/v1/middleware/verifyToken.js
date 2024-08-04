@@ -9,7 +9,10 @@ import { env } from '@/env.mjs';
  */
 export const verifyToken = (req, res, next) => {
    try {
-      const token = req.cookies.token;
+      const token =
+         req.token ||
+         (req.headers.authorization && req.headers.authorization.split(' ')[1]);
+      // const token = authHeader && authHeader.split(' ')[1];
 
       if (!token) {
          return res.status(401).json({ message: 'Not Authenticated!' });
@@ -24,6 +27,7 @@ export const verifyToken = (req, res, next) => {
          next();
       });
    } catch (error) {
+      console.log(error);
       if (!error.statusCode) {
          error.statusCode = 500;
       }

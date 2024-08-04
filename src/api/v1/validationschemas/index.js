@@ -23,3 +23,10 @@ export const filmSchema = z.object({
 export const filmSchemaUpdate = z.object({
    adminId: z.string({ message: 'Admin ID is required' }),
 });
+
+export const paymentSchema = z.object({
+   plan: z.string({ message: 'Plan is required' }),
+   paymentMethod: z.string({ message: 'Payment method is required' }),
+   phoneNumber: z.string({ message: 'Contact is required' }),
+   keepDetails: z.boolean({ message: 'Keep details is required' }),
+});

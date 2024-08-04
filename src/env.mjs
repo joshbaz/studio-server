@@ -11,6 +11,8 @@ export const env = createEnv({
          .default(''),
       PORT: z.number({ message: 'PORT should be a number' }).default(4500),
       SECRETVA: z.string({ message: 'SECRETIVA is required' }),
+
+      // Digital Ocean
       DO_SPACESENDPOINT: z.string({ message: 'Spaces endpoint is required' }),
       DO_SPACESBUCKET: z.string({ message: 'Spaces bucket name is required' }),
       DO_SPACEACCESSKEY: z.string({
@@ -20,6 +22,17 @@ export const env = createEnv({
          message: 'Spaces secret key is required',
       }),
       CLIENT_URL: z.string().optional(),
+
+      // Resend
+      RESEND_API_KEY: z
+         .string({ message: 'RESEND_API_KEY is required' })
+         .optional(), // TODO: make this required
+      RESEND_API_HOST: z
+         .string({ message: 'RESEND_API_HOST is required' })
+         .optional(),
+
+      // Africas Talking SMS API
+      AT_API_KEY: z.string({ message: 'AT_API_KEY is required' }),
    },
    runtimeEnv: process.env,
 });

@@ -16,6 +16,11 @@ import {
    fetchFilms,
    watchtrailerFilms,
    deleteFilm,
+   uploadPoster,
+   fetchFilm,
+   uploadTrailer,
+   streamTrailer,
+   fetchSimilarFilms,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
@@ -26,6 +31,21 @@ const router = express.Router();
 
 const upload = multer({
    storage: multer.memoryStorage(),
+   fileFilter: (_, file, cb) => {
+      const supportedTypes = [
+         'video/mp4',
+         'video/MOV',
+         'video/avi',
+         'video/mpeg',
+         'image/jpeg',
+         'image/png',
+      ];
+      if (supportedTypes.includes(file.mimetype)) {
+         cb(null, true);
+      } else {
+         cb(null, false);
+      }
+   },
 });
 
 router.post('/create', verifyToken, validateData(filmSchema), createFilm);
@@ -36,14 +56,30 @@ router.put(
    updateFilm
 );
 router.post('/upload/:filmId', verifyToken, upload.single('film'), uploadFilm);
-router.get('/stream/:filmId/', verifyToken, streamFilm);
+
+router.post(
+   '/upload/trailer/:filmId',
+   verifyToken,
+   upload.single('trailer'),
+   uploadTrailer
+);
+
+router.post(
+   '/poster/:filmId',
+   verifyToken,
+   upload.single('poster'),
+   uploadPoster
+);
+router.get('/stream/:filmId', streamFilm);
+router.get('/stream/:filmId/trailer/:trailerId', verifyToken, streamTrailer);
 router.get('/all', verifyToken, fetchFilms);
+router.get('/:filmId', verifyToken, fetchFilm);
+router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);
 // router.put('/:id', verifyToken, updateFilm);
 router.put('/add/episode/:id', addEpisode);
 router.get('/web/:keys/:t', watchFilmLink2);
 router.get('/:keys', watchFilm2);
 router.get('/', getFilmWeb);
-router.get('/sfilm/:id', getSingleFilm);
 router.post('/:id', verifyToken, watchFilms);
 router.get('/tags', getFilmByTag);
 router.get('/search', getFilmBySearch);

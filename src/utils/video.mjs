@@ -48,6 +48,7 @@ export const uploadToBucket = async ({
          params: uploadParams,
       });
 
+      // remove this as its only for backend testing ...
       upload.on('httpUploadProgress', (progress) => {
          const customProgress = Math.floor(
             (progress.loaded / progress.total) * 100

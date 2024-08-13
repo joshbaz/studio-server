@@ -135,7 +135,6 @@ model film {
   visibility        String?
   filmModel         String?
   status            String             @default("offline")
-  trailers          trailer[]
   posters           poster[]
   cast              cast[]
   stats             stats[]
@@ -165,19 +164,6 @@ model subtitleLanguage {
 
   film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId String? @db.ObjectId
-}
-
-model trailer {
-  id       String  @id @default(auto()) @map("_id") @db.ObjectId
-  url      String
-  format   String
-  name     String
-  size     String?
-  encoding String?
-
-  isYoutube Boolean @default(false)
-  film      film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId    String? @db.ObjectId
 }
 
 model poster {
@@ -270,6 +256,8 @@ model video {
   size       String?
   codec      String?
   encoding   String?
+  duration   Int?     @default(0)
+  isTrailer  Boolean  @default(false)
   film       film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId     String?  @db.ObjectId
   createdAt  DateTime @default(now())

@@ -41,6 +41,8 @@ export const createUser = async (req, res, next) => {
             },
          });
 
+         console.log('user', user);
+
          if (user) {
             return res
                .status(400)
@@ -50,6 +52,12 @@ export const createUser = async (req, res, next) => {
          const user = await prisma.user.findFirst({
             where: {
                email: email,
+            },
+            select: {
+               email: true,
+               id: true,
+               firstname: true,
+               lastname: true,
             },
          });
 
@@ -380,6 +388,13 @@ export const sendOTP = async (req, res, next) => {
             message: 'Something went wrong while generating your code',
          });
       }
+
+      // check if if there are other OTPs for the same user and delete them
+      await prisma.otp.deleteMany({
+         where: {
+            userId: user.id,
+         },
+      });
 
       const otpfromDb = await prisma.otp.create({
          data: {

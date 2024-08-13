@@ -1,26 +1,16 @@
 import express from 'express';
 import {
-   addEpisode,
-   addFilm,
    createFilm,
    getFilmBySearch,
-   getFilmByTag,
-   getFilmWeb,
-   getSingleFilm,
    streamFilm,
    updateFilm,
-   uploadFilm,
-   watchFilm2,
-   watchFilmLink2,
-   watchFilms,
+   uploadVideo,
    fetchFilms,
-   watchtrailerFilms,
    deleteFilm,
    uploadPoster,
    fetchFilm,
-   uploadTrailer,
-   streamTrailer,
    fetchSimilarFilms,
+   getVideoSource,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
@@ -55,14 +45,7 @@ router.put(
    validateData(filmSchemaUpdate),
    updateFilm
 );
-router.post('/upload/:filmId', verifyToken, upload.single('film'), uploadFilm);
-
-router.post(
-   '/upload/trailer/:filmId',
-   verifyToken,
-   upload.single('trailer'),
-   uploadTrailer
-);
+router.post('/upload/:filmId', verifyToken, upload.single('film'), uploadVideo);
 
 router.post(
    '/poster/:filmId',
@@ -71,20 +54,12 @@ router.post(
    uploadPoster
 );
 router.get('/stream/:filmId', streamFilm);
-router.get('/stream/:filmId/trailer/:trailerId', verifyToken, streamTrailer);
-router.get('/all', verifyToken, fetchFilms);
+router.get('/all', fetchFilms);
 router.get('/:filmId', verifyToken, fetchFilm);
 router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);
-// router.put('/:id', verifyToken, updateFilm);
-router.put('/add/episode/:id', addEpisode);
-router.get('/web/:keys/:t', watchFilmLink2);
-router.get('/:keys', watchFilm2);
-router.get('/', getFilmWeb);
-router.post('/:id', verifyToken, watchFilms);
-router.get('/tags', getFilmByTag);
+router.get('/track/:trackid', getVideoSource);
 router.get('/search', getFilmBySearch);
 
-router.post('/trailer/:id', verifyToken, watchtrailerFilms);
 router.delete('/delete/:filmId', verifyToken, deleteFilm);
 
 export default router;

@@ -287,6 +287,7 @@ export const uploadVideo = async (req, res, next) => {
          key: file.originalname,
          buffer: file.buffer,
          contentType: file.mimetype,
+         isPublic: true,
       };
 
       const data = await uploadToBucket(bucketParams);

@@ -11,6 +11,8 @@ import {
    fetchFilm,
    fetchSimilarFilms,
    getVideoSource,
+   addWatchList,
+   getWatchList,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
@@ -53,11 +55,14 @@ router.post(
    upload.single('poster'),
    uploadPoster
 );
+router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
+
 router.get('/stream/:filmId', streamFilm);
 router.get('/all', fetchFilms);
 router.get('/:filmId', verifyToken, fetchFilm);
 router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);
 router.get('/track/:trackid', getVideoSource);
+router.get('/watchlist/:filmId/:userId', verifyToken, getWatchList);
 router.get('/search', getFilmBySearch);
 
 router.delete('/delete/:filmId', verifyToken, deleteFilm);

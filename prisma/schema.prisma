@@ -50,6 +50,7 @@ model user {
   Otp               otp[]
   Subscription      subscription[]
   paymentMethod     paymentMethod[]
+  watchlist         watchlist[]
 
   @@index([email, phoneNumber, username, firstname, lastname])
 }
@@ -111,6 +112,15 @@ model watched {
   watchhistoryId String?       @db.ObjectId
 }
 
+model watchlist {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String?  @db.ObjectId
+  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @db.ObjectId
+  createdAt DateTime @default(now())
+}
+
 model film {
   id                String             @id @default(auto()) @map("_id") @db.ObjectId
   title             String
@@ -143,6 +153,7 @@ model film {
   Watchhistory      watchhistory[]
   watched           watched[]
   crew              crew[]
+  watchlist         watchlist[]
 
   @@index([title], name: "title_index")
 }

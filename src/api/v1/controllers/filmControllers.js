@@ -562,6 +562,82 @@ export const getVideoSource = async (req, res, next) => {
    }
 };
 
+/**
+ * @name bookmark - get video source
+ * @description function to get video source from the bucket
+ * @type {import('express').RequestHandler}
+ */
+export const bookmark = async (req, res, next) => {};
+
+/**
+ * @name addWatchList - Add to the watchlist
+ * @description function to add a film to the watchlist
+ * @type {import('express').RequestHandler}
+ */
+export const addWatchList = async (req, res, next) => {
+   try {
+      const { filmId, userId } = req.params;
+
+      if (!filmId || !userId) {
+         return res.status(400).json({ message: 'Film or user not found' });
+      }
+
+      // check if the film is already in the watchlist
+      const filmExists = await prisma.watchlist.findFirst({
+         where: {
+            filmId,
+            userId,
+         },
+      });
+
+      if (filmExists) {
+         return res.status(200).json({ message: 'Film already in watchlist' });
+      }
+
+      await prisma.watchlist.create({
+         data: {
+            filmId,
+            userId,
+         },
+      });
+
+      return res.status(200).json({ message: 'Added to watchlist' });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
+/**
+ * @name getWatchList - get watchlist
+ * @description function to get watchlist
+ * @type {import('express').RequestHandler}
+ */
+export const getWatchList = async (req, res, next) => {
+   try {
+      const { userId } = req.params;
+
+      if (!userId) {
+         return res.status(400).json({ message: 'User not found' });
+      }
+
+      const watchlist = await prisma.watchlist.findMany({
+         where: {
+            userId,
+         },
+      });
+
+      return res.status(200).json({ watchlist });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
 export const addEpisode = async (req, res, next) => {
    try {
       const paramsId = req.params.id;

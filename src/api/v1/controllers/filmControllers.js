@@ -398,6 +398,9 @@ export const fetchFilm = async (req, res, next) => {
             crew: true,
             stats: true,
             video: true,
+            watchlist: {
+               where: { userId: req.userId },
+            },
          },
       });
 
@@ -410,7 +413,8 @@ export const fetchFilm = async (req, res, next) => {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      res.status(error.statusCode).json({ message: error.message });
+
+      next(error);
    }
 };
 /**

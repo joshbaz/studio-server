@@ -290,7 +290,7 @@ model donation {
   userId         String?      @db.ObjectId
   createdAt      DateTime     @default(now())
   status         String       @default("pending")
-  transaction    transactions @relation(fields: [transactionsId], references: [id])
+  transaction    transaction @relation(fields: [transactionsId], references: [id])
   transactionsId String       @db.ObjectId
   film           film?        @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId         String?      @db.ObjectId
@@ -306,11 +306,11 @@ model purchase {
   expiresAt      DateTime? // Date when the purchase expires if it's a rental
   createdAt      DateTime     @default(now())
   status         String       @default("pending")
-  transaction    transactions @relation(fields: [transactionsId], references: [id])
+  transaction    transaction @relation(fields: [transactionsId], references: [id])
   transactionsId String       @db.ObjectId
 }
 
-model transactions {
+model transaction {
   id            String     @id @default(auto()) @map("_id") @db.ObjectId
   amount        Float
   type          String?    @default("subscription") // purchase, donation, subscription

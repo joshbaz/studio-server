@@ -52,6 +52,7 @@ model user {
   paymentMethod     paymentMethod[]
   watchlist         watchlist[]
   donation          donation[]
+  purchase          purchase[]
 
   @@index([email, phoneNumber, username, firstname, lastname])
 }
@@ -147,6 +148,8 @@ model film {
   visibility        String?
   filmModel         String?
   status            String             @default("offline")
+  access            String             @default("free") // free, rent or buy
+  price             Float              @default(0) // price in UGX for rent or buy
   posters           poster[]
   cast              cast[]
   stats             stats[]
@@ -157,6 +160,7 @@ model film {
   crew              crew[]
   watchlist         watchlist[]
   donation          donation[]
+  purchase          purchase[]
 
   @@index([title], name: "title_index")
 }
@@ -281,14 +285,39 @@ model video {
 
 // Donation model
 model donation {
-  id            String   @id @default(auto()) @map("_id") @db.ObjectId
-  user          user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        String?  @db.ObjectId
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  user           user?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?      @db.ObjectId
+  createdAt      DateTime     @default(now())
+  status         String       @default("pending")
+  transaction    transactions @relation(fields: [transactionsId], references: [id])
+  transactionsId String       @db.ObjectId
+  film           film?        @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId         String?      @db.ObjectId
+}
+
+// Table for film purchases by users
+model purchase {
+  id             String       @id @default(auto()) @map("_id") @db.ObjectId
+  user           user?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?      @db.ObjectId
+  film           film?        @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId         String?      @db.ObjectId
+  expiresAt      DateTime? // Date when the purchase expires if it's a rental
+  createdAt      DateTime     @default(now())
+  status         String       @default("pending")
+  transaction    transactions @relation(fields: [transactionsId], references: [id])
+  transactionsId String       @db.ObjectId
+}
+
+model transactions {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
   amount        Float
+  type          String?    @default("subscription") // purchase, donation, subscription
   currency      String
-  createdAt     DateTime @default(now())
-  status        String   @default("pending")
-  transactionId String?
-  film          film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId        String?  @db.ObjectId
+  createdAt     DateTime   @default(now())
+  status        String     @default("pending")
+  transactionId String
+  purchase      purchase[]
+  donation      donation[]
 }

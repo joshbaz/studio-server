@@ -9,26 +9,28 @@ import prisma from '@/utils/db.mjs';
  * @param {import("express").Response} res
  * @returns void
  */
-async function verifyAdmin(adminId, res) {
+async function verifyAdmin(adminId) {
    if (!adminId) {
       const error = new Error(
          'You do not have the right permissions for this action'
       );
-      error.statusCode = 400;
+      error.statusCode = 401;
       throw error;
    }
+
    const existingAdmin = await prisma.admin.findUnique({
       where: { id: adminId },
       select: { role: true, deactivated: true },
    });
+
    if (!existingAdmin) {
       const error = new Error('You cannot perform this action');
-      error.statusCode = 404;
+      error.statusCode = 400;
       throw error;
    }
    if (existingAdmin.role !== 'admin' || existingAdmin.deactivated) {
       const error = new Error('You are not authorized to perform this action');
-      error.statusCode = 403;
+      error.statusCode = 401;
       throw error;
    }
 }
@@ -233,7 +235,7 @@ export const updateFilm = async (req, res, next) => {
       const { filmId } = req.params;
       const { adminId, ...rest } = req.body;
 
-      await verifyAdmin(adminId, res);
+      await verifyAdmin(adminId);
 
       const updatedFilm = await prisma.film.update({
          where: { id: filmId },
@@ -359,10 +361,8 @@ export const fetchFilms = async (req, res, next) => {
             include: {
                ...options.include,
                donation: {
-                  select: {
-                     id: true,
-                     amount: true,
-                     currency: true,
+                  include: {
+                     transaction: true,
                   },
                },
             },

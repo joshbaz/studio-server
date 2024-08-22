@@ -62,6 +62,14 @@ export const register = async (req, res, next) => {
  */
 export const login = async (req, res, next) => {
    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+         const error = errors.array().map((error) => error.msg)[0];
+         const err = new Error(error);
+         err.statusCode = 422;
+         throw err;
+      }
+
       const { email, password, staySigned } = req.body;
 
       const existingUser = await prisma.admin.findUnique({
@@ -71,11 +79,15 @@ export const login = async (req, res, next) => {
       });
 
       if (!existingUser) {
-         return res.status(404).json({ message: 'Invalid Credentials' });
+         const error = new Error('Invalid Credentials');
+         error.statusCode = 400;
+         throw error;
       }
 
       if (existingUser.deactivated) {
-         return res.status(404).json({ message: 'User deactivated' });
+         const error = new Error('User deactivated');
+         error.statusCode = 400;
+         throw error;
       }
 
       const comparePassword = await bcrypt.compare(
@@ -84,7 +96,9 @@ export const login = async (req, res, next) => {
       );
 
       if (!comparePassword) {
-         res.status(401).json({ message: 'Invalid Credentials' });
+         const error = new Error('Invalid Credentials');
+         error.statusCode = 401;
+         throw error;
       }
 
       const token = jwt.sign(
@@ -111,8 +125,6 @@ export const login = async (req, res, next) => {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      next(error);
-      res.status(500).json({ message: 'Something went wrong!!' });
       next(error);
    }
 };

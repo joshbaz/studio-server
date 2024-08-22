@@ -69,7 +69,7 @@ router.post(
       body('password')
          .trim()
          .isLength({ min: 6 })
-         .withMessage('Invalid password'),
+         .withMessage('Invalid credentials'),
    ],
    login
 );

@@ -67,13 +67,14 @@ model otp {
 }
 
 model subscription {
-  id          String   @id @default(auto()) @map("_id") @db.ObjectId
-  user        user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String?  @unique @db.ObjectId
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  user        user?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String?       @unique @db.ObjectId
   plan        String
-  status      String   @default("inactive")
-  saveDetails Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  status      String        @default("inactive")
+  saveDetails Boolean       @default(false)
+  transaction transaction[]
+  createdAt   DateTime      @default(now())
 }
 
 model paymentMethod {
@@ -285,39 +286,41 @@ model video {
 
 // Donation model
 model donation {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  user           user?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId         String?      @db.ObjectId
-  createdAt      DateTime     @default(now())
-  status         String       @default("pending")
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  user           user?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?     @db.ObjectId
+  createdAt      DateTime    @default(now())
+  status         String      @default("pending")
   transaction    transaction @relation(fields: [transactionsId], references: [id])
-  transactionsId String       @db.ObjectId
-  film           film?        @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId         String?      @db.ObjectId
+  transactionsId String      @db.ObjectId
+  film           film?       @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId         String?     @db.ObjectId
 }
 
 // Table for film purchases by users
 model purchase {
-  id             String       @id @default(auto()) @map("_id") @db.ObjectId
-  user           user?        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId         String?      @db.ObjectId
-  film           film?        @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId         String?      @db.ObjectId
+  id             String      @id @default(auto()) @map("_id") @db.ObjectId
+  user           user?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?     @db.ObjectId
+  film           film?       @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId         String?     @db.ObjectId
   expiresAt      DateTime? // Date when the purchase expires if it's a rental
-  createdAt      DateTime     @default(now())
-  status         String       @default("pending")
+  createdAt      DateTime    @default(now())
+  status         String      @default("pending")
   transaction    transaction @relation(fields: [transactionsId], references: [id])
-  transactionsId String       @db.ObjectId
+  transactionsId String      @db.ObjectId
 }
 
 model transaction {
-  id            String     @id @default(auto()) @map("_id") @db.ObjectId
-  amount        Float
-  type          String?    @default("subscription") // purchase, donation, subscription
-  currency      String
-  createdAt     DateTime   @default(now())
-  status        String     @default("pending")
-  transactionId String
-  purchase      purchase[]
-  donation      donation[]
+  id             String        @id @default(auto()) @map("_id") @db.ObjectId
+  amount         Float
+  type           String?       @default("subscription") // purchase, donation, subscription
+  currency       String
+  createdAt      DateTime      @default(now())
+  status         String        @default("pending")
+  transactionId  String
+  purchase       purchase[]
+  donation       donation[]
+  subscription   subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId String?       @db.ObjectId
 }

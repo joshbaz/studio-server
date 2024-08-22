@@ -547,3 +547,48 @@ export const verifyOTP = async (req, res, next) => {
       next(error);
    }
 };
+
+const returnError = (message, statusCode) => {
+   const error = new Error(message);
+   error.statusCode = statusCode;
+   throw error;
+};
+
+/**
+ *@name getUserPaymentMethods
+ *@description Fetch the user's payment methods
+ *@type {import('express').RequestHandler}
+ */
+
+export const getUserPaymentMethods = async (req, res, next) => {
+   try {
+      const { id } = req.params;
+      if (!id) {
+         returnError('User id not passed', 400);
+      }
+
+      const paymentMethods = await prisma.paymentMethod.findMany({
+         where: {
+            userId: id,
+         },
+      });
+
+      if (!paymentMethods) {
+         returnError('No methods saved', 404);
+      }
+
+      const methods = paymentMethods.map((method) => ({
+         ...method,
+         details: JSON.parse(method.details),
+      }));
+      res.status(200).json({ methods });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      res.status(500).json({
+         message: error.message ?? 'Something went wrong',
+      });
+      next(error);
+   }
+};

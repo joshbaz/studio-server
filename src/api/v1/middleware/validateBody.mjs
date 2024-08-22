@@ -10,8 +10,8 @@ import { StatusCodes } from 'http-status-codes';
 export function validateData(schema) {
    return (req, res, next) => {
       try {
-         console.log(req);
          schema.parse(req.body);
+         console.log('Schema', schema);
          next();
       } catch (error) {
          if (error instanceof ZodError) {

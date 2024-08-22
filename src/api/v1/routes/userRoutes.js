@@ -10,6 +10,7 @@ import {
    getUserProfile,
    sendOTP,
    verifyOTP,
+   getUserPaymentMethods,
 } from '../controllers/userControllers.js';
 import { body } from 'express-validator';
 import rateLimit from 'express-rate-limit';
@@ -94,6 +95,7 @@ router.post(
 router.get('/me/:userId', verifyToken, getUserProfile);
 router.post('/logout/:id', verifyToken, logout);
 router.put('/:id', verifyToken, updateUser);
+router.get('/:id/payment-methods', getUserPaymentMethods);
 router.get('/find/:id', verifyToken, getUser);
 router.get('/findall', verifyToken, getUsers);
 router.delete('/:id', verifyToken, deleteUser);

@@ -51,6 +51,7 @@ model user {
   Subscription      subscription[]
   paymentMethod     paymentMethod[]
   watchlist         watchlist[]
+  donation          donation[]
 
   @@index([email, phoneNumber, username, firstname, lastname])
 }
@@ -133,6 +134,7 @@ model film {
   runtime           String?
   genre             String?
   tags              String[]
+  enableDonation    Boolean            @default(false)
   type              String             @default("movie")
   audioLanguages    audioLanguage[]
   embeddedSubtitles Boolean            @default(false)
@@ -154,6 +156,7 @@ model film {
   watched           watched[]
   crew              crew[]
   watchlist         watchlist[]
+  donation          donation[]
 
   @@index([title], name: "title_index")
 }
@@ -274,4 +277,18 @@ model video {
   createdAt  DateTime @default(now())
   episode    episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   episodeId  String?  @db.ObjectId
+}
+
+// Donation model
+model donation {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  user          user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String?  @db.ObjectId
+  amount        Float
+  currency      String
+  createdAt     DateTime @default(now())
+  status        String   @default("pending")
+  transactionId String?
+  film          film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId        String?  @db.ObjectId
 }

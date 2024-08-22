@@ -41,8 +41,6 @@ export const createUser = async (req, res, next) => {
             },
          });
 
-         console.log('user', user);
-
          if (user) {
             return res
                .status(400)
@@ -238,7 +236,6 @@ export const getUsers = async (_, res) => {
 export const getUserProfile = async (req, res, next) => {
    try {
       const { userId } = req.params;
-      console.log('userId', userId);
 
       if (!userId)
          return res.status(400).json({ message: 'User id not passed' });
@@ -283,8 +280,6 @@ export const getUser = async (req, res, next) => {
       if (!req.params.id) {
          return res.status(400).json({ message: 'User id not passed' });
       }
-
-      console.log('userId', req.params.id);
 
       const user = await prisma.user.findFirst({
          where: {

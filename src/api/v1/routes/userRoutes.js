@@ -32,14 +32,11 @@ const customEmailFunc = async (value, req) => {
 };
 
 const customPhoneNumberFunc = async (value) => {
-   console.log('customPhoneNumberFunc', value);
    const user = await prisma.user.findUnique({
       where: {
          phoneNumber: value,
       },
    });
-
-   console.log('user', user);
 
    if (user) {
       return res.status(400).json({ message: 'Something went wrong' });

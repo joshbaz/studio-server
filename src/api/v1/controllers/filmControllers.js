@@ -1,22 +1,6 @@
-import {
-   S3Client,
-   GetObjectCommand,
-   HeadObjectCommand,
-} from '@aws-sdk/client-s3';
-import { env } from '@/env.mjs';
+import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
 import prisma from '@/utils/db.mjs';
-import { P } from 'pino';
-
-const s3 = new S3Client({
-   region: 'fra1',
-   credentials: {
-      accessKeyId: env.DO_SPACEACCESSKEY,
-      secretAccessKey: env.DO_SPACESECRETKEY,
-   },
-   endpoint: env.DO_SPACESENDPOINT,
-   forcePathStyle: true,
-});
 
 /**
  * @name isVerifiedAdmin
@@ -33,7 +17,6 @@ async function verifyAdmin(adminId, res) {
       error.statusCode = 400;
       throw error;
    }
-   console.log('adminId', adminId);
    const existingAdmin = await prisma.admin.findUnique({
       where: { id: adminId },
       select: { role: true, deactivated: true },
@@ -79,7 +62,6 @@ async function checkUploadPermission(req, res, adminId) {
 
    // get the file from the request
    const file = req.file;
-   console.log('file', file);
    if (!file) {
       const error = new Error('No file uploaded');
       error.statusCode = 400;
@@ -360,12 +342,38 @@ export const streamFilm = async (req, res) => {
  * @description function to fetch all films
  * @type {import('express').RequestHandler}
  */
-export const fetchFilms = async (_, res, next) => {
+export const fetchFilms = async (req, res, next) => {
    try {
-      const films = await prisma.film.findMany({
+      const query = req.query;
+
+      let options = {
          include: {
             posters: true,
          },
+      };
+
+      // get the donation only films
+      if (query.donation) {
+         options = {
+            ...options,
+            include: {
+               ...options.include,
+               donation: {
+                  select: {
+                     id: true,
+                     amount: true,
+                     currency: true,
+                  },
+               },
+            },
+            where: {
+               enableDonation: true,
+            },
+         };
+      }
+
+      const films = await prisma.film.findMany({
+         ...options,
       });
       res.status(200).json({ films });
    } catch (error) {
@@ -622,6 +630,7 @@ export const addWatchList = async (req, res, next) => {
 export const getWatchList = async (req, res, next) => {
    try {
       const { userId } = req.params;
+      const { limit } = req.query;
 
       if (!userId) {
          return res.status(400).json({ message: 'User not found' });
@@ -631,9 +640,28 @@ export const getWatchList = async (req, res, next) => {
          where: {
             userId,
          },
+         include: {
+            film: {
+               include: {
+                  posters: true,
+               },
+            },
+         },
+         take: limit ? parseInt(limit) : 20, // default limit is 20
       });
 
-      return res.status(200).json({ watchlist });
+      // format the watchlist to only show the id and some film details
+      const formattedWatchlist = watchlist.map((item) => {
+         return {
+            id: item.film.id,
+            title: item.film.title,
+            releaseDate: item.film.releaseDate,
+            posters: item.film.posters,
+            type: item.film.type,
+         };
+      });
+
+      return res.status(200).json({ watchlist: formattedWatchlist });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;

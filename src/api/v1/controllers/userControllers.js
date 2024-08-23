@@ -181,21 +181,42 @@ export const logout = async (req, res, next) => {
  */
 export const updateUser = async (req, res, next) => {
    try {
-      // if (req.params.id === req?.userId) {
+      if (!req.params.id) {
+         const error = new Error('Failed to update user');
+         error.statusCode = 400;
+         throw error;
+      }
+
+      // only the user can update their account
+      if (req.userId !== req.params.id) {
+         const error = new Error('Unauthorized');
+         error.statusCode = 403;
+         throw error;
+      }
+
       let updates = req.body;
       if (req.body.password) {
          updates.password = await bcrypt.hash(req.body.password, 10);
       }
+
       const updatedUser = await prisma.user.update({
          where: {
             id: req.params.id,
          },
          data: { ...updates },
+         select: {
+            id: true,
+            email: true,
+            firstname: true,
+            username: true,
+            lastname: true,
+            phoneNumber: true,
+            createdAt: true,
+            accountVerified: true,
+         },
       });
 
-      const { password: Omit, ...userInfo } = updatedUser;
-
-      res.status(200).json({ message: 'User updated', user: userInfo });
+      res.status(200).json({ message: 'User updated', user: updatedUser });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
@@ -248,6 +269,7 @@ export const getUserProfile = async (req, res, next) => {
             id: true,
             email: true,
             firstname: true,
+            username: true,
             lastname: true,
             phoneNumber: true,
             createdAt: true,

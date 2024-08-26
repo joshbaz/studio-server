@@ -7,6 +7,7 @@ import { resend } from '@/services/resend.js';
 import { at } from '@/services/at.js';
 import { generate as generateOtp } from 'otp-generator';
 import { renderOTPTemplate } from '@/services/emailTemplates.js';
+import { returnError } from '@/utils/returnError.js';
 
 /**
  *@name createUser
@@ -81,10 +82,9 @@ export const createUser = async (req, res, next) => {
          message: `user with email ${newUser.email} created successfully`,
       });
    } catch (error) {
-      console.log(error.message);
-      res.status(500).json({
-         message: error.message ?? 'Something went wrong',
-      });
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
       next(error);
    }
 };
@@ -113,9 +113,7 @@ export const loginUser = async (req, res, next) => {
          existingUser.password
       );
 
-      if (!comparePassword) {
-         return res.status(401).json({ message: 'Invalid Credentials' });
-      }
+      if (!comparePassword) returnError('Invalid Credentials', 400);
 
       const token = jwt.sign(
          {
@@ -141,8 +139,7 @@ export const loginUser = async (req, res, next) => {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      next(error);
-      res.status(500).json({ message: 'Something went wrong!!' });
+
       next(error);
    }
 };
@@ -156,10 +153,10 @@ export const logout = async (req, res, next) => {
    try {
       const { id } = req.params;
       if (!id || !req.userId) {
-         return res.status(400).json({ message: 'User id not passed' });
+         returnError('User id not passed', 400);
       }
       if (req.userId !== id) {
-         return res.status(401).json({ message: 'Unauthorized' });
+         returnError('Unauthorized', 401);
       }
 
       return res
@@ -182,16 +179,12 @@ export const logout = async (req, res, next) => {
 export const updateUser = async (req, res, next) => {
    try {
       if (!req.params.id) {
-         const error = new Error('Failed to update user');
-         error.statusCode = 400;
-         throw error;
+         returnError('Failed to update user', 400);
       }
 
       // only the user can update their account
       if (req.userId !== req.params.id) {
-         const error = new Error('Unauthorized');
-         error.statusCode = 403;
-         throw error;
+         returnError('Unauthorized', 403);
       }
 
       let updates = req.body;
@@ -230,7 +223,7 @@ export const updateUser = async (req, res, next) => {
  *@description get a user by id
  *@type {import('express').RequestHandler}
  */
-export const getUsers = async (_, res) => {
+export const getUsers = async (_, res, next) => {
    try {
       const users = await prisma.user.findMany();
       const usersWithoutPassword = users.map((user) => {
@@ -243,9 +236,7 @@ export const getUsers = async (_, res) => {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      return res.status(500).json({
-         message: error.message ?? 'Something went wrong',
-      });
+      next(error);
    }
 };
 
@@ -258,8 +249,7 @@ export const getUserProfile = async (req, res, next) => {
    try {
       const { userId } = req.params;
 
-      if (!userId)
-         return res.status(400).json({ message: 'User id not passed' });
+      if (!userId) returnError('User id not passed', 400);
 
       const user = await prisma.user.findUnique({
          where: {
@@ -277,17 +267,12 @@ export const getUserProfile = async (req, res, next) => {
          },
       });
 
-      if (!user) {
-         return res.status(404).json({ message: 'User not found' });
-      }
-
+      if (!user) returnError('User not found', 404);
       return res.status(200).json({ user });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      next(error);
-      res.status(500).json({ message: 'Something went wrong!!' });
       next(error);
    }
 };
@@ -299,9 +284,7 @@ export const getUserProfile = async (req, res, next) => {
  */
 export const getUser = async (req, res, next) => {
    try {
-      if (!req.params.id) {
-         return res.status(400).json({ message: 'User id not passed' });
-      }
+      if (!req.params.id) returnError('User id not passed', 400);
 
       const user = await prisma.user.findFirst({
          where: {
@@ -309,18 +292,14 @@ export const getUser = async (req, res, next) => {
          },
       });
 
-      if (!user) {
-         return res.status(404).json({ message: 'User not found' });
-      }
+      if (!user) returnError('User not found', 404);
 
       res.status(200).json({ user });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      res.status(500).json({
-         message: error.message ?? 'Something went wrong',
-      });
+
       next(error);
    }
 };
@@ -332,10 +311,21 @@ export const getUser = async (req, res, next) => {
  */
 export const deleteUser = async (req, res, next) => {
    try {
-      // if (req.params.id === req?.userId) {
+      if (!req.params.id) returnError('User id not passed', 400);
+
+      // only the user can delete their account
+      if (req.userId !== req.params.id) returnError('Unauthorized', 403);
+
+      // delete the user
       const deletedUser = await prisma.user.delete({
          where: {
             id: req.params.id,
+         },
+         select: {
+            id: true,
+            email: true,
+            firstname: true,
+            username: true,
          },
       });
 
@@ -344,16 +334,13 @@ export const deleteUser = async (req, res, next) => {
          .json({
             message: `${deletedUser?.firstname}'s account successfully deleted`,
          });
-      // } else {
-      //    res.status(403).send('You can not delete this account.');
-      // }
+
+      res.status(200).send({ message: 'User deleted', user: deletedUser });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      res.status(500).json({
-         message: error.message ?? 'Something went wrong',
-      });
+
       next(error);
    }
 };
@@ -568,12 +555,6 @@ export const verifyOTP = async (req, res, next) => {
       });
       next(error);
    }
-};
-
-const returnError = (message, statusCode) => {
-   const error = new Error(message);
-   error.statusCode = statusCode;
-   throw error;
 };
 
 /**

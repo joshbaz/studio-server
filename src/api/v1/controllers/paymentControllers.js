@@ -1,5 +1,6 @@
 import { resend } from '@/services/resend.js';
 import prisma from '@/utils/db.mjs';
+import { returnError } from '@/utils/returnError.js';
 
 /**
  *@name createSubscription
@@ -23,9 +24,7 @@ export const createSubscription = async (req, res, next) => {
       });
 
       if (!user) {
-         return res.status(400).json({
-            message: 'Something went wrong while add your plan', // very unlikely to happen
-         });
+         returnError("Something went wrong, user doesn't exist", 400);
       }
 
       // check if the user has subscription
@@ -37,17 +36,17 @@ export const createSubscription = async (req, res, next) => {
       });
 
       if (subscription && subscription.plan !== plan) {
-         return res.status(400).json({
-            message:
-               'You already have a subscription, go to your accounts page to manage it',
-         });
+         returnError(
+            'You already have a subscription, go to your accounts page to manage it',
+            400
+         );
       }
 
       if (subscription && subscription.plan === plan) {
-         return res.status(400).json({
-            message:
-               'Already subscribed to this plan, go to your accounts page to change your plan',
-         });
+         returnError(
+            'Already subscribed to this plan, go to your accounts page to change your plan',
+            400
+         );
       }
 
       // add the user to the subscription plan
@@ -79,8 +78,7 @@ export const createSubscription = async (req, res, next) => {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      next(error);
-      res.status(500).json({ message: 'Something went wrong!!' });
+
       next(error);
    }
 };
@@ -104,6 +102,113 @@ export const paymentCallback = async (req, res, next) => {
       }
       next(error);
       res.status(500).json({ message: 'Something went wrong!!' });
+      next(error);
+   }
+};
+
+/**
+ *@name getUserSubscription
+ *@description Fetch the user's subscription
+ *@type {import('express').RequestHandler}
+ */
+
+export const getSubscription = async (req, res, next) => {
+   try {
+      const { userId } = req.params;
+      if (!userId) {
+         returnError('User userId not passed', 400);
+      }
+
+      const subscription = await prisma.subscription.findFirst({
+         where: {
+            userId: userId,
+         },
+      });
+
+      res.status(200).json({ subscription });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
+/**
+ *@name updateUserSubscription
+ *@description Update the user's subscription
+ *@type {import('express').RequestHandler}
+ *@todo Add validation to the req.body with zod using the prisma schema
+ */
+
+export const updateSubscription = async (req, res, next) => {
+   try {
+      const { userId } = req.params;
+      if (!userId) {
+         returnError('User userId not passed', 400);
+      }
+
+      const subscription = await prisma.subscription.findFirst({
+         where: {
+            userId: userId,
+         },
+      });
+
+      if (!subscription) {
+         returnError('No subscription found', 404);
+      }
+
+      const updatedSubscription = await prisma.subscription.update({
+         where: {
+            id: subscription.id,
+         },
+         data: {
+            ...req.body,
+         },
+      });
+
+      res.status(200).json({ subscription: updatedSubscription });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
+/**
+ *@name getUserPaymentMethods
+ *@description Fetch the user's payment methods
+ *@type {import('express').RequestHandler}
+ */
+
+export const getPaymentMethods = async (req, res, next) => {
+   try {
+      const { userId } = req.params;
+      if (!userId) {
+         returnError('User id not passed', 400);
+      }
+
+      const paymentMethods = await prisma.paymentMethod.findMany({
+         where: {
+            userId,
+         },
+      });
+
+      if (!paymentMethods) {
+         returnError('No methods saved', 404);
+      }
+
+      const methods = paymentMethods.map((method) => ({
+         ...method,
+         details: JSON.parse(method.details),
+      }));
+      res.status(200).json({ methods });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+
       next(error);
    }
 };

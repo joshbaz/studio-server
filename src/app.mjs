@@ -46,20 +46,14 @@ export default function customizeApp(app) {
    // API routes
    app.use('/api', api);
 
-   // // Error handling - 404
-   // app.use((_, res) => {
-   //    res.status(404).send({
-   //       message: 'The requested resource was not found',
-   //    });
-   // });
-
    // Error handling - 4xx except 404
    app.use((err, _, res, next) => {
       if (err.statusCode >= 400 && err.statusCode < 500) {
-         const message =
-            err.statusCode === 404
-               ? 'The requested resource was not found'
-               : err.message;
+         let message = err.message;
+         if (!message && err.statusCode === 404) {
+            message = 'The requested resource was not found';
+         }
+
          res.status(err.statusCode).send({ message });
       } else {
          next(err);

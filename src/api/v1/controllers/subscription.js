@@ -220,6 +220,8 @@ export const addSubscriptionPlan = async (req, res, next) => {
  * @type {import('express').RequestHandler'}
  */
 export const assignSubscriptionPlan = async (req, res, next) => {
+   //TODO: update the next payment date when the plan is changed. -> consider the last payment date
+   //TODO: add constraints for when a user can change their plan ( if selected plan is the weekly plan, and the next payment date is in 3 days, the user can't change the plan) | i
    try {
       const { userId, planId } = req.params;
 
@@ -261,7 +263,6 @@ export const assignSubscriptionPlan = async (req, res, next) => {
 export const getSubscriptionPlans = async (req, res, next) => {
    try {
       const { userId } = req.params;
-
       let plans = await prisma.subscriptionPlan.findMany();
 
       if (userId) {
@@ -285,7 +286,6 @@ export const getSubscriptionPlans = async (req, res, next) => {
             selected: plan.id === subscription.plan.id,
          }));
       }
-
       return res.status(200).json({ plans });
    } catch (error) {
       if (!error.statusCode) {

@@ -80,27 +80,26 @@ export const getPaymentMethods = async (req, res, next) => {
          returnError('User id not passed', 400);
       }
 
-      const paymentMethods = await prisma.paymentMethod.findMany({
-         where: {
-            userId,
-         },
+      let methods = await prisma.paymentMethod.findMany({
+         where: { userId },
       });
 
-      let methods = [];
-
-      if (paymentMethods) {
-         methods = paymentMethods.map((method) => ({
-            ...method,
-            details: JSON.parse(method.details),
-         }));
+      if (methods.length > 0) {
+         methods = methods.map((method) => {
+            if (typeof method.details === 'string') {
+               method.details = JSON.parse(method.details);
+            }
+            return method;
+         });
       }
 
-      return res.status(200).json({ methods });
+      // find the current default payment method
+      const defaultMethod = methods.find((method) => method?.defaultStatus);
+      return res.status(200).json({ methods, defaultMethod });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-
       next(error);
    }
 };
@@ -233,13 +232,22 @@ export const getPaymentHistory = async (req, res, next) => {
       }
 
       // each transaction has a user related to it
-      const history = await prisma.transaction.findMany({
-         where: {
-            userId,
+      const user = await prisma.user.findUnique({
+         where: { id: userId },
+         select: {
+            id: true,
+            paymentMethod: {
+               select: {
+                  id: true,
+                  name: true,
+                  details: true,
+                  transaction: true,
+               },
+            },
          },
       });
 
-      return res.status(200).json({ history });
+      return res.status(200).json({ history: user.paymentMethod });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;

@@ -62,7 +62,7 @@ export default function customizeApp(app) {
 
    //Error handling - 5xx
    app.use((err, _, res) => {
-      console.error(err);
+      console.error('Erroro', err.statusMessage || err.message);
       if (!err.statusCode) {
          err.statusCode = 500;
       }

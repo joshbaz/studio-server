@@ -14,8 +14,7 @@ const router = express.Router();
 router.post('/:userId/newpaymentmethod', verifyToken, addPaymentMethod);
 
 // GET
-router.get('/:userId/paymentMethods', getPaymentMethods);
-
+router.get('/:userId/paymentMethods', verifyToken, getPaymentMethods);
 router.get('/:userId/history', verifyToken, getPaymentHistory);
 
 // PUT

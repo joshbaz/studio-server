@@ -13,6 +13,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Auth schemas
 model admin {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
   email             String    @unique
@@ -45,14 +46,15 @@ model user {
   accountVerified   Boolean         @default(false)
   oneTimePassword   String?
   passwordExpiresAt DateTime?
-  Watchhistory      watchhistory[]
+  watchhistory      watchhistory[]
   watched           watched[]
   Otp               otp[]
-  Subscription      subscription[]
+  subscription      subscription?
   paymentMethod     paymentMethod[]
   watchlist         watchlist[]
   donation          donation[]
   purchase          purchase[]
+  transaction       transaction[]
 
   @@index([email, phoneNumber, username, firstname, lastname])
 }
@@ -66,26 +68,7 @@ model otp {
   createdAt DateTime @default(now())
 }
 
-model subscription {
-  id          String        @id @default(auto()) @map("_id") @db.ObjectId
-  user        user?         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId      String?       @unique @db.ObjectId
-  plan        String
-  status      String        @default("inactive")
-  saveDetails Boolean       @default(false)
-  transaction transaction[]
-  createdAt   DateTime      @default(now())
-}
-
-model paymentMethod {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  name      String
-  details   String
-  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String?  @db.ObjectId
-  createdAt DateTime @default(now())
-}
-
+// Film schemas
 model watchhistory {
   id              String    @id @default(auto()) @map("_id") @db.ObjectId
   watched         watched[]
@@ -311,16 +294,98 @@ model purchase {
   transactionsId String      @db.ObjectId
 }
 
+enum TransactionType {
+  PURCHASE
+  DONATION
+  SUBSCRIPTION
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
 model transaction {
-  id             String        @id @default(auto()) @map("_id") @db.ObjectId
-  amount         Float
-  type           String?       @default("subscription") // purchase, donation, subscription
-  currency       String
-  createdAt      DateTime      @default(now())
-  status         String        @default("pending")
-  transactionId  String
-  purchase       purchase[]
-  donation       donation[]
+  id            String            @id @default(auto()) @map("_id") @db.ObjectId
+  amount        Float
+  type          TransactionType
+  currency      String
+  createdAt     DateTime          @default(now())
+  status        TransactionStatus @default(PENDING)
+  transactionId String
+  purchase      purchase[]
+  donation      donation[]
+
+  paymentMethod   paymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  paymentMethodId String?        @db.ObjectId
+
+  user           user?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String?       @db.ObjectId
   subscription   subscription? @relation(fields: [subscriptionId], references: [id])
   subscriptionId String?       @db.ObjectId
+}
+
+model paymentMethod {
+  id            String        @id @default(auto()) @map("_id") @db.ObjectId
+  name          String
+  details       Json
+  defaultStatus Boolean       @default(false)
+  lastUsed      DateTime      @default(now())
+  user          user?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String?       @db.ObjectId
+  createdAt     DateTime      @default(now())
+  transaction   transaction[]
+}
+
+// Subscription Plans
+enum Currency {
+  USD
+  UGX
+  KES
+  TZS
+  RWF
+}
+
+enum DurationUnit {
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+enum Status {
+  ACTIVE
+  INACTIVE
+  CANCELLED
+}
+
+model subscription {
+  id              String    @id @default(auto()) @map("_id") @db.ObjectId
+  user            user?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          String?   @unique @db.ObjectId
+  status          Status?   @default(ACTIVE)
+  saveDetails     Boolean   @default(false)
+  nextPayment     DateTime?
+  previousPayment DateTime?
+
+  plan   subscriptionPlan? @relation(fields: [planId], references: [id])
+  planId String            @db.ObjectId
+
+  transaction transaction[]
+  createdAt   DateTime      @default(now())
+}
+
+model subscriptionPlan {
+  id           String         @id @default(auto()) @map("_id") @db.ObjectId
+  name         String         @unique
+  description  String
+  price        Float
+  currency     Currency
+  duration     DurationUnit   @default(MONTH)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  subscription subscription[]
+
+  @@index([currency], name: "subplan_index")
 }

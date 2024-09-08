@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
+import { returnError } from '@/utils/returnError.js';
 
 /**
  * @name verifyToken
@@ -7,7 +8,7 @@ import { env } from '@/env.mjs';
  * @type {import('express').RequestHandler}
  * @returns void
  */
-export const verifyToken = (req, _, next) => {
+export const verifyToken = async (req, res, next) => {
    try {
       const token =
          req.token ||
@@ -21,9 +22,13 @@ export const verifyToken = (req, _, next) => {
 
       jwt.verify(token, env.SECRETVA, async (err, payload) => {
          if (err) {
-            const error = new Error('Token is not Valid!');
-            error.statusCode = 403;
-            throw error;
+            if (err.name === 'TokenExpiredError') {
+               return res.status(401).json({ message: 'Token expired' });
+            }
+            return res
+               .status(401)
+               .json({ message: 'You are not authenticated' });
+            // returnError("You're not authenticated", 401);
          }
 
          req.userId = payload.id;

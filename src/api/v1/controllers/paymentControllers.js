@@ -3,82 +3,43 @@ import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 
 /**
- *@name createSubscription
- *@description Function to add users to subscription plan
+ *@name addPaymentMethod
+ *@description Function to add a payment method to the user's account
  *@type {import('express').RequestHandler}
  */
-export const createSubscription = async (req, res, next) => {
+export const addPaymentMethod = async (req, res, next) => {
    try {
-      // what do we need to do here?
-      // 2. if not, add them to the subscription plan that they chose
-      // 3. send a confirmation via email or sms
-      // 4. make a request to the payment gateway to process the payment
-      // 5. Create a callback route to handle response from the payment gateway & update the user's subscription status to active
-      const { plan, option, paymentNumber, saveDetails, userId } = req.body;
-
-      // check if the user exists
-      const user = await prisma.user.findUnique({
-         where: {
-            id: userId,
-         },
-      });
-
-      if (!user) {
-         returnError("Something went wrong, user doesn't exist", 400);
-      }
+      const { userId } = req.params;
+      const { name, ...data } = req.body;
 
       // check if the user has subscription
       const subscription = await prisma.subscription.findFirst({
          where: {
-            plan,
-            userId: user.id,
-         },
-      });
-
-      if (subscription && subscription.plan !== plan) {
-         returnError(
-            'You already have a subscription, go to your accounts page to manage it',
-            400
-         );
-      }
-
-      if (subscription && subscription.plan === plan) {
-         returnError(
-            'Already subscribed to this plan, go to your accounts page to change your plan',
-            400
-         );
-      }
-
-      // add the user to the subscription plan
-      const newSubscription = await prisma.subscription.create({
-         data: {
             userId,
-            plan,
-            saveDetails,
          },
       });
 
-      // save the user's details if keepDetails is true
-      if (saveDetails) {
-         await prisma.paymentMethod.create({
-            data: {
-               userId,
-               name: option,
-               details: JSON.stringify({ paymentNumber, plan, option }),
-            },
-         });
+      if (!subscription) {
+         returnError('You need to subscribe to a plan first', 400);
       }
 
-      // TODO: Make request to the payment gateway to process the payment
+      // add the payment method to the user's account
+      const paymentMethod = await prisma.paymentMethod.create({
+         data: {
+            name,
+            userId,
+            details: JSON.stringify(data),
+         },
+      });
 
-      res.status(200).json({
-         message: `Your ${newSubscription.plan} plan has been added successfully`,
+      // send a confirmation email or sms to the user
+      return res.status(200).json({
+         message: `Your ${paymentMethod.name} payment method has been added successfully`,
       });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-
       next(error);
    }
 };
@@ -107,76 +68,6 @@ export const paymentCallback = async (req, res, next) => {
 };
 
 /**
- *@name getUserSubscription
- *@description Fetch the user's subscription
- *@type {import('express').RequestHandler}
- */
-
-export const getSubscription = async (req, res, next) => {
-   try {
-      const { userId } = req.params;
-      if (!userId) {
-         returnError('User userId not passed', 400);
-      }
-
-      const subscription = await prisma.subscription.findFirst({
-         where: {
-            userId: userId,
-         },
-      });
-
-      res.status(200).json({ subscription });
-   } catch (error) {
-      if (!error.statusCode) {
-         error.statusCode = 500;
-      }
-      next(error);
-   }
-};
-
-/**
- *@name updateUserSubscription
- *@description Update the user's subscription
- *@type {import('express').RequestHandler}
- *@todo Add validation to the req.body with zod using the prisma schema
- */
-
-export const updateSubscription = async (req, res, next) => {
-   try {
-      const { userId } = req.params;
-      if (!userId) {
-         returnError('User userId not passed', 400);
-      }
-
-      const subscription = await prisma.subscription.findFirst({
-         where: {
-            userId: userId,
-         },
-      });
-
-      if (!subscription) {
-         returnError('No subscription found', 404);
-      }
-
-      const updatedSubscription = await prisma.subscription.update({
-         where: {
-            id: subscription.id,
-         },
-         data: {
-            ...req.body,
-         },
-      });
-
-      res.status(200).json({ subscription: updatedSubscription });
-   } catch (error) {
-      if (!error.statusCode) {
-         error.statusCode = 500;
-      }
-      next(error);
-   }
-};
-
-/**
  *@name getUserPaymentMethods
  *@description Fetch the user's payment methods
  *@type {import('express').RequestHandler}
@@ -195,20 +86,164 @@ export const getPaymentMethods = async (req, res, next) => {
          },
       });
 
-      if (!paymentMethods) {
-         returnError('No methods saved', 404);
+      let methods = [];
+
+      if (paymentMethods) {
+         methods = paymentMethods.map((method) => ({
+            ...method,
+            details: JSON.parse(method.details),
+         }));
       }
 
-      const methods = paymentMethods.map((method) => ({
-         ...method,
-         details: JSON.parse(method.details),
-      }));
-      res.status(200).json({ methods });
+      return res.status(200).json({ methods });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
 
+      next(error);
+   }
+};
+
+/**
+ *@name updatePaymentMethod
+ *@description Update a payment method
+ *@type {import('express').RequestHandler}
+ *@todo Add validation to the req.body with zod using the prisma schema.
+ */
+export const updatePaymentMethod = async (req, res, next) => {
+   try {
+      // we only need to update the payment method details like the phone number, default status
+      const { userId, methodId } = req.params;
+      if (!userId || !methodId) {
+         returnError('User id or method id not passed', 400);
+      }
+
+      const { paymentNumber, defaultStatus } = req.body;
+
+      // get the payment method
+      let method = await prisma.paymentMethod.findUnique({
+         where: {
+            id: methodId,
+         },
+      });
+
+      if (!method) {
+         returnError('Payment method not found', 404);
+      }
+
+      method.details = JSON.parse(method.details);
+
+      // TODO: find a way to verify the payment method before updating it. eg verify the phone number via OTP
+      // Or verify the card by making a small charge to it and asking the user to confirm the amount
+      const update = {};
+
+      if (paymentNumber) {
+         update.details = JSON.stringify({ ...method.details, paymentNumber });
+      }
+
+      // update the method with the default status first if the defaultStatus is true
+      if (defaultStatus) {
+         await prisma.paymentMethod.updateMany({
+            where: {
+               userId,
+               defaultStatus: true,
+            },
+            data: { defaultStatus: false },
+         });
+
+         update.defaultStatus = defaultStatus;
+      }
+
+      const updatedMethod = await prisma.paymentMethod.update({
+         where: {
+            id: methodId,
+         },
+         data: { ...update },
+      });
+
+      return res.status(200).json({
+         method: updatedMethod,
+         message: 'Payment method updated successfully',
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+
+      next(error);
+   }
+};
+
+/**
+ *@name deletePaymentMethod
+ *@description Delete a payment method
+ *@type {import('express').RequestHandler}
+ */
+export const deletePaymentMethod = async (req, res, next) => {
+   try {
+      const { userId, methodId } = req.params;
+      if (!userId || !methodId) {
+         returnError('User id or method id not passed', 400);
+      }
+
+      const method = await prisma.paymentMethod.findUnique({
+         where: {
+            id: methodId,
+         },
+      });
+
+      if (!method) {
+         returnError('Payment method not found', 404);
+      }
+
+      if (method?.defaultStatus) {
+         returnError('Set another default method before deleting', 400);
+      }
+
+      //TODO: send an otp to the user to confirm the deletion
+
+      await prisma.paymentMethod.delete({
+         where: {
+            id: methodId,
+         },
+      });
+
+      return res.status(200).json({ message: 'Payment method deleted!!' });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+
+      next(error);
+   }
+};
+
+/**
+ *@name getPaymentHistory
+ *@description Fetch the user's payment history
+ *@type {import('express').RequestHandler}
+ */
+
+export const getPaymentHistory = async (req, res, next) => {
+   try {
+      const { userId } = req.params;
+      if (!userId) {
+         returnError('User id not passed', 400);
+      }
+
+      // each transaction has a user related to it
+      const history = await prisma.transaction.findMany({
+         where: {
+            userId,
+         },
+      });
+
+      return res.status(200).json({ history });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
       next(error);
    }
 };

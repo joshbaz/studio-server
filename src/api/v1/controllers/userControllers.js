@@ -268,6 +268,7 @@ export const getUserProfile = async (req, res, next) => {
       });
 
       if (!user) returnError('User not found', 404);
+
       return res.status(200).json({ user });
    } catch (error) {
       if (!error.statusCode) {

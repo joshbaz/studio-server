@@ -1,29 +1,31 @@
 import express from 'express';
 import {
-   createSubscription,
+   addPaymentMethod,
+   deletePaymentMethod,
+   getPaymentHistory,
    getPaymentMethods,
-   getSubscription,
-   updateSubscription,
+   updatePaymentMethod,
 } from '../controllers/paymentControllers.js';
-import rateLimit from 'express-rate-limit';
 import { verifyToken } from '../middleware/verifyToken.js';
 
 const router = express.Router();
 
-const otpLimiter = rateLimit({
-   windowMs: 10 * 60 * 1000,
-   max: 5,
-   message: 'Too many requests from this IP, please try again after 10 minutes',
-});
-
 // POST
-router.post('/subscription', verifyToken, otpLimiter, createSubscription);
+router.post('/:userId/newpaymentmethod', verifyToken, addPaymentMethod);
 
 // GET
 router.get('/:userId/paymentMethods', getPaymentMethods);
-router.get('/:userId/subscription', verifyToken, getSubscription);
+
+router.get('/:userId/history', verifyToken, getPaymentHistory);
 
 // PUT
-router.put('/:userId/subscription', verifyToken, updateSubscription);
+router.put('/:userId/updateMethod/:methodId', verifyToken, updatePaymentMethod);
+
+// DELETE
+router.delete(
+   '/:userId/paymentMethod/:methodId',
+   verifyToken,
+   deletePaymentMethod
+);
 
 export default router;

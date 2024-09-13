@@ -61,7 +61,8 @@ export default function customizeApp(app) {
    });
 
    //Error handling - 5xx
-   app.use((err, _, res) => {
+   app.use((err, req, res) => {
+      console.log('Original URL:', req.originalUrl, 'Method:', req.method);
       console.error('Erroro', err.statusMessage || err.message);
       if (!err.statusCode) {
          err.statusCode = 500;

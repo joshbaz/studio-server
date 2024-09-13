@@ -62,7 +62,7 @@ router.get('/all', fetchFilms);
 router.get('/:filmId', verifyToken, fetchFilm);
 router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);
 router.get('/track/:trackid', getVideoSource);
-router.get('/watchlist/:userId', verifyToken, getWatchList);
+router.get('/watchlist/:userId', getWatchList);
 router.get('/search', getFilmBySearch);
 
 router.delete('/delete/:filmId', verifyToken, deleteFilm);

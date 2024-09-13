@@ -13,7 +13,7 @@ export const addPaymentMethod = async (req, res, next) => {
       const { name, ...data } = req.body;
 
       // check if the user has subscription
-      const subscription = await prisma.subscription.findFirst({
+      const subscription = await prisma.subscription.findUnique({
          where: {
             userId,
          },
@@ -28,7 +28,7 @@ export const addPaymentMethod = async (req, res, next) => {
          data: {
             name,
             userId,
-            details: JSON.stringify(data),
+            details: data,
          },
       });
 

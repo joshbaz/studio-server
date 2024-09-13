@@ -10,6 +10,7 @@ import {
    getUserProfile,
    sendOTP,
    verifyOTP,
+   testEmailOTP,
 } from '../controllers/userControllers.js';
 import { body } from 'express-validator';
 import rateLimit from 'express-rate-limit';
@@ -91,10 +92,11 @@ router.post(
    ],
    loginUser
 );
+router.post('/logout/:id', verifyToken, logout);
+router.post('/testemail-otp', testEmailOTP);
 
 // GET
 router.get('/me/:userId', verifyToken, getUserProfile);
-router.post('/logout/:id', verifyToken, logout);
 router.get('/find/:id', verifyToken, getUser);
 router.get('/findall', verifyToken, getUsers);
 

@@ -1,6 +1,7 @@
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
 import prisma from '@/utils/db.mjs';
+import { returnError } from '@/utils/returnError.js';
 
 /**
  * @name isVerifiedAdmin
@@ -589,9 +590,10 @@ export const bookmark = async (req, res, next) => {};
 export const addWatchList = async (req, res, next) => {
    try {
       const { filmId, userId } = req.params;
+      console.log('FilmId', filmId, userId);
 
       if (!filmId || !userId) {
-         return res.status(400).json({ message: 'Film or user not found' });
+         returnError('Unauthorized', 401);
       }
 
       // check if the film is already in the watchlist
@@ -608,8 +610,16 @@ export const addWatchList = async (req, res, next) => {
 
       await prisma.watchlist.create({
          data: {
-            filmId,
-            userId,
+            user: {
+               connect: {
+                  id: userId,
+               },
+            },
+            film: {
+               connect: {
+                  id: filmId,
+               },
+            },
          },
       });
 
@@ -633,17 +643,21 @@ export const getWatchList = async (req, res, next) => {
       const { limit } = req.query;
 
       if (!userId) {
-         return res.status(400).json({ message: 'User not found' });
+         returnError('Unauthorized', 401);
       }
 
-      const watchlist = await prisma.watchlist.findMany({
-         where: {
-            userId,
-         },
-         include: {
+      let watchlist = await prisma.watchlist.findMany({
+         where: { userId },
+         select: {
+            id: true,
+            type: true,
             film: {
-               include: {
+               select: {
+                  id: true,
+                  title: true,
+                  type: true,
                   posters: true,
+                  releaseDate: true,
                },
             },
          },
@@ -651,17 +665,25 @@ export const getWatchList = async (req, res, next) => {
       });
 
       // format the watchlist to only show the id and some film details
-      const formattedWatchlist = watchlist.map((item) => {
-         return {
-            id: item.film.id,
-            title: item.film.title,
-            releaseDate: item.film.releaseDate,
-            posters: item.film.posters,
-            type: item.film.type,
-         };
-      });
+      if (watchlist?.length > 0) {
+         watchlist = watchlist.reduce((acc, curr) => {
+            if (!acc[curr.type]) {
+               acc[curr.type] = [];
+            }
 
-      return res.status(200).json({ watchlist: formattedWatchlist });
+            const film = {
+               id: curr.film.id,
+               title: curr.film.title,
+               releaseDate: curr.film.releaseDate,
+               poster: curr.film?.posters[0] ?? null,
+               type: curr.film.type,
+            };
+            acc[curr.type].push(film);
+            return acc;
+         }, {});
+      }
+
+      return res.status(200).json({ watchlist });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;

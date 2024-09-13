@@ -53,25 +53,32 @@ export const createSubscription = async (req, res, next) => {
       }
 
       // check if the user already has a subscription
-      if (user.subscription.id) {
+      if (user?.subscription?.id) {
          returnError('User already has a subscription', 400);
       }
-
-      // get the plan details
-      const plan = await prisma.subscriptionPlan.findUnique({
-         where: {
-            id: planId,
-         },
-      });
 
       // add the user to the subscription plan
       const newSubscription = await prisma.subscription.create({
          data: {
-            userId,
+            status: 'ACTIVE',
             saveDetails,
+            user: {
+               connect: {
+                  id: user?.id,
+               },
+            },
             plan: {
                connect: {
                   id: planId,
+               },
+            },
+         },
+         include: {
+            plan: true,
+            user: {
+               select: {
+                  id: true,
+                  paymentMethod: true,
                },
             },
          },
@@ -83,10 +90,10 @@ export const createSubscription = async (req, res, next) => {
             data: {
                name: option,
                defaultStatus: true,
-               details: { paymentNumber, plan, option },
+               details: { paymentNumber, plan: planId, option },
                user: {
                   connect: {
-                     id: userId,
+                     id: user?.id,
                   },
                },
             },
@@ -94,6 +101,7 @@ export const createSubscription = async (req, res, next) => {
       }
 
       res.status(200).json({
+         subscription: newSubscription,
          message: `Your ${newSubscription.planId} plan has been added successfully`,
       });
    } catch (error) {
@@ -206,7 +214,6 @@ export const addSubscriptionPlan = async (req, res, next) => {
          const message = error.errors.map((err) => err.message).join(', ');
          return res.status(400).json({ message: message });
       }
-      console.log('Error', error);
       if (!error.statusCode) {
          error.statusCode = 500;
       }
@@ -280,11 +287,13 @@ export const getSubscriptionPlans = async (req, res, next) => {
             },
          });
 
-         // add a selected property to the plan
-         plans = plans.map((plan) => ({
-            ...plan,
-            selected: plan.id === subscription.plan.id,
-         }));
+         if (subscription && subscription?.plan) {
+            // add a selected property to the plan
+            plans = plans.map((plan) => ({
+               ...plan,
+               selected: plan.id === subscription?.plan?.id,
+            }));
+         }
       }
       return res.status(200).json({ plans });
    } catch (error) {

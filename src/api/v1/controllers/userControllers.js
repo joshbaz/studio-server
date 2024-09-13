@@ -2,11 +2,10 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
 import prisma from '@/utils/db.mjs';
-import { validationResult } from 'express-validator';
 import { resend } from '@/services/resend.js';
 import { at } from '@/services/at.js';
 import { generate as generateOtp } from 'otp-generator';
-import { renderOTPTemplate } from '@/services/emailTemplates.js';
+import { renderVerificationTemplate } from '@/services/emailTemplates.js';
 import { returnError } from '@/utils/returnError.js';
 
 /**
@@ -16,13 +15,6 @@ import { returnError } from '@/utils/returnError.js';
  */
 export const createUser = async (req, res, next) => {
    try {
-      // const errors = validationResult(req);
-      // console.log('errors', errors);
-      // if (!errors.isEmpty()) {
-      //    const firstError = errors.array().map((error) => error.msg)[0];
-      //    return res.status(422).json({ message: firstError });
-      // }
-
       const {
          email,
          password,
@@ -159,10 +151,9 @@ export const logout = async (req, res, next) => {
          returnError('Unauthorized', 401);
       }
 
-      return res
-         .clearCookie('token')
-         .status(200)
-         .json({ message: 'Logged out' });
+      res.clearCookie('token');
+
+      return res.status(200).json({ message: 'Logged out' });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
@@ -415,7 +406,7 @@ export const sendOTP = async (req, res, next) => {
             from: 'noreply@mbuguanewton.dev',
             to: contact,
             subject: 'Your Nyati Motion Pictures OTP login Code',
-            html: renderOTPTemplate(otp),
+            html: renderVerificationTemplate(otp),
          });
 
          if (response?.error) {
@@ -554,6 +545,39 @@ export const verifyOTP = async (req, res, next) => {
       res.status(500).json({
          message: error.message ?? 'Something went wrong',
       });
+      next(error);
+   }
+};
+
+export const testEmailOTP = async (req, res, next) => {
+   try {
+      const otp = generateOtp(6, {
+         upperCaseAlphabets: false,
+         lowerCaseAlphabets: false,
+         digits: true,
+         specialChars: false,
+      });
+
+      const response = await resend.emails.send({
+         from: 'noreply@mbuguanewton.dev',
+         to: 'mymbugua@gmail.com',
+         subject: 'Your Nyati Motion Pictures Verification Code',
+         html: renderVerificationTemplate(otp),
+      });
+
+      if (response?.error) {
+         throw new Error(response.error);
+      }
+
+      return res.status(200).json({
+         message: 'OTP sent please check your email',
+      });
+   } catch (error) {
+      console.log('Error', error);
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+
       next(error);
    }
 };

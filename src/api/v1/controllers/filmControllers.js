@@ -532,6 +532,10 @@ export const getVideoSource = async (req, res, next) => {
    try {
       const { trackid } = req.params;
 
+      if (!trackid) {
+         returnError('Unauthorized', 401);
+      }
+
       const video = await prisma.video.findFirst({
          where: {
             id: trackid,
@@ -539,15 +543,14 @@ export const getVideoSource = async (req, res, next) => {
       });
 
       if (!video) {
-         return res.status(404).json({ message: 'Video not found' });
+         returnError('Video not found', 404);
       }
 
-      return res.status(200).json({ message: 'Video source', video });
+      return res.status(200).json({ message: 'ok', video });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      res.status(error.statusCode).json({ message: error.message });
       next(error);
    }
 };

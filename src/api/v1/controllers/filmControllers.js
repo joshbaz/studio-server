@@ -100,47 +100,7 @@ export const streamVideo = async ({ bucketName, key, range }, res) => {
    const CHUNK_SIZE = 10 ** 6; // 1MB
 
    if (!range) {
-      console.log('No headers - starts here');
-      let start = 0;
-      let end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
-      console.log('end', end);
-      while (start < ContentLength) {
-         const ranges = `bytes=${start}-${end}`;
-         const headers = {
-            'Content-Range': `${ranges}/${ContentLength}`,
-            'Accept-Ranges': 'bytes',
-            'Content-Length': end - start + 1,
-            'Content-Type': ContentType,
-         };
-
-         res.writeHead(206, headers);
-         start = end;
-
-         if (start < ContentLength) {
-            res.flushHeaders(); // Send the chunk immediately
-         }
-
-         return s3Client.send(
-            new GetObjectCommand({ ...streamParams, Range: ranges })
-         );
-         // s3Cli.send(
-         //    new GetObjectCommand({ ...streamParams, Range: ranges }),
-         //    (err, streamData) => {
-         //       if (err) {
-         //          res.status(500).json('error');
-         //       }
-         //       let stream = streamData.Body;
-         //       res.write(stream);
-         //       start = end;
-         //       end = Math.min(start + MAX_CHUNK_SIZE, ContentLength);
-         //       if (start < ContentLength) {
-         //          res.flushHeaders(); // Send the chunk immediately
-         //       }
-         //    }
-         // );
-      }
-
-      res.end();
+      throw new Error('Range header is required');
    }
 
    // range : bytes=NAN-
@@ -307,36 +267,48 @@ export const uploadVideo = async (req, res, next) => {
  */
 export const streamFilm = async (req, res) => {
    try {
-      const { filmId } = req.params;
+      const { trackId } = req.params;
 
-      const film = await prisma.film.findUnique({
-         where: { id: filmId },
-      });
+      console.log('FilmId', trackId);
 
-      if (!film) {
-         return res.status(404).json({ message: 'Film not found' });
+      if (!trackId) {
+         returnError('No video id provided', 400);
       }
 
       // find video related to the film
-      const video = await prisma.video.findFirst({
-         where: { filmId },
+      const video = await prisma.video.findUnique({
+         where: { id: trackId },
+         select: {
+            id: true,
+            name: true,
+            film: {
+               select: {
+                  id: true,
+               },
+            },
+         },
       });
 
-      if (!video) {
-         return res.status(404).json({ message: 'No video found' });
+      console.log('Video', video);
+
+      if (!video.id) {
+         returnError('Video not found', 404);
       }
 
-      const stream = await streamVideo(
-         { bucketName: filmId, key: video.name, range: req.headers.range },
-         res
-      );
+      const videoParams = {
+         Key: video.name,
+         bucketName: video.film.id,
+         range: req.headers.range,
+      };
 
+      const stream = await streamVideo(videoParams, res);
       stream.Body.pipe(res);
    } catch (error) {
+      console.log('Error', error);
       if (!error.statusCode) {
          error.statusCode = 500;
       }
-      return res.status(error.statusCode).json({ message: error.message });
+      next(error);
    }
 };
 

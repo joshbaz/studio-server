@@ -55,7 +55,7 @@ router.post(
 router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
 
 // GET
-router.get('/stream/:filmId', streamFilm);
+router.get('/stream/:trackId', verifyToken, streamFilm);
 router.get('/all', fetchFilms);
 router.get('/:filmId', verifyToken, fetchFilm);
 router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);

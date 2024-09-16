@@ -55,6 +55,9 @@ model user {
   donation          donation[]
   purchase          purchase[]
   transaction       transaction[]
+  likes             likes[]
+  views             views[]
+  rating            rating[]
 
   @@index([email, phoneNumber, username, firstname, lastname])
 }
@@ -142,7 +145,6 @@ model film {
   price             Float              @default(0) // price in UGX for rent or buy
   posters           poster[]
   cast              cast[]
-  stats             stats[]
   season            season[]
   video             video[]
   Watchhistory      watchhistory[]
@@ -151,6 +153,9 @@ model film {
   watchlist         watchlist[]
   donation          donation[]
   purchase          purchase[]
+  likes             likes[]
+  views             views[]
+  rating            rating[]
 
   @@index([title], name: "title_index")
 }
@@ -216,17 +221,39 @@ model cast {
   crewId   String? @db.ObjectId
 }
 
-model stats {
-  id            String  @id @default(auto()) @map("_id") @db.ObjectId
-  views         Int     @default(0)
-  likes         Int     @default(0)
-  dislikes      Int     @default(0)
-  rating        Int     @default(0)
-  averageRating Float   @default(0)
-  totalRating   Int     @default(0)
-  shares        Int
-  film          film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId        String? @db.ObjectId
+enum LikeType {
+  THUMBS_UP
+  THUMBS_DOWN
+  NONE
+}
+
+model likes {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @db.ObjectId
+  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String?  @db.ObjectId
+  type      LikeType @default(NONE)
+  createdAt DateTime @default(now())
+}
+
+model rating {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @db.ObjectId
+  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String?  @db.ObjectId
+  rating    Int
+  createdAt DateTime @default(now())
+}
+
+model views {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String?  @db.ObjectId
+  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String?  @db.ObjectId
+  createdAt DateTime @default(now())
 }
 
 model season {

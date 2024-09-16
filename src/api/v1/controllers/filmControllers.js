@@ -352,6 +352,8 @@ export const fetchFilms = async (req, res, next) => {
       let options = {
          include: {
             posters: true,
+            views: true,
+            likes: true,
          },
       };
 
@@ -405,11 +407,14 @@ export const fetchFilm = async (req, res, next) => {
             posters: true,
             cast: true,
             crew: true,
-            stats: true,
             video: true,
             watchlist: {
-               where: { userId: req.userId },
+               where: { userId: req.userId, filmId },
             },
+            likes: {
+               where: { userId: req.userId, filmId },
+            },
+            views: true,
          },
       });
 
@@ -684,6 +689,102 @@ export const getWatchList = async (req, res, next) => {
       }
 
       return res.status(200).json({ watchlist });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+/**
+ * @name removeFromWatchlist - get watchlist
+ * @description function to remove film from watchlist
+ * @type {import('express').RequestHandler}
+ */
+export const removeFromWatchlist = async (req, res, next) => {
+   try {
+      const { id, userId } = req.params;
+
+      if (!userId) {
+         returnError('Unauthorized', 401);
+      }
+
+      const item = await prisma.watchlist.findUnique({
+         where: {
+            id,
+         },
+      });
+
+      if (!item) {
+         return res.status(404).json({ message: 'Item not found' });
+      }
+
+      await prisma.watchlist.delete({
+         where: {
+            id,
+         },
+      });
+
+      return res.status(200).json({ message: 'Removed from watchlist' });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
+/**
+ * @name likeRateFilm - like or dislike a film
+ * @description function to like or dislike a film
+ * @type {import('express').RequestHandler}
+ */
+export const likeRateFilm = async (req, res, next) => {
+   try {
+      const { filmId, userId } = req.params;
+      const data = req.body; // { likeType: "THUMBS_UP" or "THUMBS_DOWN" or "NONE" }
+
+      if (!filmId || !userId) {
+         returnError('Unauthorized', 401);
+      }
+
+      // check if the film is already liked
+      const filmExists = await prisma.likes.findFirst({
+         where: {
+            filmId,
+            userId,
+         },
+      });
+
+      if (filmExists) {
+         // change the like status to the selected status
+         await prisma.likes.update({
+            where: {
+               id: filmExists.id,
+            },
+            data: {
+               type: data.likeType, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE"
+            },
+         });
+      } else {
+         await prisma.likes.create({
+            data: {
+               user: {
+                  connect: {
+                     id: userId,
+                  },
+               },
+               film: {
+                  connect: {
+                     id: filmId,
+                  },
+               },
+               type: data.likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
+            },
+         });
+      }
+
+      return res.status(200).json({ message: 'ok' });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;

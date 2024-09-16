@@ -13,6 +13,8 @@ import {
    getVideoSource,
    addWatchList,
    getWatchList,
+   removeFromWatchlist,
+   likeRateFilm,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
@@ -40,13 +42,8 @@ const upload = multer({
    },
 });
 
+// POST
 router.post('/create', verifyToken, validateData(filmSchema), createFilm);
-router.put(
-   '/update/:filmId',
-   verifyToken,
-   validateData(filmSchemaUpdate),
-   updateFilm
-);
 router.post('/upload/:filmId', verifyToken, upload.single('film'), uploadVideo);
 
 router.post(
@@ -57,6 +54,7 @@ router.post(
 );
 router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
 
+// GET
 router.get('/stream/:filmId', streamFilm);
 router.get('/all', fetchFilms);
 router.get('/:filmId', verifyToken, fetchFilm);
@@ -65,6 +63,17 @@ router.get('/track/:trackid', getVideoSource);
 router.get('/watchlist/:userId', getWatchList);
 router.get('/search', getFilmBySearch);
 
+// PUT
+router.put(
+   '/update/:filmId',
+   verifyToken,
+   validateData(filmSchemaUpdate),
+   updateFilm
+);
+router.put('/likerate/:filmId/:userId', verifyToken, likeRateFilm);
+
+// DELETE
 router.delete('/delete/:filmId', verifyToken, deleteFilm);
+router.delete('/watchlist/:id/:userId', verifyToken, removeFromWatchlist);
 
 export default router;

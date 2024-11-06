@@ -12,8 +12,8 @@
    "license": "MIT",
    "scripts": {
       "dev": "concurrently \"node esbuild.config.mjs --watch\" \"nodemon dist/index.cjs\"",
-      "ninja-watch": "console-ninja yarn --watch app.js",
-      "start": "node dist/index.js",
+      "ninja-watch": "console-ninja yarn --watch app.mjs",
+      "start": "node dist/index.cjs",
       "build": "rimraf dist && node esbuild.config.mjs",
       "postinstall": "prisma generate"
    },

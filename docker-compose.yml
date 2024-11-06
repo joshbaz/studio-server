@@ -1,0 +1,13 @@
+services:
+   api:
+      build: .
+      container_name: nyati-studio
+      command: ./start.sh prod
+      volumes:
+         - .:/app
+      ports:
+         - '4500:4500' # exposes the port 4500 to the host
+      environment:
+         - DATABASE_URL=${DATABASE_URL}
+         - CORS_ORIGINS=${CORS_ORIGINS}
+      restart: always

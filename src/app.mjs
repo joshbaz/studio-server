@@ -1,9 +1,11 @@
 import * as express from 'express';
-import cors from 'cors';
-import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
+
 import api from '@/api/index.mjs';
+import compression from 'compression';
+import cookieParser from 'cookie-parser';
+import cors from 'cors';
 import { env } from './env.mjs';
+import rateLimit from 'express-rate-limit';
 
 /**
  * @module app
@@ -42,6 +44,9 @@ export default function customizeApp(app) {
 
    // Cookie parser
    app.use(cookieParser());
+
+   // Compression
+   app.use(compression());
 
    // API routes
    app.use('/api', api);

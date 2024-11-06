@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
 import prisma from '@/utils/db.mjs';
 import { resend } from '@/services/resend.js';
-import { at } from '@/services/at.js';
+import { at } from '@/services/sms.js';
 import { generate as generateOtp } from 'otp-generator';
 import { renderVerificationTemplate } from '@/services/emailTemplates.js';
 import { returnError } from '@/utils/returnError.js';
@@ -71,7 +71,7 @@ export const createUser = async (req, res, next) => {
       });
 
       return res.status(201).json({
-         message: `user with email ${newUser.email} created successfully`,
+         message: `User created successfully`,
       });
    } catch (error) {
       if (!error.statusCode) {
@@ -415,7 +415,7 @@ export const sendOTP = async (req, res, next) => {
       } else {
          // use something lile Africas Talking SMS API
          response = await at.SMS.send({
-            from: 99100, // short code for Nyati
+            from: 'Nyati', // short code for Nyati
             to: contact,
             message: `Your Nyati OTP login Code is ${otp}`,
          });
@@ -574,6 +574,46 @@ export const testEmailOTP = async (req, res, next) => {
       });
    } catch (error) {
       console.log('Error', error);
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+
+      next(error);
+   }
+};
+
+export const testSMSOTP = async (req, res, next) => {
+   try {
+      const otp = generateOtp(4, {
+         upperCaseAlphabets: false,
+         lowerCaseAlphabets: false,
+         digits: true,
+         specialChars: false,
+      });
+
+      console.log('Sending OTP', otp);
+      await at.SMS.send({
+         from: 'Nyati',
+         to: '+254716390878',
+         message: `Your Nyati OTP login Code is ${otp}`,
+      });
+      const response = await at.SMS.send({
+         from: 'Nyati',
+         to: '+254716390878',
+         message: `Your Nyati OTP login Code is ${otp}`,
+      });
+
+      console.log(response);
+
+      if (response.error) {
+         throw new Error(response.error);
+      }
+
+      return res.status(200).json({
+         message: 'OTP sent please check your phone',
+      });
+   } catch (error) {
+      console.log('Error', error.message);
       if (!error.statusCode) {
          error.statusCode = 500;
       }

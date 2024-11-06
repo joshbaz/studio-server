@@ -11,6 +11,7 @@ import {
    sendOTP,
    verifyOTP,
    testEmailOTP,
+   testSMSOTP,
 } from '../controllers/userControllers.js';
 import { body } from 'express-validator';
 import rateLimit from 'express-rate-limit';
@@ -94,6 +95,7 @@ router.post(
 );
 router.post('/logout/:id', verifyToken, logout);
 router.post('/testemail-otp', testEmailOTP);
+router.post('/testsms-otp', testSMSOTP);
 
 // GET
 router.get('/me/:userId', verifyToken, getUserProfile);

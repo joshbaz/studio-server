@@ -1,5 +1,7 @@
 import esbuild from 'esbuild';
 
+const isProduction = process.env.NODE_ENV === 'production';
+
 esbuild
    .context({
       entryPoints: ['src/index.mjs'],
@@ -12,13 +14,20 @@ esbuild
       sourcemap: true,
       minify: true,
       outExtension: { '.js': '.cjs' },
-      target: 'node14',
+      target: 'node18',
       format: 'cjs',
       logLevel: 'info',
    })
    .then((r) => {
       console.log('✨ Build succeeded.');
-      r.watch();
-      console.log('watching files...');
+      // exit the process
+      if (isProduction) {
+         process.exit(0);
+      }
+
+      // if not production, watch the files
+      if (!isProduction) {
+         r.watch();
+      }
    })
    .catch(() => process.exit(1));

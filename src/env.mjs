@@ -1,3 +1,5 @@
+import 'dotenv/config';
+
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
 
@@ -33,6 +35,12 @@ export const env = createEnv({
 
       // Africas Talking SMS API
       AT_API_KEY: z.string({ message: 'AT_API_KEY is required' }),
+
+      // Twilio SMS API
+      TWILIO_ACCOUNT_SID: z.string({
+         message: 'TWILIO_ACCOUNT_SID is required',
+      }),
+      TWILIO_AUTH_TOKEN: z.string({ message: 'TWILIO_AUTH_TOKEN is required' }),
    },
    runtimeEnv: process.env,
 });

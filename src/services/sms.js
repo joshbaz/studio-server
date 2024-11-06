@@ -1,5 +1,6 @@
 import Africastalking from 'africastalking';
 import { env } from '@/env.mjs';
+import twilio from 'twilio';
 
 function initializeAT() {
    if (!env.AT_API_KEY) {
@@ -19,3 +20,8 @@ function initializeAT() {
 }
 
 export const at = initializeAT();
+
+// Setup Twilio SMS
+const twilioClient = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
+
+export const twilio = twilioClient;

@@ -3,7 +3,7 @@ name: Deploy nyati studio
 on:
    push:
       branches:
-         - main
+         - master
 
 jobs:
    build:

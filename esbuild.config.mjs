@@ -22,7 +22,9 @@ esbuild
       console.log('✨ Build succeeded.');
       // exit the process
       if (isProduction) {
-         process.exit(0);
+         r.serve({
+            port: process.env.PORT || 5000,
+         });
       }
 
       // if not production, watch the files

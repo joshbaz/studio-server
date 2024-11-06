@@ -22,6 +22,5 @@ function initializeAT() {
 export const at = initializeAT();
 
 // Setup Twilio SMS
-const twilioClient = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);
-
+const twilioClient = twilio(env.TWILIO_ACCOUNT_SID, env.TWILIO_AUTH_TOKEN);å
 export const twlio = twilioClient;

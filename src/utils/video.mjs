@@ -1,4 +1,4 @@
-import { env } from '@/env.mjs';
+import { env } from '../env.mjs';
 import { Upload } from '@aws-sdk/lib-storage';
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 

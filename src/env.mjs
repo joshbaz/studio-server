@@ -41,6 +41,9 @@ export const env = createEnv({
          message: 'TWILIO_ACCOUNT_SID is required',
       }),
       TWILIO_AUTH_TOKEN: z.string({ message: 'TWILIO_AUTH_TOKEN is required' }),
+      TWILIO_MESSAGING_SERVICE_SID: z.string({
+         message: 'TWILIO_MESSAGING_SERVICE_SID is required',
+      }),
    },
    runtimeEnv: process.env,
 });

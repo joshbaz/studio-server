@@ -1,6 +1,6 @@
 import * as express from 'express';
 
-import api from '@/api/index.mjs';
+import api from './api/index.mjs';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';

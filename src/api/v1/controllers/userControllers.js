@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
 import prisma from '@/utils/db.mjs';
 import { resend } from '@/services/resend.js';
-import { at } from '@/services/sms.js';
+import { at, sendSMS } from '@/services/sms.js';
 import { generate as generateOtp } from 'otp-generator';
 import { renderVerificationTemplate } from '@/services/emailTemplates.js';
 import { returnError } from '@/utils/returnError.js';
@@ -414,8 +414,14 @@ export const sendOTP = async (req, res, next) => {
          }
       } else {
          // use something lile Africas Talking SMS API
-         response = await at.SMS.send({
-            from: 'Nyati', // short code for Nyati
+         // response = await at.SMS.send({
+         //    from: 'Nyati', // short code for Nyati
+         //    to: contact,
+         //    message: `Your Nyati OTP login Code is ${otp}`,
+         // });
+
+         // Send SMS with Twilio
+         response = await sendSMS({
             to: contact,
             message: `Your Nyati OTP login Code is ${otp}`,
          });

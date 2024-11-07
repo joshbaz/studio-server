@@ -2,7 +2,7 @@
    "name": "studio-server",
    "version": "1.0.0",
    "description": "Video Stream Server",
-   "main": "src/index.js",
+   "main": "src/index.mjs",
    "type": "module",
    "author": "Joshua Kimbareeba",
    "contributors": [

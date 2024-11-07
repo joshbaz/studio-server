@@ -597,14 +597,7 @@ export const testSMSOTP = async (req, res, next) => {
          specialChars: false,
       });
 
-      console.log('Sending OTP', otp);
-      await at.SMS.send({
-         from: 'Nyati',
-         to: '+254716390878',
-         message: `Your Nyati OTP login Code is ${otp}`,
-      });
-      const response = await at.SMS.send({
-         from: 'Nyati',
+      const response = await sendSMS({
          to: '+254716390878',
          message: `Your Nyati OTP login Code is ${otp}`,
       });

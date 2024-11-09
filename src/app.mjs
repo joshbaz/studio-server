@@ -7,6 +7,58 @@ import cors from 'cors';
 import { env } from './env.mjs';
 import rateLimit from 'express-rate-limit';
 
+htmlTemplate = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nyati Studio Server Status</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #141118; /* Dark background */
+            font-family: Arial, sans-serif;
+        }
+        .status {
+            text-align: center;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #1A171E; /* Background color for the status box */
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+        }
+        h1 {
+            color: #F2F2F2; /* Updated primary color */
+        }
+        p {
+            color: #FFFAF6; /* Secondary white */
+        }
+        a {
+            color: #F2F2F2; /* Updated primary color for links */
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline; /* Underline on hover */
+        }
+        img {
+            max-width: 150px; /* Set a maximum width for the logo */
+            margin-bottom: 15px; /* Add some space below the logo */
+        }
+    </style>
+</head>
+<body>
+    <div class="status">
+        <img src="https://ik.imagekit.io/nyatimot/Pages/Universal+Home/Logos/Logo1.svg?updatedAt=1724072184503" alt="Nyati Motion Pictures Logo">
+        <h1>Studio API Server is Live</h1> <!-- Updated Message -->
+        <p>The Nyati Motion Pictures Studio API server is up and running.</p>
+        <p>For any inquiries, contact us at <a href="mailto:info@nyatimotionpictures.com">info@nyatimotionpictures.com</a></p>
+    </div>
+</body>
+</html>`;
+
 /**
  * @module app
  * @name customizeApp
@@ -49,6 +101,9 @@ export default function customizeApp(app) {
    app.use(compression());
 
    // API routes
+   app.get('/', (_, res) => {
+      res.status(200).send(htmlTemplate);
+   });
    app.use('/api', api);
 
    // Error handling - 4xx except 404
@@ -67,8 +122,6 @@ export default function customizeApp(app) {
 
    //Error handling - 5xx
    app.use((err, req, res) => {
-      console.log('Original URL:', req.originalUrl, 'Method:', req.method);
-      console.error('Erroro', err.statusMessage || err.message);
       if (!err.statusCode) {
          err.statusCode = 500;
       }

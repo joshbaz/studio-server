@@ -15,7 +15,8 @@
       "ninja-watch": "console-ninja yarn --watch app.mjs",
       "start": "node dist/index.cjs",
       "build": "rimraf dist && NODE_ENV='production' node esbuild.config.mjs",
-      "postinstall": "prisma generate"
+      "postinstall": "prisma generate",
+      "postbuild": "prisma generate"
    },
    "devDependencies": {
       "@rollup/plugin-alias": "^5.1.0",

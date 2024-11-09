@@ -11,7 +11,10 @@ export const env = createEnv({
             message: 'To start the server HAS_ENV must have a value',
          })
          .default(''),
-      PORT: z.string({ message: 'PORT should be a number' }).default(4500),
+      PORT: z
+         .string({ message: 'PORT should be a number' })
+         .optional()
+         .default(4500),
       SECRETVA: z.string({ message: 'SECRETIVA is required' }),
 
       // Digital Ocean

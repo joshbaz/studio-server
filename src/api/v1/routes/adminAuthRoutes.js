@@ -58,6 +58,11 @@ const customFunc = async (value) => {
 
    return true;
 };
+
+router.get('/health', (req, res) => {
+   res.status(200).json({ message: 'Admin Auth Route is healthy' });
+});
+
 router.post(
    '/login',
    [

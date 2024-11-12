@@ -47,6 +47,12 @@ export const env = createEnv({
       TWILIO_MESSAGING_SERVICE_SID: z.string({
          message: 'TWILIO_MESSAGING_SERVICE_SID is required',
       }),
+
+      // Nodemailer
+      NODE_MAILER_HOST: z.string({ message: 'HOST is required' }),
+      NODE_MAILER_PORT: z.string({ message: 'PORTMAIL is required' }),
+      NODE_MAILER_USERCRED: z.string({ message: 'USERCRED is required' }),
+      NODE_MAILER_PASSCRED: z.string({ message: 'USERKEY is required' }),
    },
    runtimeEnv: process.env,
 });

@@ -4,6 +4,12 @@ export const renderOTPTemplate = (otp) => {
             <head>
                 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
                 <meta name="x-apple-disable-message-reformatting" />
+                <style>
+                  img {
+                      max-width: 150px; /* Set a maximum width for the logo */
+                      margin-bottom: 15px; /* Add some space below the logo */
+                    }
+                </style>
             </head>
             <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0">Your Nyati Motion Pictures OTP code </div>
 
@@ -11,7 +17,8 @@ export const renderOTPTemplate = (otp) => {
                 <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="max-width:560px;margin:0 auto;padding:20px 0 48px">
                 <tbody>
                     <tr style="width:100%">
-                    <td><img alt="Nyati Motion Pictures" height="42" src="https://ik.imagekit.io/alero/Nyati_Films/website-metadata/Universal+Home/Logos/Logo1.svg?updatedAt=1722395100447" style="display:block;outline:none;border:none;text-decoration:none;border-radius:21px;width:42px;height:42px" width="42" />
+                    <td>
+                     <img src="/static/images/nyatimot-logo.svg" alt="Nyati Motion Pictures Logo">
                         <h1 style="font-size:24px;letter-spacing:-0.5px;line-height:1.3;font-weight:400;color:#484848;padding:17px 0 0">Your Nyati OTP Code</h1>
                         <p style="font-size:15px;line-height:1.4;margin:0 0 15px;color:#3c4149">This code will only be valid for the next 10 minutes:</p><code style="font-family:monospace;font-weight:700;padding:1px 4px;background-color:#dfe1e4;letter-spacing:-0.3px;font-size:21px;border-radius:4px;color:#3c4149">${otp}</code>
                         <hr style="width:100%;border:none;border-top:1px solid #eaeaea;border-color:#dfe1e4;margin:42px 0 26px" /><a href="https://staging.nyatimotionpictures.com/" style="color:#b4becc;text-decoration:none;font-size:14px" target="_blank">Nyati Motion Pictures</a>
@@ -24,6 +31,12 @@ export const renderOTPTemplate = (otp) => {
 `;
 };
 
+/**
+ * @name renderVerificationTemplate
+ * @description Renders the HTML template for the verification email
+ * @param {string | number} code
+ * @returns {string} HTML template for the verification email
+ */
 export const renderVerificationTemplate = (code) => {
    return `
   <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -32,6 +45,12 @@ export const renderVerificationTemplate = (code) => {
       <link rel="preload" as="image" href="https://ik.imagekit.io/alero/Nyati_Films/website-metadata/Universal+Home/Logos/Logo1.svg" />
       <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
       <meta name="x-apple-disable-message-reformatting" />
+      <style>
+        img {
+              max-width: 150px; /* Set a maximum width for the logo */
+              margin-bottom: 15px; /* Add some space below the logo */
+          }
+      </style>
     </head>
     <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0">Nyati Verification Code</div>
 
@@ -47,7 +66,7 @@ export const renderVerificationTemplate = (code) => {
                       <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="background-color:#141118;display:flex;padding:20px 0;align-items:center;justify-content:center">
                         <tbody>
                           <tr>
-                            <td><img alt="Nyati Logo" height="45" src="https://ik.imagekit.io/alero/Nyati_Films/website-metadata/Universal+Home/Logos/Logo1.svg" style="display:block;outline:none;border:none;text-decoration:none" width="75" /></td>
+                            <td> <img src="https://ik.imagekit.io/nyatimot/Pages/Universal+Home/Logos/Logo1.svg" alt="Nyati Motion Pictures Logo"></td>
                           </tr>
                         </tbody>
                       </table>
@@ -63,6 +82,85 @@ export const renderVerificationTemplate = (code) => {
                                     <td>
                                       <p style="font-size:36px;line-height:24px;margin:10px 0;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;font-weight:normal;text-align:center">${code}</p>
                                       <p style="font-size:14px;line-height:24px;margin:0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">This code will only be valid for the next 10 minutes. If this request did not come from you, change your account password immediately to prevent further unauthorized access.</p>
+                                      <p style="font-size:14px;line-height:24px;margin:10px 0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">This is an automated message, please do not reply.</p>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                </tbody>
+                </table>
+                <p style="width:100%;font-size:12px;line-height:24px;margin:24px 0;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;padding:0;text-align:center;"> <a href="https://staging.nyatimotionpictures.com/" style="text-decoration:none;font-size:14px;color:#333;" target="_blank" rel="noopener noreferrer"> © 2024 by Nyati Motion Pictures</a></p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </body>
+  </html>
+`;
+};
+
+/**
+ * @name renderConfirmationTemplate
+ * @description Renders the HTML template for the verification email
+ * @param {string | number} code
+ * @returns {string} HTML template for the verification email
+ */
+export const renderConfirmationTemplate = (user) => {
+   return `
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+  <html dir="ltr" lang="en">
+    <head>
+      <link rel="preload" as="image" href="https://ik.imagekit.io/alero/Nyati_Films/website-metadata/Universal+Home/Logos/Logo1.svg" />
+      <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+      <meta name="x-apple-disable-message-reformatting" />
+      <style>
+        img {
+              max-width: 150px; /* Set a maximum width for the logo */
+              margin-bottom: 15px; /* Add some space below the logo */
+          }
+      </style>
+    </head>
+    <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0">Nyati Verification Code</div>
+
+    <body style="background-color:#fff;color:#212121">
+      <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="width:100%;height:100%;min-height:600px;padding:20px;margin:0 auto;background-color:#eee">
+        <tbody>
+          <tr style="width:100%">
+            <td>
+              <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="background-color:#fff;max-width:40em;margin:0 auto;">
+                <tbody>
+                  <tr>
+                    <td>
+                      <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="background-color:#141118;display:flex;padding:20px 0;align-items:center;justify-content:center">
+                        <tbody>
+                          <tr>
+                            <td> <img src="https://ik.imagekit.io/nyatimot/Pages/Universal+Home/Logos/Logo1.svg" alt="Nyati Motion Pictures Logo"></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="padding:25px 35px">
+                        <tbody>
+                          <tr>
+                            <td>
+                              <h1 style="color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;font-size:28px;font-weight:semibold;margin-bottom:10px;text-align:center">Account Confirmation</h1>
+                              <p style="font-size:14px;line-height:24px;margin:0;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;margin-bottom:14px;text-align:center">Hi ${user.firstname},</p>
+                              <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="display:flex;align-items:center;justify-content:center">
+                                <tbody>
+                                  <tr>
+                                    <td>
+                                      <p style="font-size:14px;line-height:24px;margin:0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">Welcome to Nyatiflix! We’re excited to have you join us.</p>
+                                      <p style="font-size:14px;line-height:24px;margin:0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">Your account has been successfully created 🎉🎉</p>
+                                      <p style="font-size:14px;line-height:24px;margin:0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">Here’s a quick summary:</br>
+                                      Email: ${user.email}
+                                      With Nyatiflix, you’ll have access to exclusive Ugandan content just for you. Dive into the latest movies, series, and more, anytime, anywhere! </br>
+                                      If you have any questions or need help getting started, feel free to reach out to our support team.
+                                      Enjoy your Nyatiflix experience!</p>
                                       <p style="font-size:14px;line-height:24px;margin:10px 0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">This is an automated message, please do not reply.</p>
                                     </td>
                                   </tr>

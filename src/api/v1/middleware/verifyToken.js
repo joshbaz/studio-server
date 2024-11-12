@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
-import { returnError } from '@/utils/returnError.js';
+// import { returnError } from '@/utils/returnError.js';
 
 /**
  * @name verifyToken

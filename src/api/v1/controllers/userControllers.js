@@ -2,10 +2,14 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
 import prisma from '@/utils/db.mjs';
-import { resend } from '@/services/resend.js';
+// import { resend } from '@/services/resend.js';
+import { sendMail } from '@/services/nodemailer.js';
 import { at, sendSMS } from '@/services/sms.js';
 import { generate as generateOtp } from 'otp-generator';
-import { renderVerificationTemplate } from '@/services/emailTemplates.js';
+import {
+   renderVerificationTemplate,
+   renderConfirmationTemplate,
+} from '@/services/emailTemplates.js';
 import { returnError } from '@/utils/returnError.js';
 
 /**
@@ -58,7 +62,7 @@ export const createUser = async (req, res, next) => {
       }
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      const newUser = await prisma.user.create({
+      await prisma.user.create({
          data: {
             email,
             password: hashedPassword,
@@ -321,13 +325,9 @@ export const deleteUser = async (req, res, next) => {
          },
       });
 
-      res.clearCookie('token')
-         .status(200)
-         .json({
-            message: `${deletedUser?.firstname}'s account successfully deleted`,
-         });
-
-      res.status(200).send({ message: 'User deleted', user: deletedUser });
+      return res.clearCookie('token').status(200).json({
+         message: `Account successfully deleted`,
+      });
    } catch (error) {
       if (!error.statusCode) {
          error.statusCode = 500;
@@ -402,16 +402,19 @@ export const sendOTP = async (req, res, next) => {
 
       let response;
       if (isEmail) {
-         response = await resend.emails.send({
-            from: 'noreply@mbuguanewton.dev',
+         // response = await resend.emails.send({
+         //    from: 'noreply@mbuguanewton.dev',
+         //    to: contact,
+         //    subject: 'Your Nyati Motion Pictures OTP login Code',
+         //    html: renderVerificationTemplate(otp),
+         // });
+
+         response = await sendMail({
+            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
             to: contact,
             subject: 'Your Nyati Motion Pictures OTP login Code',
             html: renderVerificationTemplate(otp),
          });
-
-         if (response?.error) {
-            throw new Error(response.error);
-         }
       } else {
          // use something lile Africas Talking SMS API
          // response = await at.SMS.send({
@@ -527,6 +530,13 @@ export const verifyOTP = async (req, res, next) => {
          },
       });
 
+      if (!existingUser) {
+         returnError(
+            'Something went wrong when verify your otp, check your details again',
+            404
+         );
+      }
+
       const authToken = jwt.sign(
          {
             email: existingUser.email,
@@ -539,6 +549,16 @@ export const verifyOTP = async (req, res, next) => {
       res.cookie('token', authToken, {
          httpOnly: true,
          maxAge: 1000 * 60 * 60 * 24, // 24 hours
+      });
+
+      await sendMail({
+         from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+         to: 'mymbugua@gmail.com',
+         subject: 'Nyatiflix Account Confirmation.',
+         html: renderConfirmationTemplate({
+            firstname: existingUser.firstname,
+            email: existingUser.email,
+         }),
       });
 
       return res
@@ -564,12 +584,28 @@ export const testEmailOTP = async (req, res, next) => {
          specialChars: false,
       });
 
-      const response = await resend.emails.send({
-         from: 'noreply@mbuguanewton.dev',
+      // const response = await resend.emails.send({
+      //    from: 'noreply@mbuguanewton.dev',
+      //    to: 'mymbugua@gmail.com',
+      //    subject: 'Your Nyati Motion Pictures Verification Code',
+      //    html: renderVerificationTemplate(otp),
+      // });
+
+      const response = await sendMail({
+         from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
          to: 'mymbugua@gmail.com',
          subject: 'Your Nyati Motion Pictures Verification Code',
          html: renderVerificationTemplate(otp),
       });
+      // const response = await sendMail({
+      //    from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+      //    to: 'mymbugua@gmail.com',
+      //    subject: 'Nyatiflix Account Confirmation.',
+      //    html: renderConfirmationTemplate({
+      //       firstname: 'Newton',
+      //       email: 'mymbugua@gmail.com',
+      //    }),
+      // });
 
       if (response?.error) {
          throw new Error(response.error);
@@ -598,11 +634,11 @@ export const testSMSOTP = async (req, res, next) => {
       });
 
       const response = await sendSMS({
-         to: '+254716390878',
+         to: '+447494761694',
          message: `Your Nyati OTP login Code is ${otp}`,
       });
 
-      console.log(response);
+      console.log('Response', response);
 
       if (response.error) {
          throw new Error(response.error);

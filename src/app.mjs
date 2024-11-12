@@ -6,8 +6,9 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { env } from './env.mjs';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
 
-htmlTemplate = `<!DOCTYPE html>
+const htmlTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -99,6 +100,9 @@ export default function customizeApp(app) {
 
    // Compression
    app.use(compression());
+
+   // Setup static files
+   app.use(express.static(path.join(__dirname, 'public')));
 
    // API routes
    app.get('/', (_, res) => {

@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@auth/express':
         specifier: ^0.5.6
-        version: 0.5.6(express@4.19.2)
+        version: 0.5.6(express@4.19.2)(nodemailer@6.9.16)
       '@aws-sdk/client-s3':
         specifier: ^3.606.0
         version: 3.606.0
@@ -83,6 +83,9 @@ importers:
       multer-s3:
         specifier: ^3.0.1
         version: 3.0.1(@aws-sdk/client-s3@3.606.0)
+      nodemailer:
+        specifier: ^6.9.16
+        version: 6.9.16
       otp-generator:
         specifier: ^4.0.1
         version: 4.0.1
@@ -1890,6 +1893,10 @@ packages:
     resolution: {integrity: sha512-myRT3DiWPHqho5PrJaIRyaMv2kgYf0mUVgBNOYMuCH5Ki1yEiQaf/ZJuQ62nvpc44wL5WDbTX7yGJi1Neevw8w==}
     engines: {node: '>= 0.6'}
 
+  nodemailer@6.9.16:
+    resolution: {integrity: sha512-psAuZdTIRN08HKVd/E8ObdV6NO7NTBY3KsC30F7M4H1OnmLCUNaS56FpYxyb26zWLSyYF9Ozch9KYHhHegsiOQ==}
+    engines: {node: '>=6.0.0'}
+
   nodemon@3.1.4:
     resolution: {integrity: sha512-wjPBbFhtpJwmIeY2yP7QF+UKzPfltVGtfce1g/bB15/8vCGZj8uxD62b/b9M9/WVgme0NZudpownKN+c0plXlQ==}
     engines: {node: '>=10'}
@@ -2477,7 +2484,7 @@ packages:
 
 snapshots:
 
-  '@auth/core@0.34.1':
+  '@auth/core@0.34.1(nodemailer@6.9.16)':
     dependencies:
       '@panva/hkdf': 1.2.0
       '@types/cookie': 0.6.0
@@ -2486,10 +2493,12 @@ snapshots:
       oauth4webapi: 2.11.1
       preact: 10.11.3
       preact-render-to-string: 5.2.3(preact@10.11.3)
+    optionalDependencies:
+      nodemailer: 6.9.16
 
-  '@auth/express@0.5.6(express@4.19.2)':
+  '@auth/express@0.5.6(express@4.19.2)(nodemailer@6.9.16)':
     dependencies:
-      '@auth/core': 0.34.1
+      '@auth/core': 0.34.1(nodemailer@6.9.16)
       express: 4.19.2
     transitivePeerDependencies:
       - '@simplewebauthn/browser'
@@ -4674,6 +4683,8 @@ snapshots:
   negotiator@0.6.3: {}
 
   negotiator@0.6.4: {}
+
+  nodemailer@6.9.16: {}
 
   nodemon@3.1.4:
     dependencies:

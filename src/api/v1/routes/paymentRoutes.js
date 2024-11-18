@@ -12,6 +12,16 @@ const router = express.Router();
 
 // POST
 router.post('/:userId/newpaymentmethod', verifyToken, addPaymentMethod);
+router.get('/mtncallback/:orderTrackingId', (req, res) => {
+   const { orderTrackingId } = req.params;
+
+   console.log('MTN callback', req.body);
+   if (!orderTrackingId) {
+      return res.status(400).send({ message: 'Invalid order tracking ID' });
+   }
+
+   return res.status(200).send({ message: 'Payment successful' });
+});
 
 // GET
 router.get('/:userId/paymentMethods', verifyToken, getPaymentMethods);

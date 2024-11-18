@@ -15,6 +15,10 @@ import {
    getWatchList,
    removeFromWatchlist,
    likeRateFilm,
+   purchaseFilm,
+   updateVideoPrice,
+   deleteVideo,
+   checkPaymentStatus,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
@@ -53,15 +57,17 @@ router.post(
    uploadPoster
 );
 router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
+router.post('/purchase/:userId/:videoId', verifyToken, purchaseFilm);
 
 // GET
-router.get('/stream/:trackId', verifyToken, streamFilm);
+router.get('/stream/:trackId', streamFilm);
 router.get('/all', fetchFilms);
 router.get('/:filmId', verifyToken, fetchFilm);
 router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);
 router.get('/track/:trackid', getVideoSource);
 router.get('/watchlist/:userId', getWatchList);
 router.get('/search', getFilmBySearch);
+router.get('/checkpaymentstatus/:orderId', checkPaymentStatus);
 
 // PUT
 router.put(
@@ -71,9 +77,11 @@ router.put(
    updateFilm
 );
 router.put('/likerate/:filmId/:userId', verifyToken, likeRateFilm);
+router.put('/updateVideoPrice/:videoId', verifyToken, updateVideoPrice);
 
 // DELETE
 router.delete('/delete/:filmId', verifyToken, deleteFilm);
 router.delete('/watchlist/:id/:userId', verifyToken, removeFromWatchlist);
+router.delete('/video/:videoId', verifyToken, deleteVideo);
 
 export default router;

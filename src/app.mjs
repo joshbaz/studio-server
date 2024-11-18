@@ -102,7 +102,7 @@ export default function customizeApp(app) {
    app.use(compression());
 
    // Setup static files
-   app.use(express.static(path.join(__dirname, 'public')));
+   // app.use(express.static(path.join(__dirname, 'public')));
 
    // API routes
    app.get('/', (_, res) => {
@@ -125,10 +125,11 @@ export default function customizeApp(app) {
    });
 
    //Error handling - 5xx
-   app.use((err, req, res) => {
+   app.use((err, _, res, next) => {
       if (!err.statusCode) {
          err.statusCode = 500;
       }
+      console.log('error', err);
       res.status(500).send({
          message: `Internal Server Error: ${err.message}`,
       });

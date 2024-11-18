@@ -2,6 +2,8 @@ import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
+import axios from 'axios';
+import { env } from '@/env.mjs';
 
 /**
  * @name isVerifiedAdmin
@@ -85,55 +87,120 @@ async function checkUploadPermission(req, res, adminId) {
  * @returns {Promise<import('@aws-sdk/client-s3').GetObjectCommandOutput>} stream
  */
 export const streamVideo = async ({ bucketName, key, range }, res) => {
-   // create stream parameters
-   const streamParams = {
-      Bucket: bucketName,
-      Key: key,
-   };
+   try {
+      // Validate range
+      if (!range) {
+         returnError('Range header is required', 416);
+      }
 
-   const data = await s3Client.send(new HeadObjectCommand(streamParams));
+      // Create stream parameters
+      const streamParams = { Bucket: bucketName, Key: key };
 
-   let { ContentLength, ContentType } = data;
+      // Get metadata for the object
+      const data = await s3Client.send(new HeadObjectCommand(streamParams));
+      const { ContentLength, ContentType } = data;
 
-   console.log('Data', data);
-   console.log('Range', range);
-   const CHUNK_SIZE = 10 ** 6; // 1MB
+      // Parse range
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
 
-   if (!range) {
-      throw new Error('Range header is required');
+      if (
+         isNaN(start) ||
+         isNaN(end) ||
+         start >= ContentLength ||
+         end >= ContentLength ||
+         start > end
+      ) {
+         returnError("Requested range can't be satisfied", 416);
+      }
+
+      const chunkSize = end - start + 1;
+
+      // Set headers
+      const headers = {
+         'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
+         'Accept-Ranges': 'bytes',
+         'Content-Length': chunkSize,
+         'Content-Type': ContentType,
+      };
+
+      // Send headers
+      res.writeHead(206, headers);
+
+      // Fetch the chunk and pipe to response
+      const streamData = await s3Client.send(
+         new GetObjectCommand({
+            ...streamParams,
+            Range: `bytes=${start}-${end}`,
+         })
+      );
+
+      return streamData;
+   } catch (err) {
+      throw err;
    }
-
-   // range : bytes=NAN-
-   const parts = range.replace(/bytes=/, '').split('-');
-   const start = parseInt(parts[0], 10);
-   const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
-   // const start = Number(range.replace(/\D/g, ''));
-   // const end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
-
-   console.log('Start:', start);
-   console.log('End:', end);
-
-   const chunkSize = end - start + 1;
-   const headers = {
-      'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
-      'Accept-Ranges': 'bytes',
-      'Content-Length': chunkSize,
-      'Content-Type': ContentType,
-   };
-
-   console.log('headers', headers);
-
-   // send the headers
-   res.writeHead(206, headers);
-
-   // readable stream
-   return s3Client.send(
-      new GetObjectCommand({
-         ...streamParams,
-         Range: `bytes=${start}-${end}`,
-      })
-   );
 };
+// /**
+//  * @name streamVideo
+//  * @description function to stream video from bucket to client return a video stream
+//  * @param {Object} params
+//  * @param {String} params.bucketName
+//  * @param {String} params.key
+//  * @param {String} params.range
+//  * @param {import('express').Response} res
+//  * @returns {Promise<import('@aws-sdk/client-s3').GetObjectCommandOutput>} stream
+//  */
+// export const streamVideo = async ({ bucketName, key, range }, res) => {
+//    // create stream parameters
+//    const streamParams = {
+//       Bucket: bucketName,
+//       Key: key,
+//    };
+
+//    const data = await s3Client.send(new HeadObjectCommand(streamParams));
+
+//    let { ContentLength, ContentType } = data;
+
+//    console.log('Data', data);
+//    console.log('Range', range);
+//    const CHUNK_SIZE = 10 ** 6; // 1MB
+
+//    if (!range) {
+//       throw new Error('Range header is required');
+//    }
+
+//    // range : bytes=NAN-
+//    const parts = range.replace(/bytes=/, '').split('-');
+//    const start = parseInt(parts[0], 10);
+//    const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
+//    // const start = Number(range.replace(/\D/g, ''));
+//    // const end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
+
+//    console.log('Start:', start);
+//    console.log('End:', end);
+
+//    const chunkSize = end - start + 1;
+//    const headers = {
+//       'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
+//       'Accept-Ranges': 'bytes',
+//       'Content-Length': chunkSize,
+//       'Content-Type': ContentType,
+//    };
+
+//    console.log('headers', headers);
+
+//    // send the headers
+//    res.writeHead(206, headers);
+
+//    // readable stream
+//    return s3Client.send(
+//       new GetObjectCommand({
+//          ...streamParams,
+//          Range: `bytes=${start}-${end}`,
+//       })
+//    );
+// };
 
 /**
  * @name formatFileSize
@@ -224,12 +291,26 @@ export const updateFilm = async (req, res, next) => {
 export const uploadVideo = async (req, res, next) => {
    try {
       const { filmId } = req.params;
-      const { adminId, isTrailer } = req.body;
+      const { adminId, isTrailer, resolution, price, currency } = req.body;
+
+      if (!resolution) {
+         returnError('Resolution is required', 400);
+      }
+
+      if (!currency || !price) {
+         returnError('Price and currency are required', 400);
+      }
+
       const { file } = await checkUploadPermission(req, res, adminId);
+
+      const filename = `${resolution}-${file.originalname.replace(
+         /\s/g,
+         '-'
+      )}`.toLowerCase(); // replace spaces with hyphens
 
       const bucketParams = {
          bucketName: filmId,
-         key: file.originalname,
+         key: filename,
          buffer: file.buffer,
          contentType: file.mimetype,
          isPublic: true,
@@ -239,17 +320,33 @@ export const uploadVideo = async (req, res, next) => {
       const videoData = {
          url: data.url,
          format: file.mimetype,
-         name: file.originalname, // used as the key in the bucket
+         name: filename, // used as the key in the bucket
          size: formatFileSize(file.size),
          encoding: file.encoding,
          isTrailer,
          filmId,
+         resolution, // SD, HD, FHD, UHD
       };
 
       // create a video record with all the details including the signed url
       const newVideo = await prisma.video.create({
          data: videoData,
       });
+
+      if (price && currency && newVideo.id) {
+         // add a new entry to the video pricing table
+         const formattedPrice =
+            typeof price === 'string' ? parseFloat(price) : price;
+         await prisma.videoPrice.create({
+            data: {
+               currency,
+               price: formattedPrice,
+               videoId: newVideo.id,
+            },
+         });
+      }
+
+      // return success message
       res.status(200).json({ url: 'Upload successful', video: newVideo });
    } catch (error) {
       if (!error.statusCode) {
@@ -265,11 +362,9 @@ export const uploadVideo = async (req, res, next) => {
  * @description function to stream film from bucket to client
  * @type {import('express').RequestHandler}
  */
-export const streamFilm = async (req, res) => {
+export const streamFilm = async (req, res, next) => {
    try {
       const { trackId } = req.params;
-
-      console.log('FilmId', trackId);
 
       if (!trackId) {
          returnError('No video id provided', 400);
@@ -289,14 +384,12 @@ export const streamFilm = async (req, res) => {
          },
       });
 
-      console.log('Video', video);
-
       if (!video.id) {
          returnError('Video not found', 404);
       }
 
       const videoParams = {
-         Key: video.name,
+         key: video.name,
          bucketName: video.film.id,
          range: req.headers.range,
       };
@@ -304,7 +397,6 @@ export const streamFilm = async (req, res) => {
       const stream = await streamVideo(videoParams, res);
       stream.Body.pipe(res);
    } catch (error) {
-      console.log('Error', error);
       if (!error.statusCode) {
          error.statusCode = 500;
       }
@@ -370,7 +462,7 @@ export const fetchFilm = async (req, res, next) => {
    try {
       const { filmId } = req.params;
       if (!filmId) {
-         return res.status(400).json({ message: 'No film id provided' });
+         returnError('No film id provided', 400);
       }
 
       const film = await prisma.film.findUnique({
@@ -379,7 +471,11 @@ export const fetchFilm = async (req, res, next) => {
             posters: true,
             cast: true,
             crew: true,
-            video: true,
+            video: {
+               include: {
+                  videoPrice: true,
+               },
+            },
             watchlist: {
                where: { userId: req.userId, filmId },
             },
@@ -391,7 +487,7 @@ export const fetchFilm = async (req, res, next) => {
       });
 
       if (!film) {
-         return res.status(404).json({ message: 'Film not found' });
+         returnError('Film not found', 404);
       }
 
       res.status(200).json({ film });
@@ -975,6 +1071,260 @@ export const deleteFilm = async (req, res, next) => {
          error.statusCode = 500;
       }
       res.status(error.statusCode).json({ message: error.message });
+      next(error);
+   }
+};
+
+/**
+ * @name updateVideoPrice
+ * @description function to get film pricing
+ * @type {import('express').RequestHandler}
+ */
+
+export const updateVideoPrice = async (req, res, next) => {
+   try {
+      const { videoId } = req.params;
+      const { price, currency } = req.body;
+
+      if (!price || !currency) {
+         returnError('Price and currency are required', 400);
+      }
+
+      const formattedPrice =
+         typeof price === 'string' ? parseFloat(price) : price;
+
+      const updatedPrice = await prisma.videoPrice.update({
+         where: { videoId },
+         data: { price: formattedPrice, currency },
+      });
+
+      res.status(200).json({
+         message: 'Price updated successfully',
+         price: updatedPrice,
+      });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
+/**
+ * @name deleteVideo
+ * @description function to get film pricing
+ * @type {import('express').RequestHandler}
+ */
+
+export const deleteVideo = async (req, res, next) => {
+   try {
+      const { videoId } = req.params;
+      const { adminId } = req.body;
+
+      await verifyAdmin(adminId, res);
+
+      const video = await prisma.video.findUnique({
+         where: { id: videoId },
+      });
+
+      if (!video) {
+         returnError('Video not found', 404);
+      }
+
+      await prisma.video.delete({
+         where: { id: videoId },
+      });
+
+      await deleteFromBucket({ bucketName: video.filmId, key: video.name });
+      res.status(200).json({ message: 'Video deleted successfully' });
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
+/**
+ * @name purchaseFilm
+ * @description function to purchase a film
+ * @type {import('express').RequestHandler}
+ */
+export const purchaseFilm = async (req, res, next) => {
+   try {
+      const { userId, videoId } = req.params;
+      const body = req.body;
+
+      if (!userId || !videoId) returnError('Unauthorized purchase', 401);
+
+      const video = await prisma.video.findUnique({
+         where: { id: videoId },
+         include: {
+            videoPrice: true,
+            film: true,
+         },
+      });
+
+      if (!video) returnError('The resource can not be found.', 404);
+      if (!body?.option) returnError('Payment method is required', 400);
+
+      const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
+
+      // switch by payment type
+      switch (body.option) {
+         case 'mtnmomo':
+            try {
+               const URL = `${PAYMENTS_API}/nyatimtn/app/purchase`;
+               const phonenumber =
+                  body.phoneCode.replace('+', '') + body.paymentNumber;
+
+               const response = await axios.post(
+                  URL,
+                  {
+                     amount: video?.videoPrice.price.toString(),
+                     phonenumber,
+                     filmName: video?.film.title,
+                     paymentType: 'MTN',
+                  },
+                  { headers: { 'Content-Type': 'multipart/form-data' } }
+               );
+
+               if (!response.data.orderTrackingId) {
+                  returnError('Payment failed', 400);
+               }
+
+               // Save the transaction including the orderTrackingId
+               await prisma.transaction.create({
+                  data: {
+                     userId,
+                     type: 'PURCHASE',
+                     amount: video?.videoPrice.price,
+                     currency: video?.videoPrice.currency,
+                     status: 'PENDING',
+                     paymentMethodType: 'mtnmomo',
+                     orderTrackingId: response.data.orderTrackingId,
+                     paymentMethodId: body.paymentMethodId
+                        ? body.paymentMethodId
+                        : null,
+                  },
+               });
+
+               res.status(200).json({
+                  message: 'Payment pending approval',
+                  orderTrackingId: response.data.orderTrackingId,
+               });
+
+               break;
+            } catch (error) {
+               console.log('error', error);
+               returnError(error.message, 500);
+            }
+
+         case 'airtelmoney':
+            // process wallet payment
+            break;
+         case 'visa':
+            // process visa payment
+            break;
+         default:
+            returnError('Invalid payment type', 400);
+      }
+   } catch (error) {
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
+      next(error);
+   }
+};
+
+/**
+ * @name checkPaymentStatus
+ * @description function to verify payment
+ * @type {import('express').RequestHandler}
+ */
+
+export const checkPaymentStatus = async (req, res, next) => {
+   try {
+      const { orderId: orderTrackingId } = req.params;
+
+      if (!orderTrackingId) returnError('Order tracking id is required', 400);
+
+      // fetch the transaction with the orderTrackingId
+      const existingTransaction = await prisma.transaction.findFirst({
+         where: { orderTrackingId },
+      });
+
+      if (!existingTransaction) returnError('Transaction not found', 404);
+
+      const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
+
+      switch (existingTransaction.paymentMethodType) {
+         case 'mtnmomo':
+            try {
+               const URL = `${PAYMENTS_API}/nyatimtn/app/transact_statuses/${orderTrackingId}`;
+               const response = await axios.get(URL, {
+                  headers: { 'Content-Type': 'application/json' },
+               });
+
+               console.log('response', response.data);
+
+               if (!response.data.status) {
+                  returnError('Payment failed', 400);
+               }
+
+               const { payStatus } = response.data;
+               switch (payStatus) {
+                  case 'Transaction Successful':
+                     if (response.data.transactionId) {
+                        // update the transaction
+                        await prisma.transaction.update({
+                           where: { id: existingTransaction.id },
+                           data: {
+                              status: 'SUCCESS',
+                              financialTransactionId:
+                                 response.data.transactionId,
+                           },
+                        });
+
+                        return res.status(200).json({
+                           status: 'SUCCESSFUL',
+                           transaction: existingTransaction,
+                        });
+                     }
+                     break;
+                  case 'Transaction has Failed':
+                  case 'Transaction Rejected':
+                     res.status(200).json({
+                        status: 'FAILED',
+                     });
+                     break;
+                  case 'Transaction Timeout':
+                     res.status(200).json({
+                        status: 'TIMEOUT',
+                     });
+                     break;
+                  case 'Transaction Pending':
+                     res.status(200).json({
+                        status: 'PENDING',
+                     });
+                     break;
+                  default:
+                     returnError('Payment failed', 400);
+               }
+               break;
+            } catch (error) {
+               throw error;
+            }
+         case 'airtel':
+            break;
+         case existingTransaction.paymentMethodType.includes('pesapal'):
+            break;
+      }
+   } catch (error) {
+      console.log('error', error);
+      if (!error.statusCode) {
+         error.statusCode = 500;
+      }
       next(error);
    }
 };

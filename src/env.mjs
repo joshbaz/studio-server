@@ -53,6 +53,11 @@ export const env = createEnv({
       NODE_MAILER_PORT: z.string({ message: 'PORTMAIL is required' }),
       NODE_MAILER_USERCRED: z.string({ message: 'USERCRED is required' }),
       NODE_MAILER_PASSCRED: z.string({ message: 'USERKEY is required' }),
+
+      // Payments API
+      NYATI_PAYMENTS_API_URL: z.string({
+         message: 'NYATI_PAYMENTS_API_URL is required',
+      }),
    },
    runtimeEnv: process.env,
 });

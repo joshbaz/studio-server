@@ -7,8 +7,12 @@ import {
    updatePaymentMethod,
 } from '../controllers/paymentControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
+import { mtnRouter } from './mtnRouter.js';
 
 const router = express.Router();
+
+// SUBROUTES
+router.use('/mtn', mtnRouter);
 
 // POST
 router.post('/:userId/newpaymentmethod', verifyToken, addPaymentMethod);

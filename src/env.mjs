@@ -1,10 +1,11 @@
 import 'dotenv/config';
 
-import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
+import { createEnv } from '@t3-oss/env-core';
 
 export const env = createEnv({
    server: {
+      NODE_ENV: z.string().optional(),
       DATABASE_URL: z.string({ message: 'DATABASE_URL is required' }),
       HAS_ENV: z
          .string({
@@ -57,6 +58,35 @@ export const env = createEnv({
       // Payments API
       NYATI_PAYMENTS_API_URL: z.string({
          message: 'NYATI_PAYMENTS_API_URL is required',
+      }),
+
+      // MOMO MTN
+      MOMO_COLLECT_PRIMARY: z.string({
+         message: 'MOMO_COLLECT_PRIMARY is required',
+      }),
+      MOMO_COLLECT_PROD_PRIMARY: z.string({
+         message: 'MOMO_COLLECT_PROD_PRIMARY is required',
+      }),
+      MOMO_COLLECT_SECONDARY: z.string({
+         message: 'MOMO_COLLECT_SECONDARY is required',
+      }),
+      MOMO_COLLECT_PROD_SECONDARY: z.string({
+         message: 'MOMO_COLLECT_PROD_SECONDARY is required',
+      }),
+      MOMO_SANDBOX_URL: z.string({ message: 'MOMO_SANDBOX_URL is required' }),
+
+      MOMO_PROD_API_USER: z.string({
+         message: 'MOMO_PROD_API_USER is required',
+      }),
+      MOMO_PROD_API_KEY: z.string({ message: 'MOMO_PROD_API_KEY is required' }),
+      MOMO_PROD_BASE_URL: z.string({
+         message: 'MOMO_PROD_BASE_URL is required',
+      }),
+      MOMO_TARGET_ENV_PROD: z.string({
+         message: 'MOMO_TARGET_ENV_PROD is required',
+      }),
+      MOMO_TARGET_ENV_SANDBOX: z.string({
+         message: 'MOMO_TARGET_ENV_SANDBOX is required',
       }),
    },
    runtimeEnv: process.env,

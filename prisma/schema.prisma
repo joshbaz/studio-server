@@ -121,6 +121,7 @@ model film {
   overview          String
   plotSummary       String
   releaseDate       DateTime
+  type              String             @default("movie")
   comingSoon        Boolean            @default(false)
   yearOfProduction  Int?
   released          String?
@@ -128,7 +129,6 @@ model film {
   genre             String[]
   tags              String[]
   enableDonation    Boolean            @default(false)
-  type              String             @default("movie")
   audioLanguages    audioLanguage[]
   embeddedSubtitles Boolean            @default(false)
   createdAt         DateTime           @default(now())

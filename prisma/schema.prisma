@@ -454,9 +454,9 @@ model webDonation {
   paymentType                String // MTN-MOMO, 
   payment_status_description String  @default("pending") // pending, success, failed
   status_reason              String?
-  paidAmount                 Float
+  paidAmount                 String?
   purpose                    String?
-  amount                     Float
+  amount                     String
   currency                   String?
   email                      String
   phonenumber                String

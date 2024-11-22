@@ -174,7 +174,10 @@ const selectMessage = (shortMessage) => {
  *  token: string,
  *  trackingId: string
  * }} params
- * @returns {Promise<any>}
+ * @returns {Promise<{
+ *  status: string,
+ *  data: any
+ * }>}
  */
 export const checkPaymentStatus = async ({ token, trackingId }) => {
     try {

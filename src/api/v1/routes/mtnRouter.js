@@ -86,7 +86,7 @@ router.get(
 
             if (!getTransact.id) returnError('Transaction not found', 404);
 
-            const { status } = await checkPaymentStatus({
+            const { status, data } = await checkPaymentStatus({
                 trackingId: orderTrackingId,
                 token: req.mtn_access_token,
             });
@@ -96,10 +96,9 @@ router.get(
                 const updatedTransaction = await prisma.webDonation.update({
                     where: { id: getTransact.id },
                     data: {
-                        payment_status_description: transactStatus,
-                        status_reason: transactStatus,
-                        transactionId:
-                            submitStatusRequest.data.financialTransactionId,
+                        payment_status_description: status,
+                        status_reason: status,
+                        transactionId: data?.financialTransactionId ?? '',
                     },
                 });
 
@@ -110,8 +109,8 @@ router.get(
                 });
             } else {
                 res.status(200).json({
-                    payStatus: transactStatus,
-                    status_reason: transactStatus,
+                    payStatus: status,
+                    status_reason: status,
                 });
             }
         } catch (error) {

@@ -27,7 +27,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
         }
 
         const currency = isProduction ? 'UGX' : 'EUR';
-        const { orderTrackingId, res } = await mtnPaymentRequest({
+        const { orderTrackingId, status } = await mtnPaymentRequest({
             token: req.mtn_access_token,
             amount: req.body.amount,
             currency: currency,
@@ -61,6 +61,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
         }
 
         res.status(200).json({
+            status,
             orderTrackingId,
         });
     } catch (error) {

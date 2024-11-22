@@ -45,7 +45,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
                     phonenumber: req.body.phonenumber,
                     fistname: req.body.firstname,
                     lastname: req.body.lastname,
-                    orderTrackingId: createdUUID,
+                    orderTrackingId: orderTrackingId,
                     payment_status_description: 'pending',
                 },
             });

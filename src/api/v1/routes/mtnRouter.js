@@ -44,7 +44,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
                 data: {
                     transactionType: 'donation',
                     paymentType: 'MTN-MoMo',
-                    amount: req.body.amount,
+                    amount: req.body.amount.toString(),
                     purpose: req.body.note,
                     currency: currency,
                     email: req.body.email,
@@ -54,7 +54,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
                     orderTrackingId: orderTrackingId,
                     payment_status_description: 'pending',
                     status_reason: 'Transaction Pending',
-                    paidAmount: req.body.amount,
+                    paidAmount: req.body.amount.toString(),
                     transactionId: '',
                 },
             });

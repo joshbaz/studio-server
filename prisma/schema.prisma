@@ -452,7 +452,7 @@ model webDonation {
   id                         String  @id @default(auto()) @map("_id") @db.ObjectId
   transactionType            String // donation
   paymentType                String // MTN-MOMO, 
-  payment_status_description String  @default("pending")
+  payment_status_description String  @default("pending") // pending, success, failed
   status_reason              String
   paidAmount                 Float
   purpose                    String

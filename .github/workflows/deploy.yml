@@ -1,37 +1,40 @@
 name: Deploy nyati studio
 
 on:
-   push:
-      branches:
-         - master
+    push:
+        branches:
+            - master
 
 jobs:
-   build:
-      runs-on: ubuntu-latest
-      steps:
-         - name: Connect to droplet
-           uses: appleboy/ssh-action@v0.1.6
-           with:
-              host: ${{ secrets.DROPLET_HOST }}
-              username: ${{ secrets.DROPLET_USERNAME }}
-              key: ${{ secrets.DROPLET_KEY }}
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v2
 
-              # add step to checkout the code from the repository if it's not already checked out else pull the latest changes
-         - name: Checkout code
-           run: |
-              if [ ! -d "nyati-studio" ]; then
-                  git clone https://github.com/nyati-ai/nyati-studio.git
-              else
-                  cd nyati-studio
-                  git pull origin main
-              fi
+            # - name: Connect to droplet
+            #   uses: appleboy/ssh-action@v0.1.6
+            #   with:
+            #      host: ${{ secrets.DROPLET_HOST }}
+            #      username: ${{ secrets.DROPLET_USERNAME }}
+            #      key: ${{ secrets.DROPLET_KEY }}
 
-         - name: install docker and docker compose
-           run: |
-              sudo apt-get update
-              sudo apt-get install docker.io docker-compose -y
+            #      # add step to checkout the code from the repository if it's not already checked out else pull the latest changes
+            # - name: Checkout code
+            #   run: |
+            #      if [ ! -d "nyati-studio" ]; then
+            #          git clone https://github.com/nyati-ai/nyati-studio.git
+            #      else
+            #          cd nyati-studio
+            #          git pull origin main
+            #      fi
 
-         - name: Build and deploy
-           run: |
-              cd nyati-studio
-              ./start.sh build
+            # - name: install docker and docker compose
+            #   run: |
+            #      sudo apt-get update
+            #      sudo apt-get install docker.io docker-compose -y
+
+            # - name: Build and deploy
+            #   run: |
+            #      cd nyati-studio
+            #      ./start.sh build

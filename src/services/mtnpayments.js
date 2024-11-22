@@ -57,7 +57,6 @@ export const createAPIUser = async (subcriptionKey) => {
  */
 export const getAPIKey = async (subscriptionKey, apiUser) => {
     try {
-        console.log('Getting API Key', apiUser, subscriptionKey);
         const KEY_URL = `${env.MOMO_SANDBOX_URL}/v1_0/apiuser/${apiUser}/apikey`;
         const response = await axios.post(KEY_URL, undefined, {
             headers: {
@@ -99,7 +98,7 @@ export const TARGET_ENV = isProduction
  * @name mtnPaymentRequest
  * @description initiates a payment request to MTN
  * @param {mtnParams} params
- * @returns {Promise<{res: any, orderTrackingId: string}>}
+ * @returns {Promise<{status: string, orderTrackingId: string}>}
  */
 export const mtnPaymentRequest = async ({
     token,
@@ -134,13 +133,14 @@ export const mtnPaymentRequest = async ({
             'Ocp-Apim-Subscription-Key': SUBSCRIPTION_KEY,
         };
 
-        // if (callbackURL) {
-        //     headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
-        // }
+        if (callbackURL) {
+            headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
+        }
 
         const res = await axios.post(requestURL, requestParams, { headers });
         return { status: res.statusText, orderTrackingId: externalId };
     } catch (error) {
+        console.log('error', error.message);
         throw new Error(error.message ?? 'Could not initiate payment');
     }
 };

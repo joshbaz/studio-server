@@ -68,6 +68,9 @@ const htmlTemplate = `<!DOCTYPE html>
  * @returns {void}
  */
 export default function customizeApp(app) {
+    // trust proxy
+    app.set('trust proxy', 1);
+
     app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
 
@@ -104,10 +107,16 @@ export default function customizeApp(app) {
     // Setup static files
     // app.use(express.static(path.join(__dirname, 'public')));
 
+    // Test correct number of proxies between the user and the server
+    app.get('/ip', (req, res) => {
+        res.send(req.ip);
+    });
+
     // API routes
     app.get('/', (_, res) => {
         res.status(200).send(htmlTemplate);
     });
+
     app.use('/api', api);
 
     // Error handling - 4xx except 404

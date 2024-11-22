@@ -29,7 +29,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
         const currency = isProduction ? 'UGX' : 'EUR';
         const { orderTrackingId, status } = await mtnPaymentRequest({
             token: req.mtn_access_token,
-            amount: req.body.amount,
+            amount: req.body.amount.toString(),
             currency: currency,
             phoneNumber: req.body.phonenumber,
             paymentMessage: `Donation for Nyati`,
@@ -44,17 +44,17 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
                 data: {
                     transactionType: 'donation',
                     paymentType: 'MTN-MoMo',
-                    amount: req.body.amount,
+                    amount: amount.toString(),
                     purpose: req.body.note,
                     currency: currency,
-                    email: req.body.email,
-                    phonenumber: req.body.phonenumber,
-                    firstname: req.body.firstname,
-                    lastname: req.body.lastname,
+                    email: email,
+                    phonenumber: phonenumber,
+                    firstname: firstname,
+                    lastname: lastname,
                     orderTrackingId: orderTrackingId,
                     payment_status_description: 'pending',
                     status_reason: 'Transaction Pending',
-                    paidAmount: req.body.amount,
+                    paidAmount: amount.toString(),
                     transactionId: '',
                 },
             });
@@ -65,7 +65,6 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
             orderTrackingId,
         });
     } catch (error) {
-        console.log('Error', error);
         if (!error.statusCode) {
             error.statusCode = 500;
         }

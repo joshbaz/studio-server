@@ -97,7 +97,7 @@ router.get(
                     where: { id: getTransact.id },
                     data: {
                         payment_status_description: status,
-                        status_reason: status,
+                        status_reason: data?.reason ?? '',
                         transactionId: data?.financialTransactionId ?? '',
                     },
                 });
@@ -269,7 +269,7 @@ router.put('/callback/web/:orderTrackingId', async (req, res) => {
         const { orderTrackingId } = req.params;
         const body = req.body;
 
-        console.log('body', body);
+        console.log('body from MTN', body);
 
         const existingTransaction = await prisma.webDonation.findFirst({
             where: { orderTrackingId },

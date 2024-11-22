@@ -260,6 +260,8 @@ router.put('/callback/web/:orderTrackingId', async (req, res) => {
         const { orderTrackingId } = req.params;
         const body = req.body;
 
+        console.log('body', body);
+
         const existingTransaction = await prisma.webDonation.findFirst({
             where: { orderTrackingId },
         });

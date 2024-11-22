@@ -143,66 +143,6 @@ export const streamVideo = async ({ bucketName, key, range }, res) => {
         throw err;
     }
 };
-// /**
-//  * @name streamVideo
-//  * @description function to stream video from bucket to client return a video stream
-//  * @param {Object} params
-//  * @param {String} params.bucketName
-//  * @param {String} params.key
-//  * @param {String} params.range
-//  * @param {import('express').Response} res
-//  * @returns {Promise<import('@aws-sdk/client-s3').GetObjectCommandOutput>} stream
-//  */
-// export const streamVideo = async ({ bucketName, key, range }, res) => {
-//    // create stream parameters
-//    const streamParams = {
-//       Bucket: bucketName,
-//       Key: key,
-//    };
-
-//    const data = await s3Client.send(new HeadObjectCommand(streamParams));
-
-//    let { ContentLength, ContentType } = data;
-
-//    console.log('Data', data);
-//    console.log('Range', range);
-//    const CHUNK_SIZE = 10 ** 6; // 1MB
-
-//    if (!range) {
-//       throw new Error('Range header is required');
-//    }
-
-//    // range : bytes=NAN-
-//    const parts = range.replace(/bytes=/, '').split('-');
-//    const start = parseInt(parts[0], 10);
-//    const end = parts[1] ? parseInt(parts[1], 10) : ContentLength - 1;
-//    // const start = Number(range.replace(/\D/g, ''));
-//    // const end = Math.min(start + CHUNK_SIZE, ContentLength - 1);
-
-//    console.log('Start:', start);
-//    console.log('End:', end);
-
-//    const chunkSize = end - start + 1;
-//    const headers = {
-//       'Content-Range': `bytes ${start}-${end}/${ContentLength}`,
-//       'Accept-Ranges': 'bytes',
-//       'Content-Length': chunkSize,
-//       'Content-Type': ContentType,
-//    };
-
-//    console.log('headers', headers);
-
-//    // send the headers
-//    res.writeHead(206, headers);
-
-//    // readable stream
-//    return s3Client.send(
-//       new GetObjectCommand({
-//          ...streamParams,
-//          Range: `bytes=${start}-${end}`,
-//       })
-//    );
-// };
 
 /**
  * @name formatFileSize
@@ -476,6 +416,9 @@ export const fetchFilm = async (req, res, next) => {
                 video: {
                     include: {
                         videoPrice: true,
+                        purchase: {
+                            where: { userId: req.userId },
+                        },
                     },
                 },
                 watchlist: {
@@ -808,6 +751,7 @@ export const getWatchList = async (req, res, next) => {
         next(error);
     }
 };
+
 /**
  * @name removeFromWatchlist - get watchlist
  * @description function to remove film from watchlist
@@ -973,80 +917,6 @@ export const addEpisode = async (req, res, next) => {
         await getFilmss.save();
         console.log(getFilmss);
         res.status(200).json('saved');
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-export const getFilmWeb = async (req, res, next) => {
-    try {
-        // const getallFilms = await filmModels.find().exec((err, films) => {
-        //   if (err) {
-        //     console.log(err);
-        //     return;
-        //   }
-
-        //   if (!films || films.length === 0) {
-        //     console.log("Authors not found");
-        //     return;
-        //   }
-
-        //   films.forEach(film => {
-        //     if (film.seasons && film.seasons.length > 0) {
-        //       filmModels.populate(film, { path: "episodeId" }, (err, populatedData) => {
-        //        if (err) {
-        //          console.error(err);
-        //          return;
-        //         }
-        //          console.log("Populated Data:", populatedData);
-        //       })
-        //     }
-        //   })
-        // })
-
-        // const getallFilms = await filmModels
-        //   .find({ filmType: "movie" })
-        //   .populate("seasons.episodes.episodeId");
-        const getallData = await filmModels
-            .find()
-            .populate('seasons.episodes.episodeId');
-
-        const allFilms = [...getallData];
-
-        //console.log("getall", getallSeries);
-        res.status(200).json({
-            items: allFilms,
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-export const getSingleFilm = async (req, res, next) => {
-    try {
-        let paramsId = req.params.id;
-
-        let excludedFields = '-fullVideoLink ';
-        // const getSingleFilm = await filmModels
-        //   .findById({ _id: paramsId })
-        //   .select(excludedFields);
-        const getSingleFilm = await filmModels
-            .findById({ _id: paramsId })
-            .populate('seasons.episodes.episodeId');
-
-        if (!getSingleFilm) {
-            const error = new Error('No Film Found!!');
-            error.statusCode = 404;
-            throw error;
-        }
-
-        res.status(200).json({ film: getSingleFilm });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -1291,7 +1161,7 @@ export const purchaseFilm = async (req, res, next) => {
 
 export const checkPaymentStatus = async (req, res, next) => {
     try {
-        const { orderId: orderTrackingId, filmId } = req.params;
+        const { orderId: orderTrackingId } = req.params;
 
         if (!orderTrackingId) returnError('Order tracking id is required', 400);
 

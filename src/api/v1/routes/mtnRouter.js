@@ -10,6 +10,9 @@ import { env } from '@/env.mjs';
 
 const router = express.Router();
 
+const isProduction = env.NODE_ENV === 'production';
+const SITE_URL = env.NYATI_PAYMENTS_API_URL;
+
 // Website Transactions
 router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
     try {
@@ -17,7 +20,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
             returnError('Payment type not supported', 400);
         }
 
-        const currency = env.NODE_ENV === 'production' ? 'UGX' : 'EUR';
+        const currency = isProduction ? 'UGX' : 'EUR';
 
         const { orderTrackingId, res } = await mtnPaymentRequest({
             token: req.mtn_access_token,
@@ -26,7 +29,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
             phoneNumber: req.body.phonenumber,
             paymentMessage: `Donation for Nyati`,
             payeeNote: '',
-            // callbackURL: `http://localhost:4500/api/v1/payment/mtn/callback`,
+            callbackURL: isProduction ? `${SITE_URL}/mtn/callback` : undefined,
         });
 
         if (orderTrackingId) {
@@ -76,9 +79,7 @@ router.get(
                 token: req.mtn_access_token,
             });
 
-            console.log('transactStatus2', transactStatus);
             //check if transaction status same as the saved one in the db
-
             if (status !== getTransact.payment_status_description) {
                 const updatedTransaction = await prisma.webDonation.update({
                     where: { id: getTransact.id },
@@ -114,7 +115,6 @@ router.get(
 router.get('/checkStatus', async (req, res, next) => {
     try {
         const { OrderTrackingId } = req.query;
-
         const transaction = await prisma.webDonation.findFirst({
             where: { orderTrackingId: OrderTrackingId },
         });
@@ -159,7 +159,7 @@ router.post('/app/donate', generateMTNAuthTk, async (req, res, next) => {
             returnError('Payment type not supported', 400);
         }
 
-        const currency = env.NODE_ENV === 'production' ? 'UGX' : 'EUR';
+        const currency = isProduction ? 'UGX' : 'EUR';
 
         /**
             All Statuses Expected & testCases:
@@ -177,7 +177,9 @@ router.post('/app/donate', generateMTNAuthTk, async (req, res, next) => {
             phoneNumber: req.body.phoneNumber,
             paymentMessage: `Donation for film ${req.body.filmName}`,
             payeeNote: '',
-            //callbackURL: `${MOMO_BASE_URL}/nyatimtn/status`,
+            callbackURL: isProduction
+                ? `${SITE_URL}/mtn/app/callback`
+                : undefined,
         });
 
         res.status(200).json({
@@ -187,7 +189,6 @@ router.post('/app/donate', generateMTNAuthTk, async (req, res, next) => {
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
-            console.log('error', error);
         }
         next(error);
     }
@@ -212,7 +213,7 @@ router.post('/app/purchase', generateMTNAuthTk, async (req, res, next) => {
         }
 
         // const MTNRequestLink = `${MOMO_BASE_URL}/collection/v1_0/requesttopay`;
-        const currency = env.NODE_ENV === 'production' ? 'UGX' : 'EUR';
+        const currency = isProduction ? 'UGX' : 'EUR';
 
         /**
             All Statuses Expected & testCases:
@@ -231,8 +232,9 @@ router.post('/app/purchase', generateMTNAuthTk, async (req, res, next) => {
             phoneNumber: req.body.phoneNumber,
             paymentMessage: `Purchase for film ${req.body.filmName}`,
             payeeNote: '',
-            callbackURL: `http://localhost:4500/api/v1/payment/mtn/app/callback`,
-            // callbackURL: `${MOMO_BASE_URL}/nyatimtn/status`,
+            callbackURL: isProduction
+                ? `${SITE_URL}/mtn/app/callback`
+                : undefined,
         });
 
         if (!status === 'Accepted' || !orderTrackingId) {
@@ -263,7 +265,6 @@ router.get(
     async (req, res, next) => {
         try {
             const OrderTrackingId = req.params.id;
-
             const { status, data } = await checkPaymentStatus({
                 trackingId: OrderTrackingId,
                 token: req.mtn_access_token,
@@ -277,7 +278,6 @@ router.get(
                 return res.status(200).json({
                     payStatus: status,
                     financialTransactionId: data.financialTransactionId,
-                    // transaction,
                 });
             }
 

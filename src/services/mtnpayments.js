@@ -133,6 +133,8 @@ export const mtnPaymentRequest = async ({
             'Ocp-Apim-Subscription-Key': SUBSCRIPTION_KEY,
         };
 
+        console.log('headers', headers);
+
         if (callbackURL) {
             headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
         }

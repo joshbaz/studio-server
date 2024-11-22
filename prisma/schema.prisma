@@ -453,9 +453,9 @@ model webDonation {
   transactionType            String // donation
   paymentType                String // MTN-MOMO, 
   payment_status_description String  @default("pending") // pending, success, failed
-  status_reason              String
+  status_reason              String?
   paidAmount                 Float
-  purpose                    String
+  purpose                    String?
   amount                     Float
   currency                   String?
   email                      String
@@ -463,7 +463,7 @@ model webDonation {
   firstname                  String
   lastname                   String
   orderTrackingId            String
-  transactionId              String
+  transactionId              String?
 
   createdAt DateTime @default(now())
 

@@ -140,6 +140,7 @@ export const mtnPaymentRequest = async ({
         const res = await axios.post(requestURL, requestParams, { headers });
         return { status: res.statusText, orderTrackingId: externalId };
     } catch (error) {
+        console.log('error', error.message);
         throw new Error(error.message ?? 'Could not initiate payment');
     }
 };

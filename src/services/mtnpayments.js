@@ -140,6 +140,8 @@ export const mtnPaymentRequest = async ({
         }
 
         const res = await axios.post(requestURL, requestParams, { headers });
+
+        console.log('response', res.data);
         return { status: res.statusText, orderTrackingId: externalId };
     } catch (error) {
         console.log('error', error.message);

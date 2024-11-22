@@ -264,7 +264,7 @@ router.post('/app/purchase', generateMTNAuthTk, async (req, res, next) => {
     }
 });
 
-router.put('/callback/web/:orderTrackingId', async (req, res) => {
+router.put('/callback/web/:orderTrackingId', async (req, res, next) => {
     try {
         const { orderTrackingId } = req.params;
         const body = req.body;
@@ -279,10 +279,11 @@ router.put('/callback/web/:orderTrackingId', async (req, res) => {
             await prisma.webDonation.update({
                 where: { id: existingTransaction.id },
                 data: {
-                    paidAmount: body?.amount,
-                    status_reason: body?.reason,
+                    paidAmount: body?.amount ?? '',
+                    status_reason: body?.reason ?? '',
                     transactionId: body?.financialTransactionId ?? '',
-                    payment_status_description: body?.status.toLowerCase(),
+                    payment_status_description:
+                        body?.status.toLowerCase() ?? '',
                 },
             });
         }

@@ -12,11 +12,6 @@ jobs:
             - name: Checkout code
               uses: actions/checkout@v2
 
-            - name: Run build script
-              run: |
-                  cd nyati-studio
-                  ./start.sh build
-                  echo "Build completed successfully"
             # - name: Connect to droplet
             #   uses: appleboy/ssh-action@v0.1.6
             #   with:

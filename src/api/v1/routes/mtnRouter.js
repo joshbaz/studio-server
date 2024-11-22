@@ -45,7 +45,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
                     fistname: req.body.firstname,
                     lastname: req.body.lastname,
                     orderTrackingId: createdUUID,
-                    payment_status_description: 'Pending',
+                    payment_status_description: 'pending',
                 },
             });
         }
@@ -253,9 +253,61 @@ router.post('/app/purchase', generateMTNAuthTk, async (req, res, next) => {
     }
 });
 
-router.put('/app/callback/:orderTrackingId', (req, res) => {
-    console.log('MTN callback', req.body);
-    res.status(200).send({ message: 'Payment successful' });
+router.put('/app/callback/web/:orderTrackingId', async (req, res) => {
+    try {
+        const { orderTrackingId } = req.params;
+        const body = req.body;
+
+        const existingTransaction = await prisma.webDonation.findFirst({
+            where: { orderTrackingId },
+        });
+
+        if (existingTransaction.id) {
+            await prisma.webDonation.update({
+                where: { id: existingTransaction.id },
+                data: {
+                    status_reason: body?.reason,
+                    transactionId: body?.financialTransactionId ?? '',
+                    payment_status_description: body?.status.toLowerCase(),
+                },
+            });
+        }
+
+        res.status(200).send({ message: 'ok' });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+});
+
+router.put('/app/callback/app/:orderTrackingId', async (req, res) => {
+    try {
+        const { orderTrackingId } = req.params;
+        const { status, reason } = req.body;
+
+        const existingTransaction = await prisma.webDonation.findFirst({
+            where: { orderTrackingId },
+        });
+
+        if (existingTransaction.id) {
+            await prisma.webDonation.update({
+                where: { id: existingTransaction.id },
+                data: {
+                    status_reason: reason,
+                    payment_status_description: status.toLowerCase(),
+                },
+            });
+        }
+
+        res.status(200).send({ message: 'ok' });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
 });
 
 // purchase or Donation transaction status

@@ -16,8 +16,14 @@ const SITE_URL = env.NYATI_PAYMENTS_API_URL;
 // Website Transactions
 router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
     try {
-        if (!req.body.paymentType === 'MTN') {
+        if (req.body.paymentType !== 'MTN') {
             returnError('Payment type not supported', 400);
+        }
+
+        const { amount, phonenumber, firstname, lastname, email } = req.body;
+
+        if (!amount || !phonenumber || !firstname || !lastname || !email) {
+            returnError('Missing required fields', 400);
         }
 
         const currency = isProduction ? 'UGX' : 'EUR';
@@ -43,10 +49,13 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
                     currency: currency,
                     email: req.body.email,
                     phonenumber: req.body.phonenumber,
-                    fistname: req.body.firstname,
+                    firstname: req.body.firstname,
                     lastname: req.body.lastname,
                     orderTrackingId: orderTrackingId,
                     payment_status_description: 'pending',
+                    status_reason: 'Transaction Pending',
+                    paidAmount: req.body.amount,
+                    transactionId: '',
                 },
             });
         }
@@ -270,6 +279,7 @@ router.put('/callback/web/:orderTrackingId', async (req, res) => {
             await prisma.webDonation.update({
                 where: { id: existingTransaction.id },
                 data: {
+                    paidAmount: body?.amount,
                     status_reason: body?.reason,
                     transactionId: body?.financialTransactionId ?? '',
                     payment_status_description: body?.status.toLowerCase(),

@@ -125,6 +125,8 @@ export const mtnPaymentRequest = async ({
             payeeNote: payeeNote ?? 'Payee note',
         };
 
+        console.log('CallbackURL', callbackURL);
+
         const headers = {
             'Content-Type': 'application/json',
             Authorization: token,

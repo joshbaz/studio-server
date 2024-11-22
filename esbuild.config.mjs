@@ -1,4 +1,4 @@
-// import 'dotenv/config';
+import 'dotenv/config';
 
 import esbuild from 'esbuild';
 const isProduction = process.env.NODE_ENV === 'production';

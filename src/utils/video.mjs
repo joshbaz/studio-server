@@ -89,7 +89,6 @@ export const streamFromBucket = async ({ bucketName, key }) => {
  */
 export const deleteFromBucket = async ({ bucketName, key }) => {
    try {
-      console.log(bucketName, key);
       const deleteParams = {
          Bucket: bucketName,
          Key: key,

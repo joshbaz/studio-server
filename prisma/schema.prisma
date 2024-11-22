@@ -121,6 +121,7 @@ model film {
   overview          String
   plotSummary       String
   releaseDate       DateTime
+  type              String             @default("movie")
   comingSoon        Boolean            @default(false)
   yearOfProduction  Int?
   released          String?
@@ -128,7 +129,6 @@ model film {
   genre             String[]
   tags              String[]
   enableDonation    Boolean            @default(false)
-  type              String             @default("movie")
   audioLanguages    audioLanguage[]
   embeddedSubtitles Boolean            @default(false)
   createdAt         DateTime           @default(now())
@@ -151,7 +151,6 @@ model film {
   crew              crew[]
   watchlist         watchlist[]
   donation          donation[]
-  purchase          purchase[]
   likes             likes[]
   views             views[]
   rating            rating[]
@@ -277,33 +276,55 @@ model episode {
   watched   watched[]
 }
 
+enum Resolution {
+  SD
+  HD
+  FHD
+  UHD
+}
+
 model video {
-  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  id         String      @id @default(auto()) @map("_id") @db.ObjectId
   url        String
   format     String
   name       String
   fps        String?
-  resolution String?
+  resolution String?     @default("HD")
   bitrate    String?
   size       String?
   codec      String?
   encoding   String?
-  duration   Int?     @default(0)
-  isTrailer  Boolean  @default(false)
-  film       film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId     String?  @db.ObjectId
-  createdAt  DateTime @default(now())
-  episode    episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
-  episodeId  String?  @db.ObjectId
+  duration   Int?        @default(0)
+  isTrailer  Boolean     @default(false)
+  film       film?       @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId     String?     @db.ObjectId
+  createdAt  DateTime    @default(now())
+  episode    episode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId  String?     @db.ObjectId
+  videoPrice videoPrice?
+  purchase   purchase[]
+}
+
+// video prices
+model videoPrice {
+  id       String  @id @default(auto()) @map("_id") @db.ObjectId
+  video    video?  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  videoId  String? @unique @db.ObjectId
+  price    Float
+  currency String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Donation model
 model donation {
-  id             String      @id @default(auto()) @map("_id") @db.ObjectId
-  user           user?       @relation(fields: [userId], references: [id])
-  userId         String?     @db.ObjectId
-  createdAt      DateTime    @default(now())
-  status         String      @default("pending")
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  user      user?    @relation(fields: [userId], references: [id])
+  userId    String?  @db.ObjectId
+  createdAt DateTime @default(now())
+  status    String   @default("pending")
+
   transaction    transaction @relation(fields: [transactionsId], references: [id])
   transactionsId String      @db.ObjectId
   film           film?       @relation(fields: [filmId], references: [id])
@@ -311,23 +332,27 @@ model donation {
 }
 
 // Table for film purchases by users
+// TODO: Think about how this will work with series / episodes
 model purchase {
-  id             String      @id @default(auto()) @map("_id") @db.ObjectId
-  user           user?       @relation(fields: [userId], references: [id])
-  userId         String?     @db.ObjectId
-  film           film?       @relation(fields: [filmId], references: [id])
-  filmId         String?     @db.ObjectId
-  expiresAt      DateTime? // Date when the purchase expires if it's a rental
-  createdAt      DateTime    @default(now())
-  status         String      @default("pending")
-  transaction    transaction @relation(fields: [transactionsId], references: [id])
-  transactionsId String      @db.ObjectId
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  user   user?   @relation(fields: [userId], references: [id])
+  userId String? @db.ObjectId
+
+  video         video?      @relation(fields: [videoId], references: [id])
+  videoId       String?     @db.ObjectId
+  transaction   transaction @relation(fields: [transactionId], references: [id])
+  transactionId String      @unique @db.ObjectId
+
+  expiresAt DateTime? // Date when the purchase expires if it's a rental
+  createdAt DateTime  @default(now())
+  status    String    @default("PENDING")
+
+  @@index([userId, videoId], name: "purchase_index")
 }
 
 enum TransactionType {
   PURCHASE
   DONATION
-  SUBSCRIPTION
 }
 
 enum TransactionStatus {
@@ -337,15 +362,18 @@ enum TransactionStatus {
 }
 
 model transaction {
-  id            String            @id @default(auto()) @map("_id") @db.ObjectId
-  amount        Float
-  type          TransactionType
-  currency      String
-  createdAt     DateTime          @default(now())
-  status        TransactionStatus @default(PENDING)
-  transactionId String
-  purchase      purchase[]
-  donation      donation[]
+  id                     String            @id @default(auto()) @map("_id") @db.ObjectId
+  amount                 Float
+  type                   TransactionType
+  currency               String
+  createdAt              DateTime          @default(now())
+  status                 TransactionStatus @default(PENDING)
+  orderTrackingId        String?
+  paymentMethodType      String? // mtnmoto, airtel, pesapal, pesapal-<method> etc
+  financialTransactionId String?
+  purchase               purchase?
+  purchaseId             String?           @db.ObjectId
+  donation               donation[]
 
   paymentMethod   paymentMethod? @relation(fields: [paymentMethodId], references: [id])
   paymentMethodId String?        @db.ObjectId
@@ -418,4 +446,26 @@ model subscriptionPlan {
   subscription subscription[]
 
   @@index([currency], name: "subplan_index")
+}
+
+model webDonation {
+  id                         String  @id @default(auto()) @map("_id") @db.ObjectId
+  transactionType            String // donation
+  paymentType                String // MTN-MOMO, 
+  payment_status_description String  @default("pending")
+  status_reason              String
+  paidAmount                 Float
+  purpose                    String
+  amount                     Float
+  currency                   String?
+  email                      String
+  phonenumber                String
+  firstname                  String
+  lastname                   String
+  orderTrackingId            String
+  transactionId              String
+
+  createdAt DateTime @default(now())
+
+  @@index([transactionType, paymentType, orderTrackingId], name: "webdonation_index")
 }

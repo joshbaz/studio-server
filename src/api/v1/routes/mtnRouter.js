@@ -35,7 +35,7 @@ router.post('/donate', generateMTNAuthTk, async (req, res, next) => {
             paymentMessage: `Donation for Nyati`,
             payeeNote: '',
             callbackURL: isProduction
-                ? `${SITE_URL}/mtn/callback/web`
+                ? `${SITE_URL}/mtn/callback/web` // /payment/mtn/callback/web/:orderTrackingId
                 : undefined,
         });
 
@@ -264,6 +264,7 @@ router.post('/app/purchase', generateMTNAuthTk, async (req, res, next) => {
     }
 });
 
+// /payment/mtn/callback/web/:orderTrackingId
 router.put('/callback/web/:orderTrackingId', async (req, res, next) => {
     try {
         const { orderTrackingId } = req.params;

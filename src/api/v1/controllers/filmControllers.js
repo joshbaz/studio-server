@@ -1154,6 +1154,94 @@ export const purchaseFilm = async (req, res, next) => {
 };
 
 /**
+ * @name donateFilm
+ * @description function to donate to a film
+ * @type {import('express').RequestHandler}
+ */
+export const donateToFilm = async (req, res, next) => {
+    try {
+        const { userId, filmId } = req.params;
+        const body = req.body;
+
+        console.log('body', body, userId, filmId);
+
+        if (!userId || !filmId || !body.amount) {
+            returnError('Unauthorized purchase', 401);
+        }
+
+        const film = await prisma.film.findUnique({
+            where: { id: filmId },
+        });
+
+        if (!film) returnError('The resource can not be found.', 404);
+
+        if (!body?.option) returnError('Payment method is required', 400);
+
+        const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
+
+        // switch by payment type
+        switch (body.option) {
+            case 'mtnmomo':
+                try {
+                    const URL = `${PAYMENTS_API}/mtn/app/donate`;
+                    const phoneNumber =
+                        body.phoneCode.replace('+', '') + body.paymentNumber;
+
+                    const response = await axios.post(URL, {
+                        phoneNumber,
+                        amount: body?.amount.toString(),
+                        filmName: film.title,
+                        paymentType: 'MTN',
+                    });
+
+                    if (!response.data.orderTrackingId) {
+                        returnError('Payment failed', 400);
+                    }
+
+                    // Save the transaction including the orderTrackingId
+                    await prisma.transaction.create({
+                        data: {
+                            userId,
+                            type: 'DONATION',
+                            amount: body?.amount.toString(),
+                            currency: body?.currency ?? 'UGX',
+                            status: 'PENDING',
+                            paymentMethodType: 'mtnmomo',
+                            orderTrackingId: response.data.orderTrackingId,
+                            paymentMethodId: body.paymentMethodId
+                                ? body.paymentMethodId
+                                : null,
+                        },
+                    });
+
+                    res.status(200).json({
+                        message: 'Payment pending approval',
+                        orderTrackingId: response.data.orderTrackingId,
+                    });
+
+                    break;
+                } catch (error) {
+                    returnError(error.message, 500);
+                }
+
+            case 'airtelmoney':
+                // process wallet payment
+                break;
+            case 'visa':
+                // process visa payment
+                break;
+            default:
+                returnError('Invalid payment type', 400);
+        }
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
  * @name checkPaymentStatus
  * @description function to verify payment
  * @type {import('express').RequestHandler}
@@ -1199,26 +1287,33 @@ export const checkPaymentStatus = async (req, res, next) => {
                         case 'Transaction Successful':
                             if (response.data.financialTransactionId) {
                                 // update the transaction
+                                const data = {
+                                    status: 'SUCCESS',
+                                    financialTransactionId:
+                                        response.data.financialTransactionId,
+                                };
+
+                                const isPurchase =
+                                    existingTransaction.type === 'PURCHASE' &&
+                                    existingTransaction.purchase;
+
+                                if (isPurchase) {
+                                    data.purchase = {
+                                        update: {
+                                            where: {
+                                                id: existingTransaction.purchase
+                                                    .id,
+                                            },
+                                            data: {
+                                                status: 'SUCCESS',
+                                            },
+                                        },
+                                    };
+                                }
                                 const updated = await prisma.transaction.update(
                                     {
                                         where: { id: existingTransaction.id },
-                                        data: {
-                                            status: 'SUCCESS',
-                                            financialTransactionId:
-                                                response.data
-                                                    .financialTransactionId,
-                                            purchase: {
-                                                update: {
-                                                    where: {
-                                                        id: existingTransaction
-                                                            .purchase.id,
-                                                    },
-                                                    data: {
-                                                        status: 'SUCCESS',
-                                                    },
-                                                },
-                                            },
-                                        },
+                                        data,
                                     }
                                 );
 

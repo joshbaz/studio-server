@@ -215,6 +215,8 @@ router.post('/app/donate', generateMTNAuthTk, async (req, res, next) => {
  */
 router.post('/app/purchase', generateMTNAuthTk, async (req, res, next) => {
     try {
+        console.log('requestHeaders', req.headers)
+
         if (!req.body.paymentType) {
             returnError('Payment Type not selected', 400);
         }

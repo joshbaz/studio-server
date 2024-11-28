@@ -84,6 +84,7 @@ export default function customizeApp(app) {
             env.CLIENT_URL,
             'http://localhost:8081',
             'http://192.168.0.184:4500',
+            'com.newtou.NyatiFilms'
         ],
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         preflightContinue: false,

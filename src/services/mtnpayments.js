@@ -127,6 +127,7 @@ export const mtnPaymentRequest = async ({
 
         console.log('RequestParams', requestParams);
         console.log('CallbackURL', callbackURL);
+        console.log('requestParams', requestParams);
 
         const headers = {
             'Content-Type': 'application/json',
@@ -137,7 +138,7 @@ export const mtnPaymentRequest = async ({
         };
 
         if (callbackURL) {
-            headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
+//           headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
         }
 
         console.log('headers', headers);

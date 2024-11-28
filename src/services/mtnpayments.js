@@ -14,7 +14,7 @@ const isProduction = env.NODE_ENV === 'production';
  * @returns string
  */
 export const generateUUID = (primaryKey, secondaryKey) => {
-    const combinedKeys = `${primaryKey}-${secondaryKey}213561`;
+    const combinedKeys = `${primaryKey}-${secondaryKey}21341`;
     const createdUUID = uuidv5(combinedKeys, uuidv5.URL);
     return createdUUID;
 };
@@ -29,7 +29,7 @@ export const createAPIUser = async (subcriptionKey) => {
     const secondaryKey = env.MOMO_COLLECT_SECONDARY;
     const uniqueUUID = generateUUID(primaryKey, secondaryKey);
 
-    // // register the API user - Needs to only run once
+    // register the API user - Needs to only run once
     // const requestURL = `${env.MOMO_SANDBOX_URL}/v1_0/apiuser`;
     // const headers = {
     //     'X-Reference-Id': uniqueUUID,
@@ -125,6 +125,7 @@ export const mtnPaymentRequest = async ({
             payeeNote: payeeNote ?? 'Payee note',
         };
 
+        console.log('RequestParams', requestParams);
         console.log('CallbackURL', callbackURL);
         console.log('requestParams', requestParams);
 
@@ -147,7 +148,7 @@ export const mtnPaymentRequest = async ({
         console.log('response', res);
         return { status: res.statusText, orderTrackingId: externalId };
     } catch (error) {
-        console.log('error', error.message);
+        console.log('error: hello', error.message);
         throw new Error(error.message ?? 'Could not initiate payment');
     }
 };

@@ -84,7 +84,8 @@ export default function customizeApp(app) {
             env.CLIENT_URL,
             'http://localhost:8081',
             'http://192.168.0.184:4500',
-            'com.newtou.NyatiFilms'
+            'http://localhost:5173',
+            'https://celebrated-donut-f3ab2c.netlify.app',
         ],
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         preflightContinue: false,

@@ -363,7 +363,7 @@ enum TransactionStatus {
 
 model transaction {
   id                     String            @id @default(auto()) @map("_id") @db.ObjectId
-  amount                 Float
+  amount                 String
   type                   TransactionType
   currency               String
   createdAt              DateTime          @default(now())

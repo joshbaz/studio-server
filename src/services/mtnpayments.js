@@ -138,7 +138,7 @@ export const mtnPaymentRequest = async ({
         };
 
         if (callbackURL) {
-            //           headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
+            headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
         }
 
         console.log('headers', headers);

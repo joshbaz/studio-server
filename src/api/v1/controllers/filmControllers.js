@@ -3,7 +3,7 @@ import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import axios from 'axios';
-import { v4 as uuidv4 } from "uuid";
+import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
 import { env } from '@/env.mjs';
 import {
     mtnPaymentRequest,
@@ -1071,6 +1071,8 @@ export const purchaseFilm = async (req, res, next) => {
         const { userId, videoId } = req.params;
         const body = req.body;
 
+      //  console.log("body", body)   
+
         if (!userId || !videoId) returnError('Unauthorized purchase', 401);
 
         const video = await prisma.video.findUnique({
@@ -1084,25 +1086,72 @@ export const purchaseFilm = async (req, res, next) => {
         if (!video) returnError('The resource can not be found.', 404);
         if (!body?.option) returnError('Payment method is required', 400);
 
-        const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
+      //  const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
 
         // switch by payment type
         switch (body.option) {
             case 'mtnmomo':
                 try {
-                    const URL = `${PAYMENTS_API}/mtn/app/purchase`;
-                    const phoneNumber =
+
+                  //  console.log(new Date())
+                   // const URL = `${PAYMENTS_API}/mtn/app/purchase`;
+                 let createdUUIDs = uuidv4(new Date());
+                   let amounts = video?.videoPrice.price.toString()
+                  // let filmNames = video?.film.title
+
+                   
+
+                    const phoneNumbers =
                         body.phoneCode.replace('+', '') + body.paymentNumber;
 
-                    const response = await axios.post(URL, {
-                        phoneNumber,
-                        amount: video?.videoPrice.price.toString(),
-                        filmName: video?.film.title,
-                        paymentType: 'MTN',
-                    });
+                        let TargetEnvs ="mtnuganda"
+                        let subscription_Keys="fedc2d49cbdb42328a2e94e846818ab8"
+                        let currencys = "UGX"
+                        let MTNRequestLinks = `https://proxy.momoapi.mtn.com/collection/v1_0/requesttopay`
+                        let callbackURL = "https://api.nyatimotionpictures.com/api/v1/payment/mtn/callback/web"
 
-                    if (!response.data.orderTrackingId) {
-                        returnError('Payment failed', 400);
+                        let requestParameters = {
+                            amount: amounts,
+                            currency: currencys,
+                            externalId: createdUUIDs ,
+                            payer: {
+                                partyIdType: 'MSISDN',
+                                partyId: phoneNumbers,
+                            },
+                             payerMessage: `Purchase Film `, 
+                             payeeNote: ""
+                           
+                        }
+
+                       // console.log("requestParameters", requestParameters)
+
+                        let headers = {
+                            "Content-Type": "application/json",
+                            "Authorization": req.mtn_access_token,
+                           "X-Callback-Url": `https://api.nyatimotionpictures.com/api/v1/payment/mtncallback/${createdUUIDs}`,
+                            "X-Reference-Id": `${createdUUIDs}`,
+                            "X-Target-Environment": TargetEnvs,
+                            "Ocp-Apim-Subscription-Key": subscription_Keys
+                        }
+
+                      //  console.log("requestParameters", headers)
+
+                        let submitOrderRequest = await axios.post(MTNRequestLinks, requestParameters, {
+                            headers: headers
+                        })
+
+                        console.log("submitOrderRequest", submitOrderRequest.statusText)
+
+
+                    // const response = await axios.post(URL, {
+                    //     phoneNumber,
+                    //     amount: video?.videoPrice.price.toString(),
+                    //     filmName: video?.film.title,
+                    //     paymentType: 'MTN',
+                    // });
+
+                    if (submitOrderRequest.statusText !== "Accepted") {
+                        returnError('Payment Processing failed', 400);
                     }
 
                     // Save the transaction including the orderTrackingId
@@ -1110,11 +1159,11 @@ export const purchaseFilm = async (req, res, next) => {
                         data: {
                             userId,
                             type: 'PURCHASE',
-                            amount: video?.videoPrice.price,
+                            amount: video?.videoPrice.price.toString(),
                             currency: video?.videoPrice.currency,
                             status: 'PENDING',
                             paymentMethodType: 'mtnmomo',
-                            orderTrackingId: response.data.orderTrackingId,
+                            orderTrackingId: createdUUIDs,
                             paymentMethodId: body.paymentMethodId
                                 ? body.paymentMethodId
                                 : null,
@@ -1133,7 +1182,7 @@ export const purchaseFilm = async (req, res, next) => {
 
                     res.status(200).json({
                         message: 'Payment pending approval',
-                        orderTrackingId: response.data.orderTrackingId,
+                        orderTrackingId: createdUUIDs,
                     });
 
                     break;
@@ -1151,6 +1200,7 @@ export const purchaseFilm = async (req, res, next) => {
                 returnError('Invalid payment type', 400);
         }
     } catch (error) {
+       console.log("Received error", error)
         if (!error.statusCode) {
             error.statusCode = 500;
         }
@@ -1190,7 +1240,7 @@ export const donateToFilm = async (req, res, next) => {
         switch (body.option) {
             case 'mtnmomo':
                 try {
-                    const createdUUID = uuidv4();
+                    const createdUUID = uuidv4(new Date());
                     let amount = body.amount.toString()
                     const phoneNumber =
                         body.phoneCode.replace('+', '') + body.paymentNumber;
@@ -1211,7 +1261,7 @@ export const donateToFilm = async (req, res, next) => {
                             partyIdType: 'MSISDN',
                             partyId: phoneNumber,
                         },
-                         payerMessage: `Donation for film ${ req.body.filmtitle }`, //Reason for Payment
+                         payerMessage: `Donation for film `,
                 payeeNote: ""
                     }
 
@@ -1224,8 +1274,8 @@ export const donateToFilm = async (req, res, next) => {
                         "Ocp-Apim-Subscription-Key": subscription_Key
                     }
 
-                    console.log("requestParameters", requestParameters)
-                    console.log("headers", headers)
+                  //  console.log("requestParameters", requestParameters)
+                  //  console.log("headers", headers)
 
                     let submitOrderRequest = await axios.post(MTNRequestLink, requestParameters, {
                         headers: headers
@@ -1234,7 +1284,7 @@ export const donateToFilm = async (req, res, next) => {
                      console.log("submitOrderRequest", submitOrderRequest.statusText)
 
                     if (submitOrderRequest.statusText !== "Accepted") {
-                        returnError('Payment failed', 400);
+                        returnError('Payment Processing failed', 400);
                     }
 
                        // Save the transaction including the orderTrackingId

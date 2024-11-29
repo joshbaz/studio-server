@@ -59,7 +59,10 @@ router.post(
     uploadPoster
 );
 router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
-router.post('/purchase/:userId/:videoId', verifyToken, purchaseFilm);
+router.post('/purchase/:userId/:videoId', 
+    //verifyToken, 
+    generateMTNAuthTk,
+    purchaseFilm);
 router.post(
     '/donate/:userId/:filmId',
     // verifyToken,

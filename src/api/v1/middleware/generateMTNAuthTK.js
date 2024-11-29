@@ -28,7 +28,7 @@ export const generateMTNAuthTk = async (req, res, next) => {
         const generatedTk = await axios.post(TokenReqLink, undefined, {
             headers: {
                 Authorization: BasicAuth,
-                'X-Target-Environment': TARGET_ENV,
+                'X-Target-Environment': "mtnuganda",
                 'Content-Type': 'application/json',
                 'Ocp-Apim-Subscription-Key': SUBSCRIPTION_KEY,
             },

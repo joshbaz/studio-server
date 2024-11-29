@@ -62,7 +62,7 @@ router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
 router.post('/purchase/:userId/:videoId', verifyToken, purchaseFilm);
 router.post(
     '/donate/:userId/:filmId',
-    verifyToken,
+    // verifyToken,
     generateMTNAuthTk,
     donateToFilm
 );
@@ -77,7 +77,7 @@ router.get('/watchlist/:userId', getWatchList);
 router.get('/search', getFilmBySearch);
 router.get(
     '/checkpaymentstatus/:orderId',
-    verifyToken,
+   // verifyToken,
     generateMTNAuthTk,
     checkPaymentStatus
 );

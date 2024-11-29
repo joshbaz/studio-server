@@ -3,6 +3,7 @@ import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import axios from 'axios';
+import { v4 as uuidv4 } from "uuid";
 import { env } from '@/env.mjs';
 import {
     mtnPaymentRequest,
@@ -1166,7 +1167,7 @@ export const donateToFilm = async (req, res, next) => {
     try {
         const { userId, filmId } = req.params;
         const body = req.body;
-        const isProduction = env.NODE_ENV === 'production';
+        const isProduction = true;
 
         console.log('body', body, userId, filmId);
 
@@ -1183,28 +1184,97 @@ export const donateToFilm = async (req, res, next) => {
         if (!body?.option) returnError('Payment method is required', 400);
 
         const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
-        const currency = isProduction ? 'UGX' : 'EUR';
+      //  const currency = isProduction ? 'UGX' : 'EUR';
 
         // switch by payment type
         switch (body.option) {
             case 'mtnmomo':
                 try {
+                    const createdUUID = uuidv4();
+                    let amount = body.amount.toString()
                     const phoneNumber =
                         body.phoneCode.replace('+', '') + body.paymentNumber;
 
-                    const { status, orderTrackingId } = await mtnPaymentRequest(
-                        {
-                            token: req.mtn_access_token,
-                            amount: body.amount.toString(),
-                            currency: currency,
-                            phoneNumber: phoneNumber,
-                            paymentMessage: `Donation for film ${film.title}`,
-                            payeeNote: '',
-                            callbackURL: isProduction
-                                ? `${env.NYATI_PAYMENTS_API_URL}/mtn/app/callback`
-                                : undefined,
-                        }
-                    );
+                    let TargetEnv = "mtnuganda"
+                    let subscription_Key ="fedc2d49cbdb42328a2e94e846818ab8"
+                    let currency = "UGX"
+                    let MTNRequestLink = `https://proxy.momoapi.mtn.com/collection/v1_0/requesttopay`
+                    let callbackURL = "https://api.nyatimotionpictures.com/api/v1/payment/mtn/callback/web"
+                    
+
+
+                    let requestParameters = {
+                        amount: amount,
+                        currency: currency,
+                        externalId: createdUUID,
+                        payer: {
+                            partyIdType: 'MSISDN',
+                            partyId: phoneNumber,
+                        },
+                         payerMessage: `Donation for film ${ req.body.filmtitle }`, //Reason for Payment
+                payeeNote: ""
+                    }
+
+                    let headers = {
+                        "Content-Type": "application/json",
+                        "Authorization": req.mtn_access_token,
+                        "X-Callback-Url": `https://api.nyatimotionpictures.com/api/v1/payment/mtncallback/${createdUUID}`,
+                        "X-Reference-Id": `${createdUUID}`,
+                        "X-Target-Environment": TargetEnv,
+                        "Ocp-Apim-Subscription-Key": subscription_Key
+                    }
+
+                    console.log("requestParameters", requestParameters)
+                    console.log("headers", headers)
+
+                    let submitOrderRequest = await axios.post(MTNRequestLink, requestParameters, {
+                        headers: headers
+                    })
+
+                     console.log("submitOrderRequest", submitOrderRequest.statusText)
+
+                    if (submitOrderRequest.statusText !== "Accepted") {
+                        returnError('Payment failed', 400);
+                    }
+
+                       // Save the transaction including the orderTrackingId
+                  await prisma.transaction.create({
+                        data: {
+                            userId,
+                            type: 'DONATION',
+                            amount: body?.amount.toString(),
+                            currency: body?.currency ?? 'UGX',
+                            status: 'PENDING',
+                            paymentMethodType: 'mtnmomo',
+                            orderTrackingId: createdUUID,
+                            paymentMethodId: body.paymentMethodId
+                                ? body.paymentMethodId
+                                : null,
+                        },
+                    });
+
+
+                    
+
+                    res.status(200).json({
+                        status: 'PENDING',
+                        orderTrackingId: createdUUID
+                    });
+
+
+                    // const { status, orderTrackingId } = await mtnPaymentRequest(
+                    //     {
+                    //         token: req.mtn_access_token,
+                    //         amount: body.amount.toString(),
+                    //         currency: currency,
+                    //         phoneNumber: phoneNumber,
+                    //         paymentMessage: `Donation for film ${film.title}`,
+                    //         payeeNote: '',
+                    //         callbackURL: isProduction
+                    //             ? `${env.NYATI_PAYMENTS_API_URL}/mtn/app/callback`
+                    //             : undefined,
+                    //     }
+                    // );
 
                     // const response = await axios.post(
                     //     URL,
@@ -1221,30 +1291,30 @@ export const donateToFilm = async (req, res, next) => {
                     //     }
                     // );
 
-                    if (!orderTrackingId) {
-                        returnError('Payment failed', 400);
-                    }
+                    // if (!orderTrackingId) {
+                    //     returnError('Payment failed', 400);
+                    // }
 
                     // Save the transaction including the orderTrackingId
-                    await prisma.transaction.create({
-                        data: {
-                            userId,
-                            type: 'DONATION',
-                            amount: body?.amount.toString(),
-                            currency: body?.currency ?? 'UGX',
-                            status: 'PENDING',
-                            paymentMethodType: 'mtnmomo',
-                            orderTrackingId: orderTrackingId,
-                            paymentMethodId: body.paymentMethodId
-                                ? body.paymentMethodId
-                                : null,
-                        },
-                    });
+                    // await prisma.transaction.create({
+                    //     data: {
+                    //         userId,
+                    //         type: 'DONATION',
+                    //         amount: body?.amount.toString(),
+                    //         currency: body?.currency ?? 'UGX',
+                    //         status: 'PENDING',
+                    //         paymentMethodType: 'mtnmomo',
+                    //         orderTrackingId: orderTrackingId,
+                    //         paymentMethodId: body.paymentMethodId
+                    //             ? body.paymentMethodId
+                    //             : null,
+                    //     },
+                    // });
 
-                    res.status(200).json({
-                        status,
-                        orderTrackingId,
-                    });
+                    // res.status(200).json({
+                    //     status,
+                    //     orderTrackingId,
+                    // });
 
                     break;
                 } catch (error) {
@@ -1261,6 +1331,7 @@ export const donateToFilm = async (req, res, next) => {
                 returnError('Invalid payment type', 400);
         }
     } catch (error) {
+        console.log("Received error", error)
         if (!error.statusCode) {
             error.statusCode = 500;
         }

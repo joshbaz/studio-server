@@ -82,10 +82,12 @@ export default function customizeApp(app) {
     const corsOptions = {
         origin: [
             env.CLIENT_URL,
+            "*",
             'http://localhost:8081',
             'http://192.168.0.184:4500',
             'http://localhost:5173',
             'https://staging.nyatimotionpictures.com',
+            'https://nyatimotionpictures.com',
         ],
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         preflightContinue: false,

@@ -10,7 +10,7 @@ import { env } from '@/env.mjs';
 
 export const generateMTNAuthTk = async (req, res, next) => {
     try {
-        const isProd = env.NODE_ENV === 'production';
+        const isProd = true;
         const API_USER = isProd
             ? env.MOMO_PROD_API_USER
             : await createAPIUser(SUBSCRIPTION_KEY);

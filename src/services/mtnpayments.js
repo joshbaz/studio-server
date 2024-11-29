@@ -4,7 +4,8 @@ import { v5 as uuidv5, v4 as uuidv4 } from 'uuid';
 import { env } from '@/env.mjs';
 
 // is production
-const isProduction = env.NODE_ENV === 'production';
+//const isProduction = env.NODE_ENV === 'production';
+const isProduction = true;
 
 /**
  * @name generateUUID

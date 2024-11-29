@@ -10,7 +10,6 @@ import { env } from '@/env.mjs';
  */
 export const verifyToken = async (req, res, next) => {
     try {
-        console.log('Logging token');
         const token =
             req.token ||
             (req.headers.authorization &&

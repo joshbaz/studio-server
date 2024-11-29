@@ -25,6 +25,7 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
 import multer from 'multer';
 import { validateData } from '../middleware/validateBody.mjs';
+import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
 
 const router = express.Router();
 
@@ -59,7 +60,12 @@ router.post(
 );
 router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
 router.post('/purchase/:userId/:videoId', verifyToken, purchaseFilm);
-router.post('/donate/:userId/:filmId', verifyToken, donateToFilm);
+router.post(
+    '/donate/:userId/:filmId',
+    verifyToken,
+    generateMTNAuthTk,
+    donateToFilm
+);
 
 // GET
 router.get('/stream/:trackId', streamFilm);
@@ -69,7 +75,12 @@ router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);
 router.get('/track/:trackid', getVideoSource);
 router.get('/watchlist/:userId', getWatchList);
 router.get('/search', getFilmBySearch);
-router.get('/checkpaymentstatus/:orderId', verifyToken, checkPaymentStatus);
+router.get(
+    '/checkpaymentstatus/:orderId',
+    verifyToken,
+    generateMTNAuthTk,
+    checkPaymentStatus
+);
 
 // PUT
 router.put(

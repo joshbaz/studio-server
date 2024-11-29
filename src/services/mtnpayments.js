@@ -138,14 +138,14 @@ export const mtnPaymentRequest = async ({
         };
 
         if (callbackURL) {
-//           headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
+            //           headers['X-Callback-Url'] = `${callbackURL}/${externalId}`;
         }
 
         console.log('headers', headers);
 
         const res = await axios.post(requestURL, requestParams, { headers });
 
-        console.log('response', res);
+        console.log('response', res.data);
         return { status: res.statusText, orderTrackingId: externalId };
     } catch (error) {
         console.log('error: hello', error.message);
@@ -209,6 +209,7 @@ export const checkPaymentStatus = async ({ token, trackingId }) => {
 
         return { status: transactStatus, data: response.data };
     } catch (error) {
+        console.log('error', error.message);
         throw new Error(error.message ?? 'Could not check payment status');
     }
 };

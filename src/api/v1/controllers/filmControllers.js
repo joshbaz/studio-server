@@ -4,6 +4,10 @@ import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import axios from 'axios';
 import { env } from '@/env.mjs';
+import {
+    mtnPaymentRequest,
+    checkPaymentStatus as checkMtnStatus,
+} from '@/services/mtnpayments.js';
 
 /**
  * @name isVerifiedAdmin
@@ -1162,6 +1166,7 @@ export const donateToFilm = async (req, res, next) => {
     try {
         const { userId, filmId } = req.params;
         const body = req.body;
+        const isProduction = env.NODE_ENV === 'production';
 
         console.log('body', body, userId, filmId);
 
@@ -1178,23 +1183,45 @@ export const donateToFilm = async (req, res, next) => {
         if (!body?.option) returnError('Payment method is required', 400);
 
         const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
+        const currency = isProduction ? 'UGX' : 'EUR';
 
         // switch by payment type
         switch (body.option) {
             case 'mtnmomo':
                 try {
-                    const URL = `${PAYMENTS_API}/mtn/app/donate`;
                     const phoneNumber =
                         body.phoneCode.replace('+', '') + body.paymentNumber;
 
-                    const response = await axios.post(URL, {
-                        phoneNumber,
-                        amount: body?.amount.toString(),
-                        filmName: film.title,
-                        paymentType: 'MTN',
-                    });
+                    const { status, orderTrackingId } = await mtnPaymentRequest(
+                        {
+                            token: req.mtn_access_token,
+                            amount: body.amount.toString(),
+                            currency: currency,
+                            phoneNumber: phoneNumber,
+                            paymentMessage: `Donation for film ${film.title}`,
+                            payeeNote: '',
+                            callbackURL: isProduction
+                                ? `${env.NYATI_PAYMENTS_API_URL}/mtn/app/callback`
+                                : undefined,
+                        }
+                    );
 
-                    if (!response.data.orderTrackingId) {
+                    // const response = await axios.post(
+                    //     URL,
+                    //     {
+                    //         phoneNumber,
+                    //         amount: body?.amount.toString(),
+                    //         filmName: film.title,
+                    //         paymentType: 'MTN',
+                    //     },
+                    //     {
+                    //         headers: {
+                    //             ...req.headers,
+                    //         },
+                    //     }
+                    // );
+
+                    if (!orderTrackingId) {
                         returnError('Payment failed', 400);
                     }
 
@@ -1207,7 +1234,7 @@ export const donateToFilm = async (req, res, next) => {
                             currency: body?.currency ?? 'UGX',
                             status: 'PENDING',
                             paymentMethodType: 'mtnmomo',
-                            orderTrackingId: response.data.orderTrackingId,
+                            orderTrackingId: orderTrackingId,
                             paymentMethodId: body.paymentMethodId
                                 ? body.paymentMethodId
                                 : null,
@@ -1215,8 +1242,8 @@ export const donateToFilm = async (req, res, next) => {
                     });
 
                     res.status(200).json({
-                        message: 'Payment pending approval',
-                        orderTrackingId: response.data.orderTrackingId,
+                        status,
+                        orderTrackingId,
                     });
 
                     break;
@@ -1267,30 +1294,33 @@ export const checkPaymentStatus = async (req, res, next) => {
 
         if (!existingTransaction) returnError('Transaction not found', 404);
 
-        const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
+        // const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
 
         switch (existingTransaction.paymentMethodType) {
             case 'mtnmomo':
                 try {
-                    const URL = `${PAYMENTS_API}/mtn/app/checkstatus/${orderTrackingId}`;
-                    const response = await axios.get(URL, {
-                        headers: { 'Content-Type': 'application/json' },
+                    // const URL = `${PAYMENTS_API}/mtn/app/checkstatus/${orderTrackingId}`;
+                    // const response = await axios.get(URL, {
+                    //     headers: { 'Content-Type': 'application/json' },
+                    // });
+
+                    const { status, data } = await checkMtnStatus({
+                        trackingId: orderTrackingId,
+                        token: req.mtn_access_token,
                     });
 
-                    if (!response.data.payStatus) {
+                    if (!status) {
                         returnError('Payment failed', 400);
                     }
 
-                    const { payStatus } = response.data;
-
-                    switch (payStatus) {
+                    switch (status) {
                         case 'Transaction Successful':
-                            if (response.data.financialTransactionId) {
+                            if (data.financialTransactionId) {
                                 // update the transaction
-                                const data = {
+                                const dataParams = {
                                     status: 'SUCCESS',
                                     financialTransactionId:
-                                        response.data.financialTransactionId,
+                                        data.financialTransactionId,
                                 };
 
                                 const isPurchase =
@@ -1298,7 +1328,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     existingTransaction.purchase;
 
                                 if (isPurchase) {
-                                    data.purchase = {
+                                    dataParams.purchase = {
                                         update: {
                                             where: {
                                                 id: existingTransaction.purchase
@@ -1313,7 +1343,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 const updated = await prisma.transaction.update(
                                     {
                                         where: { id: existingTransaction.id },
-                                        data,
+                                        data: dataParams,
                                     }
                                 );
 

@@ -1368,7 +1368,7 @@ export const donateToFilm = async (req, res, next) => {
                     }
 
                        // Save the transaction including the orderTrackingId
-                  await prisma.transaction.create({
+               const transaction =   await prisma.transaction.create({
                         data: {
                             userId,
                             type: 'DONATION',
@@ -1383,6 +1383,15 @@ export const donateToFilm = async (req, res, next) => {
                         },
                     });
 
+                    await prisma.donation.create({
+                        data: {
+                            userId,
+                            transactionId: transaction.id,
+                            filmId: film.id,
+                            status: 'PENDING',
+                        }
+                    })
+
 
                     
 
@@ -1391,60 +1400,6 @@ export const donateToFilm = async (req, res, next) => {
                         orderTrackingId: createdUUID
                     });
 
-
-                    // const { status, orderTrackingId } = await mtnPaymentRequest(
-                    //     {
-                    //         token: req.mtn_access_token,
-                    //         amount: body.amount.toString(),
-                    //         currency: currency,
-                    //         phoneNumber: phoneNumber,
-                    //         paymentMessage: `Donation for film ${film.title}`,
-                    //         payeeNote: '',
-                    //         callbackURL: isProduction
-                    //             ? `${env.NYATI_PAYMENTS_API_URL}/mtn/app/callback`
-                    //             : undefined,
-                    //     }
-                    // );
-
-                    // const response = await axios.post(
-                    //     URL,
-                    //     {
-                    //         phoneNumber,
-                    //         amount: body?.amount.toString(),
-                    //         filmName: film.title,
-                    //         paymentType: 'MTN',
-                    //     },
-                    //     {
-                    //         headers: {
-                    //             ...req.headers,
-                    //         },
-                    //     }
-                    // );
-
-                    // if (!orderTrackingId) {
-                    //     returnError('Payment failed', 400);
-                    // }
-
-                    // Save the transaction including the orderTrackingId
-                    // await prisma.transaction.create({
-                    //     data: {
-                    //         userId,
-                    //         type: 'DONATION',
-                    //         amount: body?.amount.toString(),
-                    //         currency: body?.currency ?? 'UGX',
-                    //         status: 'PENDING',
-                    //         paymentMethodType: 'mtnmomo',
-                    //         orderTrackingId: orderTrackingId,
-                    //         paymentMethodId: body.paymentMethodId
-                    //             ? body.paymentMethodId
-                    //             : null,
-                    //     },
-                    // });
-
-                    // res.status(200).json({
-                    //     status,
-                    //     orderTrackingId,
-                    // });
 
                     break;
                 } catch (error) {
@@ -1499,13 +1454,14 @@ export const donateToFilm = async (req, res, next) => {
                     next(submitOrder.data.error);
                 } else {
 
-                    await prisma.transaction.create({
+                   const transaction = await prisma.transaction.create({
                         data: {
                             userId,
                             type: 'DONATION',
                             amount: body?.amount.toString(),
                             currency: body?.currency ?? 'UGX',
                             status: 'PENDING',
+                          
                             paymentMethodType: 'PesaPal',
                             orderTrackingId: submitOrderRequest.data.order_tracking_id,
                             paymentMethodId: body.paymentMethodId
@@ -1513,6 +1469,15 @@ export const donateToFilm = async (req, res, next) => {
                                 : null,
                         },
                     });
+
+                    await prisma.donation.create({
+                        data: {
+                            userId,
+                            transactionId: transaction.id,
+                            filmId: film.id,
+                            status: 'PENDING',
+                        }
+                    })
 
                     res.status(200).json({
                         // token: req.bearertk,
@@ -1610,6 +1575,9 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     existingTransaction.type === 'PURCHASE' &&
                                     existingTransaction.purchase;
 
+                                    const isDonation =
+                                    existingTransaction.type === 'DONATION'
+
                                 if (isPurchase) {
                                     dataParams.purchase = {
                                         update: {
@@ -1623,6 +1591,20 @@ export const checkPaymentStatus = async (req, res, next) => {
                                         },
                                     };
                                 }
+
+                                if (isDonation) {
+                                    dataParams.donation = {
+                                        update: {
+                                            where: {
+                                                transactionId: existingTransaction.id,
+                                            },
+                                            data: {
+                                                status: 'SUCCESS',
+                                            },
+                                        },
+                                    };
+                                }
+
                                 const updated = await prisma.transaction.update(
                                     {
                                         where: { id: existingTransaction.id },
@@ -1773,6 +1755,9 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                     const isPurchase =
                                         existingTransaction.type === 'PURCHASE' &&
                                         existingTransaction.purchase;
+
+                                            const isDonation =
+                                    existingTransaction.type === 'DONATION'
     
                                     if (isPurchase) {
                                         dataParams.purchase = {
@@ -1780,6 +1765,19 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                                 where: {
                                                     id: existingTransaction.purchase
                                                         .id,
+                                                },
+                                                data: {
+                                                    status: 'SUCCESS',
+                                                },
+                                            },
+                                        };
+                                    }
+
+                                    if (isDonation) {
+                                        dataParams.donation = {
+                                            update: {
+                                                where: {
+                                                    transactionId: existingTransaction.id,
                                                 },
                                                 data: {
                                                     status: 'SUCCESS',

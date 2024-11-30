@@ -2,7 +2,7 @@ import { env } from '@/env.mjs';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 
-const isProduction = env.NODE_ENV === 'production';
+const isProduction = true;
 
 export const PESA_URL = isProduction ? env.PESA_LIVE_URL : env.PESA_SANDBOX_URL;
 export const CONSUMER_KEY = isProduction
@@ -13,8 +13,10 @@ export const CONSUMER_SECRET = isProduction
     : env.SANDBOX_PESA_SECRET;
 
 //getIPN - FUNCTION
-export const getIPN = async (token) => {
+export const getIPN = async (token, checkorigin) => {
     try {
+
+        let callbackUrl = checkorigin === "web" ? `https://api.nyatimotionpictures.com/api/v1/payment/pesapal/tansact_statuses` : "https://api.nyatimotionpictures.com/api/v1/film/pesapal/checkpaymentstatus";
         let headers = {
             'Content-Type': 'application/json',
             Accept: 'application/json',
@@ -32,7 +34,7 @@ export const getIPN = async (token) => {
             console.log('here d');
 
             let registerDetail = getRegistration.data.filter((data, index) =>
-                data.url.includes(`${env.NG_PESA_CALLBACK}`)
+                data.url.includes(callbackUrl)
             );
 
             console.log('included', registerDetail);
@@ -70,10 +72,12 @@ export const getIPN = async (token) => {
 };
 
 /** Does the IPN Send only once */
-export const registerIPN = async (token) => {
+export const registerIPN = async (token, checkorigin) => {
     try {
+
+        let callbackUrl = checkorigin === "web" ? `https://api.nyatimotionpictures.com/api/v1/payment/pesapal/tansact_statuses` : "https://api.nyatimotionpictures.com/api/v1/film/pesapal/checkpaymentstatus";
         let requestParameters = {
-            url: `${env.NG_PESA_CALLBACK}`,
+            url: callbackUrl,
             ipn_notification_type: 'GET',
         };
         let headers = {

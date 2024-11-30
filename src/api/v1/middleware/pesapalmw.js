@@ -12,9 +12,11 @@ import {
 /** generateIPNID */
 export const generateIPN_ID = async (req, res, next) => {
     try {
+        
+        let checkRequestOrigin = req.body.request_origin ?? "application";
         let Bearertk = `Bearer ${req.pesa_access_token}`;
 
-        const checkIPN = await getIPN(Bearertk);
+        const checkIPN = await getIPN(Bearertk, checkRequestOrigin);
 
         if (checkIPN.type === 'success') {
             console.log('ipn exists');
@@ -24,7 +26,7 @@ export const generateIPN_ID = async (req, res, next) => {
         } else if (checkIPN.type === 'not found') {
             console.log('no IPN REGISTERED');
 
-            let register = registerIPN(Bearertk);
+            let register = await registerIPN(Bearertk, checkRequestOrigin);
 
             if (register.type === 'success') {
                 req.bearertk = Bearertk;
@@ -48,7 +50,7 @@ export const generateIPN_ID = async (req, res, next) => {
 //generate pesapal access token
 export const generatePesaAuthTk = async (req, res, next) => {
     try {
-        console.log('Body', req.body);
+        //console.log('Body', req.body);
 
         //test credentials
         let payload = {

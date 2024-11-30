@@ -20,12 +20,14 @@ import {
     deleteVideo,
     checkPaymentStatus,
     donateToFilm,
+    checkPesapalPaymentStatus,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
 import multer from 'multer';
 import { validateData } from '../middleware/validateBody.mjs';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
+import { generateIPN_ID, generatePesaAuthTk } from '../middleware/pesapalmw.js';
 
 const router = express.Router();
 
@@ -61,11 +63,15 @@ router.post(
 router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
 router.post('/purchase/:userId/:videoId', 
     //verifyToken, 
+    generatePesaAuthTk, 
+    generateIPN_ID,
     generateMTNAuthTk,
     purchaseFilm);
 router.post(
     '/donate/:userId/:filmId',
     // verifyToken,
+    generatePesaAuthTk, 
+   generateIPN_ID,
     generateMTNAuthTk,
     donateToFilm
 );
@@ -84,6 +90,13 @@ router.get(
     generateMTNAuthTk,
     checkPaymentStatus
 );
+
+router.get(
+    '/pesapal/checkpaymentstatus',
+   // verifyToken,
+   generatePesaAuthTk,
+    checkPesapalPaymentStatus
+)
 
 // PUT
 router.put(

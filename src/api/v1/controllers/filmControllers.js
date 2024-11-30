@@ -3,7 +3,7 @@ import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import axios from 'axios';
-import { v4 as uuidv4, v5 as uuidv5 } from "uuid";
+import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
 import { env } from '@/env.mjs';
 import {
     mtnPaymentRequest,
@@ -1072,7 +1072,7 @@ export const purchaseFilm = async (req, res, next) => {
         const { userId, videoId } = req.params;
         const body = req.body;
 
-      //  console.log("body", body)   
+        //  console.log("body", body)
 
         if (!userId || !videoId) returnError('Unauthorized purchase', 401);
 
@@ -1087,55 +1087,59 @@ export const purchaseFilm = async (req, res, next) => {
         if (!video) returnError('The resource can not be found.', 404);
         if (!body?.option) returnError('Payment method is required', 400);
 
-      //  const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
-      let createdUUIDs = uuidv4(new Date());
-      let amounts = video?.videoPrice.price.toString()
-      const phoneNumbers =
-      body.phoneCode.replace('+', '') + body.paymentNumber;
+        //  const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
+        let createdUUIDs = uuidv4(new Date());
+        let amounts = video?.videoPrice.price.toString();
+        const phoneNumbers =
+            body.phoneCode.replace('+', '') + body.paymentNumber;
 
         // switch by payment type
         switch (body.option) {
             case 'mtnmomo':
                 try {
+                    let TargetEnvs = 'mtnuganda';
+                    let subscription_Keys = 'fedc2d49cbdb42328a2e94e846818ab8';
+                    let currencys = 'UGX';
+                    let MTNRequestLinks = `https://proxy.momoapi.mtn.com/collection/v1_0/requesttopay`;
+                    // let callbackURL = "https://api.nyatimotionpictures.com/api/v1/payment/mtn/callback/web"
 
-                        let TargetEnvs ="mtnuganda"
-                        let subscription_Keys="fedc2d49cbdb42328a2e94e846818ab8"
-                        let currencys = "UGX"
-                        let MTNRequestLinks = `https://proxy.momoapi.mtn.com/collection/v1_0/requesttopay`
-                       // let callbackURL = "https://api.nyatimotionpictures.com/api/v1/payment/mtn/callback/web"
+                    let requestParameters = {
+                        amount: amounts,
+                        currency: currencys,
+                        externalId: createdUUIDs,
+                        payer: {
+                            partyIdType: 'MSISDN',
+                            partyId: phoneNumbers,
+                        },
+                        payerMessage: `Purchase Film `,
+                        payeeNote: '',
+                    };
 
-                        let requestParameters = {
-                            amount: amounts,
-                            currency: currencys,
-                            externalId: createdUUIDs ,
-                            payer: {
-                                partyIdType: 'MSISDN',
-                                partyId: phoneNumbers,
-                            },
-                             payerMessage: `Purchase Film `, 
-                             payeeNote: ""
-                           
+                    // console.log("requestParameters", requestParameters)
+
+                    let headers = {
+                        'Content-Type': 'application/json',
+                        Authorization: req.mtn_access_token,
+                        'X-Callback-Url': `https://api.nyatimotionpictures.com/api/v1/film/checkpaymentstatus/${createdUUIDs}`,
+                        'X-Reference-Id': `${createdUUIDs}`,
+                        'X-Target-Environment': TargetEnvs,
+                        'Ocp-Apim-Subscription-Key': subscription_Keys,
+                    };
+
+                    //  console.log("requestParameters", headers)
+
+                    let submitOrderRequest = await axios.post(
+                        MTNRequestLinks,
+                        requestParameters,
+                        {
+                            headers: headers,
                         }
+                    );
 
-                       // console.log("requestParameters", requestParameters)
-
-                        let headers = {
-                            "Content-Type": "application/json",
-                            "Authorization": req.mtn_access_token,
-                           "X-Callback-Url": `https://api.nyatimotionpictures.com/api/v1/film/checkpaymentstatus/${createdUUIDs}`,
-                            "X-Reference-Id": `${createdUUIDs}`,
-                            "X-Target-Environment": TargetEnvs,
-                            "Ocp-Apim-Subscription-Key": subscription_Keys
-                        }
-
-                      //  console.log("requestParameters", headers)
-
-                        let submitOrderRequest = await axios.post(MTNRequestLinks, requestParameters, {
-                            headers: headers
-                        })
-
-                        console.log("submitOrderRequest", submitOrderRequest.statusText)
-
+                    console.log(
+                        'submitOrderRequest',
+                        submitOrderRequest.statusText
+                    );
 
                     // const response = await axios.post(URL, {
                     //     phoneNumber,
@@ -1144,7 +1148,7 @@ export const purchaseFilm = async (req, res, next) => {
                     //     paymentType: 'MTN',
                     // });
 
-                    if (submitOrderRequest.statusText !== "Accepted") {
+                    if (submitOrderRequest.statusText !== 'Accepted') {
                         returnError('Payment Processing failed', 400);
                     }
 
@@ -1188,96 +1192,99 @@ export const purchaseFilm = async (req, res, next) => {
             case 'airtelmoney':
                 // process wallet payment
                 try {
-                    console.log("purchase-pesapal")
-                    let PESA_URL = "https://pay.pesapal.com/v3";
+                    console.log('purchase-pesapal');
+                    let PESA_URL = 'https://pay.pesapal.com/v3';
                     let PesaRequestLink = `${PESA_URL}/api/Transactions/SubmitOrderRequest`;
 
                     let headers = {
-                        "Content-Type": "application/json",
-                        Accept: "application/json",
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
                         Authorization: req.bearertk,
                     };
 
-
-                let requestParameters = {
-                    id: createdUUIDs,
-                    amount: amounts,
-                    currency: "UGX",
-                    description: "Purchase for film ",
-                   // callback_url: "https://api.nyatimotionpictures.com/api/v1/payment/pesapal/callback/web",
-                    callback_url: "https://nyatimotionpictures.com/donate/pesapay/success",
-                    cancellation_url: "https://nyatimotionpictures.com/donate/pesapay/cancel", //optional
-                    notification_id: req.ipn_id,
-                    branch: "",
-                    billing_address: {
-                        phone_number: phoneNumbers,
-                        email_address: "",
-                        country_code: "", //optional
-                        first_name: "", //optional
-                        middle_name: "",
-                        last_name: "",
-                        line_1: "",
-                        line_2: "",
-                        city: "",
-                        state: "",
-                        postal_code: "",
-                        zip_code: "",
-                    },
-                };
-
-                let submitOrderRequest = await axios.post(PesaRequestLink, requestParameters, {
-                    headers: headers
-                })
-
-                if (submitOrderRequest.data.error) {
-                    next(submitOrder.data.error);
-                } else {
-                     // Save the transaction including the orderTrackingId
-                     const transaction = await prisma.transaction.create({
-                        data: {
-                            userId,
-                            type: 'PURCHASE',
-                            amount: video?.videoPrice.price.toString(),
-                            currency: video?.videoPrice.currency,
-                            status: 'PENDING',
-                            paymentMethodType: 'PesaPal',
-                            orderTrackingId: submitOrderRequest.data.order_tracking_id,
-                            paymentMethodId: body.paymentMethodId
-                                ? body.paymentMethodId
-                                : null,
+                    let requestParameters = {
+                        id: createdUUIDs,
+                        amount: amounts,
+                        currency: 'UGX',
+                        description: 'Purchase for film ',
+                        // callback_url: "https://api.nyatimotionpictures.com/api/v1/payment/pesapal/callback/web",
+                        callback_url:
+                            'https://nyatimotionpictures.com/donate/pesapay/success',
+                        cancellation_url:
+                            'https://nyatimotionpictures.com/donate/pesapay/cancel', //optional
+                        notification_id: req.ipn_id,
+                        branch: '',
+                        billing_address: {
+                            phone_number: phoneNumbers,
+                            email_address: '',
+                            country_code: '', //optional
+                            first_name: '', //optional
+                            middle_name: '',
+                            last_name: '',
+                            line_1: '',
+                            line_2: '',
+                            city: '',
+                            state: '',
+                            postal_code: '',
+                            zip_code: '',
                         },
-                    });
+                    };
 
-                      // create a new entry in the purchase table
-                      await prisma.purchase.create({
-                        data: {
-                            userId,
-                            videoId,
-                            status: 'PENDING',
-                            transactionId: transaction.id,
-                        },
-                    });
+                    let submitOrderRequest = await axios.post(
+                        PesaRequestLink,
+                        requestParameters,
+                        {
+                            headers: headers,
+                        }
+                    );
 
-                    res.status(200).json({
-                        // token: req.bearertk,
-                        // ipn: req.ipn_id,
-                        // createdUUID: createdUUID
-                        ...submitOrderRequest.data
-                    })
+                    if (submitOrderRequest.data.error) {
+                        next(submitOrder.data.error);
+                    } else {
+                        // Save the transaction including the orderTrackingId
+                        const transaction = await prisma.transaction.create({
+                            data: {
+                                userId,
+                                type: 'PURCHASE',
+                                amount: video?.videoPrice.price.toString(),
+                                currency: video?.videoPrice.currency,
+                                status: 'PENDING',
+                                paymentMethodType: 'PesaPal',
+                                orderTrackingId:
+                                    submitOrderRequest.data.order_tracking_id,
+                                paymentMethodId: body.paymentMethodId
+                                    ? body.paymentMethodId
+                                    : null,
+                            },
+                        });
 
-                }
-                    
+                        // create a new entry in the purchase table
+                        await prisma.purchase.create({
+                            data: {
+                                userId,
+                                videoId,
+                                status: 'PENDING',
+                                transactionId: transaction.id,
+                            },
+                        });
+
+                        res.status(200).json({
+                            // token: req.bearertk,
+                            // ipn: req.ipn_id,
+                            // createdUUID: createdUUID
+                            ...submitOrderRequest.data,
+                        });
+                    }
                 } catch (error) {
                     returnError(error.message, 500);
                 }
                 break;
-           
-               
+
             default:
                 returnError('Invalid payment type', 400);
         }
     } catch (error) {
-       console.log("Received error", error)
+        console.log('Received error', error);
         if (!error.statusCode) {
             error.statusCode = 500;
         }
@@ -1311,27 +1318,22 @@ export const donateToFilm = async (req, res, next) => {
         if (!body?.option) returnError('Payment method is required', 400);
 
         const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
-      //  const currency = isProduction ? 'UGX' : 'EUR';
+        //  const currency = isProduction ? 'UGX' : 'EUR';
 
-      const createdUUID = uuidv4(new Date());
+        const createdUUID = uuidv4(new Date());
 
-      let amount = body.amount.toString()
-      const phoneNumber =
-          body.phoneCode.replace('+', '') + body.paymentNumber;
+        let amount = body.amount.toString();
+        const phoneNumber =
+            body.phoneCode.replace('+', '') + body.paymentNumber;
         // switch by payment type
         switch (body.option) {
             case 'mtnmomo':
                 try {
-                   
-                  
-
-                    let TargetEnv = "mtnuganda"
-                    let subscription_Key ="fedc2d49cbdb42328a2e94e846818ab8"
-                    let currency = "UGX"
-                    let MTNRequestLink = `https://proxy.momoapi.mtn.com/collection/v1_0/requesttopay`
-                   // let callbackURL = "https://api.nyatimotionpictures.com/api/v1/payment/mtn/callback/web"
-                    
-
+                    let TargetEnv = 'mtnuganda';
+                    let subscription_Key = 'fedc2d49cbdb42328a2e94e846818ab8';
+                    let currency = 'UGX';
+                    let MTNRequestLink = `https://proxy.momoapi.mtn.com/collection/v1_0/requesttopay`;
+                    // let callbackURL = "https://api.nyatimotionpictures.com/api/v1/payment/mtn/callback/web"
 
                     let requestParameters = {
                         amount: amount,
@@ -1341,34 +1343,41 @@ export const donateToFilm = async (req, res, next) => {
                             partyIdType: 'MSISDN',
                             partyId: phoneNumber,
                         },
-                         payerMessage: `Donation for film `,
-                payeeNote: ""
-                    }
+                        payerMessage: `Donation for film `,
+                        payeeNote: '',
+                    };
 
                     let headers = {
-                        "Content-Type": "application/json",
-                        "Authorization": req.mtn_access_token,
-                        "X-Callback-Url": `https://api.nyatimotionpictures.com/api/v1/film/checkpaymentstatus/${createdUUID}`,
-                        "X-Reference-Id": `${createdUUID}`,
-                        "X-Target-Environment": TargetEnv,
-                        "Ocp-Apim-Subscription-Key": subscription_Key
-                    }
+                        'Content-Type': 'application/json',
+                        Authorization: req.mtn_access_token,
+                        'X-Callback-Url': `https://api.nyatimotionpictures.com/api/v1/film/checkpaymentstatus/${createdUUID}`,
+                        'X-Reference-Id': `${createdUUID}`,
+                        'X-Target-Environment': TargetEnv,
+                        'Ocp-Apim-Subscription-Key': subscription_Key,
+                    };
 
-                  //  console.log("requestParameters", requestParameters)
-                  //  console.log("headers", headers)
+                    //  console.log("requestParameters", requestParameters)
+                    //  console.log("headers", headers)
 
-                    let submitOrderRequest = await axios.post(MTNRequestLink, requestParameters, {
-                        headers: headers
-                    })
+                    let submitOrderRequest = await axios.post(
+                        MTNRequestLink,
+                        requestParameters,
+                        {
+                            headers: headers,
+                        }
+                    );
 
-                     console.log("submitOrderRequest", submitOrderRequest.statusText)
+                    console.log(
+                        'submitOrderRequest',
+                        submitOrderRequest.statusText
+                    );
 
-                    if (submitOrderRequest.statusText !== "Accepted") {
+                    if (submitOrderRequest.statusText !== 'Accepted') {
                         returnError('Payment Processing failed', 400);
                     }
 
-                       // Save the transaction including the orderTrackingId
-               const transaction =   await prisma.transaction.create({
+                    // Save the transaction including the orderTrackingId
+                    const transaction = await prisma.transaction.create({
                         data: {
                             userId,
                             type: 'DONATION',
@@ -1389,17 +1398,13 @@ export const donateToFilm = async (req, res, next) => {
                             transactionId: transaction.id,
                             filmId: film.id,
                             status: 'PENDING',
-                        }
-                    })
-
-
-                    
+                        },
+                    });
 
                     res.status(200).json({
                         status: 'PENDING',
-                        orderTrackingId: createdUUID
+                        orderTrackingId: createdUUID,
                     });
-
 
                     break;
                 } catch (error) {
@@ -1408,100 +1413,101 @@ export const donateToFilm = async (req, res, next) => {
             case 'visa':
             case 'airtelmoney':
                 try {
-               // let generatedAuthTK = await generatePesaAuthTk(req, res, next);
-                // console.log("generatedAuthTK", req.bearertk )
-                let PESA_URL = "https://pay.pesapal.com/v3";
-                let PesaRequestLink = `${PESA_URL}/api/Transactions/SubmitOrderRequest`;
+                    // let generatedAuthTK = await generatePesaAuthTk(req, res, next);
+                    // console.log("generatedAuthTK", req.bearertk )
+                    let PESA_URL = 'https://pay.pesapal.com/v3';
+                    let PesaRequestLink = `${PESA_URL}/api/Transactions/SubmitOrderRequest`;
 
-                let headers = {
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                    Authorization: req.bearertk,
-                };
+                    let headers = {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        Authorization: req.bearertk,
+                    };
 
-                let requestParameters = {
-                    id: createdUUID,
-                    amount: amount,
-                    currency: "UGX",
-                    description: "Donation for film ",
-                   // callback_url: "https://api.nyatimotionpictures.com/api/v1/payment/pesapal/callback/web",
-                    callback_url: "https://nyatimotionpictures.com/donate/pesapay/success",
-                    cancellation_url: "https://nyatimotionpictures.com/donate/pesapay/cancel", //optional
-                    notification_id: req.ipn_id,
-                    branch: "",
-                    billing_address: {
-                        phone_number: phoneNumber,
-                        email_address: "",
-                        country_code: "", //optional
-                        first_name: "", //optional
-                        middle_name: "",
-                        last_name: "",
-                        line_1: "",
-                        line_2: "",
-                        city: "",
-                        state: "",
-                        postal_code: "",
-                        zip_code: "",
-                    },
-                };
-
-                let submitOrderRequest = await axios.post(PesaRequestLink, requestParameters, {
-                    headers: headers
-                })
-
-                //console.log("submitOrderRequest", submitOrderRequest)
-                if (submitOrderRequest.data.error) {
-                    next(submitOrder.data.error);
-                } else {
-
-                   const transaction = await prisma.transaction.create({
-                        data: {
-                            userId,
-                            type: 'DONATION',
-                            amount: body?.amount.toString(),
-                            currency: body?.currency ?? 'UGX',
-                            status: 'PENDING',
-                          
-                            paymentMethodType: 'PesaPal',
-                            orderTrackingId: submitOrderRequest.data.order_tracking_id,
-                            paymentMethodId: body.paymentMethodId
-                                ? body.paymentMethodId
-                                : null,
+                    let requestParameters = {
+                        id: createdUUID,
+                        amount: amount,
+                        currency: 'UGX',
+                        description: 'Donation for film ',
+                        // callback_url: "https://api.nyatimotionpictures.com/api/v1/payment/pesapal/callback/web",
+                        callback_url:
+                            'https://nyatimotionpictures.com/donate/pesapay/success',
+                        cancellation_url:
+                            'https://nyatimotionpictures.com/donate/pesapay/cancel', //optional
+                        notification_id: req.ipn_id,
+                        branch: '',
+                        billing_address: {
+                            phone_number: phoneNumber,
+                            email_address: '',
+                            country_code: '', //optional
+                            first_name: '', //optional
+                            middle_name: '',
+                            last_name: '',
+                            line_1: '',
+                            line_2: '',
+                            city: '',
+                            state: '',
+                            postal_code: '',
+                            zip_code: '',
                         },
-                    });
+                    };
 
-                    await prisma.donation.create({
-                        data: {
-                            userId,
-                            transactionId: transaction.id,
-                            filmId: film.id,
-                            status: 'PENDING',
+                    let submitOrderRequest = await axios.post(
+                        PesaRequestLink,
+                        requestParameters,
+                        {
+                            headers: headers,
                         }
-                    })
+                    );
 
-                    res.status(200).json({
-                        // token: req.bearertk,
-                        // ipn: req.ipn_id,
-                        // createdUUID: createdUUID
-                        ...submitOrderRequest.data
-                    })
-                }
-                
+                    //console.log("submitOrderRequest", submitOrderRequest)
+                    if (submitOrderRequest.data.error) {
+                        next(submitOrder.data.error);
+                    } else {
+                        const transaction = await prisma.transaction.create({
+                            data: {
+                                userId,
+                                type: 'DONATION',
+                                amount: body?.amount.toString(),
+                                currency: body?.currency ?? 'UGX',
+                                status: 'PENDING',
 
-                
-                    
+                                paymentMethodType: 'PesaPal',
+                                orderTrackingId:
+                                    submitOrderRequest.data.order_tracking_id,
+                                paymentMethodId: body.paymentMethodId
+                                    ? body.paymentMethodId
+                                    : null,
+                            },
+                        });
+
+                        await prisma.donation.create({
+                            data: {
+                                userId,
+                                transactionId: transaction.id,
+                                filmId: film.id,
+                                status: 'PENDING',
+                            },
+                        });
+
+                        res.status(200).json({
+                            // token: req.bearertk,
+                            // ipn: req.ipn_id,
+                            // createdUUID: createdUUID
+                            ...submitOrderRequest.data,
+                        });
+                    }
                 } catch (error) {
                     returnError(error.message, 500);
                 }
 
                 break;
-           
-                
+
             default:
                 returnError('Invalid payment type', 400);
         }
     } catch (error) {
-        console.log("Received error", error)
+        console.log('Received error', error);
         if (!error.statusCode) {
             error.statusCode = 500;
         }
@@ -1510,11 +1516,10 @@ export const donateToFilm = async (req, res, next) => {
 };
 
 /**
- * 
+ *
  * MTN CALLBACK
- * 
+ *
  */
-
 
 /**
  * @name checkPaymentStatus
@@ -1575,8 +1580,8 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     existingTransaction.type === 'PURCHASE' &&
                                     existingTransaction.purchase;
 
-                                    const isDonation =
-                                    existingTransaction.type === 'DONATION'
+                                const isDonation =
+                                    existingTransaction.type === 'DONATION';
 
                                 if (isPurchase) {
                                     dataParams.purchase = {
@@ -1596,7 +1601,8 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     dataParams.donation = {
                                         update: {
                                             where: {
-                                                transactionId: existingTransaction.id,
+                                                transactionsId:
+                                                    existingTransaction.id,
                                             },
                                             data: {
                                                 status: 'SUCCESS',
@@ -1655,16 +1661,15 @@ export const checkPaymentStatus = async (req, res, next) => {
     }
 };
 
-
 /**
- * @name pesapalCheckPaymentStatus 
+ * @name pesapalCheckPaymentStatus
  * @description function to check pesapal payment status
  */
 export const checkPesapalPaymentStatus = async (req, res, next) => {
     try {
-        const { OrderTrackingId  } = req.query;
+        const { OrderTrackingId } = req.query;
 
-        let orderTrackingId = OrderTrackingId ;
+        let orderTrackingId = OrderTrackingId;
 
         if (!orderTrackingId) returnError('Order tracking id is required', 400);
 
@@ -1685,125 +1690,135 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
         // const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
 
         switch (existingTransaction.paymentMethodType) {
-            case 'Pesapal' || existingTransaction.paymentMethodType?.includes('pesapal'):
+            case 'Pesapal' ||
+                existingTransaction.paymentMethodType?.includes('pesapal'):
                 try {
-                    
-                    let PESA_URL = "https://pay.pesapal.com/v3";
+                    let PESA_URL = 'https://pay.pesapal.com/v3';
                     let PesaRequestLink = `${PESA_URL}/api/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`;
 
                     let headers = {
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                        "Authorization": req.pesa_access_token
-                    }
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        Authorization: req.pesa_access_token,
+                    };
 
-                    let submitStatusRequest = await axios.get(PesaRequestLink, { headers: headers });
+                    let submitStatusRequest = await axios.get(PesaRequestLink, {
+                        headers: headers,
+                    });
 
                     if (!submitStatusRequest.data) {
-                       // console.log("error", submitStatusRequest.data)
-                        returnError("Check Payment Failed", 500);
+                        // console.log("error", submitStatusRequest.data)
+                        returnError('Check Payment Failed', 500);
                     }
 
-                    const { payment_method, amount, payment_status_description, description, payment_account, currency, message } = submitStatusRequest.data;
+                    const {
+                        payment_method,
+                        amount,
+                        payment_status_description,
+                        description,
+                        payment_account,
+                        currency,
+                        message,
+                    } = submitStatusRequest.data;
 
-                    if (existingTransaction.status?.toLowerCase() !== 'pending') {
+                    if (
+                        existingTransaction.status?.toLowerCase() !== 'pending'
+                    ) {
                         res.status(200).json({
-                            payment_status_description: payment_status_description,
+                            payment_status_description:
+                                payment_status_description,
                             paidAmount: amount,
                             paymentType: `PesaPal-${payment_method}`,
                             transactionId: existingTransaction.id,
-                             currency: currency,
-
+                            currency: currency,
                         });
                         break;
                     } else {
                         const selectMessage = (shortMessage) => {
-
                             switch (shortMessage) {
-            
-                                case "failed":
-                                    return "Transaction has Failed";
-                                case "completed":
-                                    return "Transaction Successful";
-                                case "pending":
-                                    return "Transaction Pending";
-                                case "rejected":
-                                    return "Transaction Rejected";
-                                case "invalid":
-                                    return "Transaction invalid"
-                                case "reversed":
-                                    return "Transaction reversed"
+                                case 'failed':
+                                    return 'Transaction has Failed';
+                                case 'completed':
+                                    return 'Transaction Successful';
+                                case 'pending':
+                                    return 'Transaction Pending';
+                                case 'rejected':
+                                    return 'Transaction Rejected';
+                                case 'invalid':
+                                    return 'Transaction invalid';
+                                case 'reversed':
+                                    return 'Transaction reversed';
                                 default:
                                     return null;
                             }
-                        } 
+                        };
 
-                        let status = selectMessage(payment_status_description.toLowerCase());
+                        let status = selectMessage(
+                            payment_status_description.toLowerCase()
+                        );
 
                         if (!status) {
                             returnError('Payment failed', 400);
                         }
-    
+
                         switch (status) {
                             case 'Transaction Successful':
-                                    // update the transaction
-                                    const dataParams = {
-                                        status: 'SUCCESS',
-                                       
+                                // update the transaction
+                                const dataParams = {
+                                    status: 'SUCCESS',
+                                };
+
+                                const isPurchase =
+                                    existingTransaction.type === 'PURCHASE' &&
+                                    existingTransaction.purchase;
+
+                                const isDonation =
+                                    existingTransaction.type === 'DONATION';
+
+                                if (isPurchase) {
+                                    dataParams.purchase = {
+                                        update: {
+                                            where: {
+                                                id: existingTransaction.purchase
+                                                    .id,
+                                            },
+                                            data: {
+                                                status: 'SUCCESS',
+                                            },
+                                        },
                                     };
-    
-                                    const isPurchase =
-                                        existingTransaction.type === 'PURCHASE' &&
-                                        existingTransaction.purchase;
+                                }
 
-                                            const isDonation =
-                                    existingTransaction.type === 'DONATION'
-    
-                                    if (isPurchase) {
-                                        dataParams.purchase = {
-                                            update: {
-                                                where: {
-                                                    id: existingTransaction.purchase
-                                                        .id,
-                                                },
-                                                data: {
-                                                    status: 'SUCCESS',
-                                                },
+                                if (isDonation) {
+                                    dataParams.donation = {
+                                        update: {
+                                            where: {
+                                                transactionsId:
+                                                    existingTransaction.id,
                                             },
-                                        };
+                                            data: {
+                                                status: 'SUCCESS',
+                                            },
+                                        },
+                                    };
+                                }
+                                const updated = await prisma.transaction.update(
+                                    {
+                                        where: { id: existingTransaction.id },
+                                        data: dataParams,
                                     }
+                                );
 
-                                    if (isDonation) {
-                                        dataParams.donation = {
-                                            update: {
-                                                where: {
-                                                    transactionId: existingTransaction.id,
-                                                },
-                                                data: {
-                                                    status: 'SUCCESS',
-                                                },
-                                            },
-                                        };
-                                    }
-                                    const updated = await prisma.transaction.update(
-                                        {
-                                            where: { id: existingTransaction.id },
-                                            data: dataParams,
-                                        }
-                                    );
-    
-                                    res.status(200).json({
-                                        status: 'SUCCESSFUL',
-                                        transaction: updated,
-                                    });
-                                
+                                res.status(200).json({
+                                    status: 'SUCCESSFUL',
+                                    transaction: updated,
+                                });
+
                                 break;
                             case 'Transaction has Failed':
                             case 'Transaction Rejected':
-                                
                                 res.status(200).json({
                                     status: 'FAILED',
-                                   
                                 });
                                 break;
                             case 'Transaction Timeout':
@@ -1819,16 +1834,15 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                             default:
                                 returnError('Payment failed', 400);
                         }
-
-                    }  
+                    }
                     break;
                 } catch (error) {
                     throw error;
                 }
-          
-                default:
-                    returnError('Invalid payment type', 400);
-                    break;
+
+            default:
+                returnError('Invalid payment type', 400);
+                break;
         }
     } catch (error) {
         console.log('error', error);
@@ -1838,4 +1852,3 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
         next(error);
     }
 };
-

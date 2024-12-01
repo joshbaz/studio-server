@@ -1,12 +1,9 @@
 import express from 'express';
 import {
-    createFilm,
     getFilmBySearch,
     streamFilm,
-    updateFilm,
     uploadVideo,
     fetchFilms,
-    deleteFilm,
     uploadPoster,
     fetchFilm,
     fetchSimilarFilms,
@@ -23,9 +20,7 @@ import {
     checkPesapalPaymentStatus,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
-import { filmSchema, filmSchemaUpdate } from '../validationschemas/index.js';
 import multer from 'multer';
-import { validateData } from '../middleware/validateBody.mjs';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
 import { generateIPN_ID, generatePesaAuthTk } from '../middleware/pesapalmw.js';
 
@@ -51,7 +46,6 @@ const upload = multer({
 });
 
 // POST
-router.post('/create', verifyToken, validateData(filmSchema), createFilm);
 router.post('/upload/:filmId', verifyToken, upload.single('film'), uploadVideo);
 
 router.post(
@@ -61,17 +55,19 @@ router.post(
     uploadPoster
 );
 router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
-router.post('/purchase/:userId/:videoId', 
-    //verifyToken, 
-    generatePesaAuthTk, 
+router.post(
+    '/purchase/:userId/:videoId',
+    // verifyToken,
+    generatePesaAuthTk,
     generateIPN_ID,
     generateMTNAuthTk,
-    purchaseFilm);
+    purchaseFilm
+);
 router.post(
     '/donate/:userId/:filmId',
     // verifyToken,
-    generatePesaAuthTk, 
-   generateIPN_ID,
+    generatePesaAuthTk,
+    generateIPN_ID,
     generateMTNAuthTk,
     donateToFilm
 );
@@ -86,30 +82,23 @@ router.get('/watchlist/:userId', getWatchList);
 router.get('/search', getFilmBySearch);
 router.get(
     '/checkpaymentstatus/:orderId',
-   // verifyToken,
+    // verifyToken,
     generateMTNAuthTk,
     checkPaymentStatus
 );
 
 router.get(
     '/pesapal/checkpaymentstatus',
-   // verifyToken,
-   generatePesaAuthTk,
+    // verifyToken,
+    generatePesaAuthTk,
     checkPesapalPaymentStatus
-)
+);
 
 // PUT
-router.put(
-    '/update/:filmId',
-    verifyToken,
-    validateData(filmSchemaUpdate),
-    updateFilm
-);
 router.put('/likerate/:filmId/:userId', verifyToken, likeRateFilm);
 router.put('/updateVideoPrice/:videoId', verifyToken, updateVideoPrice);
 
 // DELETE
-router.delete('/delete/:filmId', verifyToken, deleteFilm);
 router.delete('/watchlist/:id/:userId', verifyToken, removeFromWatchlist);
 router.delete('/video/:videoId', verifyToken, deleteVideo);
 

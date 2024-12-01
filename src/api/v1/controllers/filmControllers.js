@@ -47,44 +47,6 @@ async function verifyAdmin(adminId) {
 }
 
 /**
- * @name checkUploadPermission
- * @description function to check upload permission
- * @param {Express.Request} req
- * @param {Express.Response} res
- * @param {String} adminId
- * @returns  {Promise<File>}
- */
-
-async function checkUploadPermission(req, res, adminId) {
-    await verifyAdmin(adminId, res);
-
-    const { filmId } = req.params;
-
-    if (!filmId) {
-        return res.status(400).json({ message: 'No film selected' });
-    }
-    const film = await prisma.film.findUnique({
-        where: { id: filmId },
-    });
-
-    if (!film) {
-        const error = new Error('Film not found');
-        error.statusCode = 404;
-        throw error;
-    }
-
-    // get the file from the request
-    const file = req.file;
-    if (!file) {
-        const error = new Error('No file uploaded');
-        error.statusCode = 400;
-        throw error;
-    }
-
-    return { film, file };
-}
-
-/**
  * @name streamVideo
  * @description function to stream video from bucket to client return a video stream
  * @param {Object} params
@@ -169,69 +131,6 @@ function formatFileSize(size) {
 }
 
 /**
- * @name createFilm
- * @description Create a new film
- * @type {import('express').RequestHandler}
- */
-export const createFilm = async (req, res, next) => {
-    try {
-        const { title, overview, plotSummary, releaseDate, adminId } = req.body;
-
-        await verifyAdmin(adminId, res);
-
-        const newFilm = await prisma.film.create({
-            data: {
-                title,
-                overview,
-                plotSummary,
-                releaseDate: new Date(releaseDate).toISOString(),
-            },
-        });
-
-        res.status(201).json({
-            message: 'Film created successfully',
-            film: newFilm,
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        res.status(error.statusCode).json({ message: error.message });
-        next(error);
-    }
-};
-
-/**
- * @name updateFilm
- * @description function to update film details
- * @type {import('express').RequestHandler}
- */
-export const updateFilm = async (req, res, next) => {
-    try {
-        const { filmId } = req.params;
-        const { adminId, ...rest } = req.body;
-
-        await verifyAdmin(adminId);
-
-        const updatedFilm = await prisma.film.update({
-            where: { id: filmId },
-            data: { ...rest },
-        });
-
-        res.status(200).json({
-            message: 'Film updated successfully',
-            film: updatedFilm,
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        res.status(error.statusCode).json({ message: error.message });
-        next(error);
-    }
-};
-
-/**
  * @name upload film to bucket
  * @description function to upload film to bucket and get signed url
  * @type {import('express').RequestHandler}
@@ -313,6 +212,8 @@ export const uploadVideo = async (req, res, next) => {
 export const streamFilm = async (req, res, next) => {
     try {
         const { trackId } = req.params;
+
+        console.log('trackId', trackId);
 
         if (!trackId) {
             returnError('No video id provided', 400);
@@ -440,6 +341,10 @@ export const fetchFilm = async (req, res, next) => {
         if (!film) {
             returnError('Film not found', 404);
         }
+
+        // const findPurchased = film.video.find((video) => {
+        //     return video.purchase.userId === req.userId;
+        // });
 
         res.status(200).json({ film });
     } catch (error) {
@@ -944,50 +849,6 @@ export const getFilmBySearch = async (req, res, next) => {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        next(error);
-    }
-};
-
-/**
- *
- * @name deleteFilm
- * @description function to delete a film
- * @type {import('express').RequestHandler}
- */
-export const deleteFilm = async (req, res, next) => {
-    try {
-        const { filmId } = req.params;
-        const { adminId } = req.body;
-
-        await verifyAdmin(adminId, res);
-
-        const videos = await prisma.video.findMany({
-            where: { filmId },
-        });
-
-        console.log('videos', videos, filmId);
-
-        if (videos.length > 0) {
-            for (let video of videos) {
-                await deleteFromBucket({ bucketName: filmId, key: video.name });
-            }
-        } else {
-            return res.status(404).json({ message: 'No videos found' });
-        }
-
-        const film = await prisma.film.delete({
-            where: { id: filmId },
-        });
-
-        res.status(200).json({
-            film,
-            message: `Deleted ${film.title} successfully`,
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        res.status(error.statusCode).json({ message: error.message });
         next(error);
     }
 };
@@ -1626,11 +1487,58 @@ export const checkPaymentStatus = async (req, res, next) => {
                             break;
                         case 'Transaction has Failed':
                         case 'Transaction Rejected':
+                            await prisma.transaction.update({
+                                where: { id: existingTransaction.id },
+                                data: {
+                                    status: 'FAILED',
+                                },
+                            });
+
+                            if (transaction.type === 'PURCHASE') {
+                                // delete the purchase
+                                await prisma.purchase.delete({
+                                    where: {
+                                        id: existingTransaction.purchaseId,
+                                    },
+                                });
+                            }
+
+                            if (transaction.type === 'DONATION') {
+                                await prisma.donation.delete({
+                                    where: {
+                                        transactionsId: existingTransaction.id,
+                                    },
+                                });
+                            }
+
                             res.status(200).json({
                                 status: 'FAILED',
                             });
                             break;
                         case 'Transaction Timeout':
+                            await prisma.transaction.update({
+                                where: { id: existingTransaction.id },
+                                data: {
+                                    status: 'FAILED',
+                                },
+                            });
+
+                            if (transaction.type === 'PURCHASE') {
+                                // delete the purchase
+                                await prisma.purchase.delete({
+                                    where: {
+                                        id: existingTransaction.purchaseId,
+                                    },
+                                });
+                            }
+
+                            if (transaction.type === 'DONATION') {
+                                await prisma.donation.delete({
+                                    where: {
+                                        transactionsId: existingTransaction.id,
+                                    },
+                                });
+                            }
                             res.status(200).json({
                                 status: 'TIMEOUT',
                             });
@@ -1817,11 +1725,59 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                 break;
                             case 'Transaction has Failed':
                             case 'Transaction Rejected':
+                                await prisma.transaction.update({
+                                    where: { id: existingTransaction.id },
+                                    data: {
+                                        status: 'FAILED',
+                                    },
+                                });
+
+                                if (transaction.type === 'PURCHASE') {
+                                    // delete the purchase
+                                    await prisma.purchase.delete({
+                                        where: {
+                                            id: existingTransaction.purchaseId,
+                                        },
+                                    });
+                                }
+
+                                if (transaction.type === 'DONATION') {
+                                    await prisma.donation.delete({
+                                        where: {
+                                            transactionsId:
+                                                existingTransaction.id,
+                                        },
+                                    });
+                                }
                                 res.status(200).json({
                                     status: 'FAILED',
                                 });
                                 break;
                             case 'Transaction Timeout':
+                                await prisma.transaction.update({
+                                    where: { id: existingTransaction.id },
+                                    data: {
+                                        status: 'FAILED',
+                                    },
+                                });
+
+                                if (transaction.type === 'PURCHASE') {
+                                    // delete the purchase
+                                    await prisma.purchase.delete({
+                                        where: {
+                                            id: existingTransaction.purchaseId,
+                                        },
+                                    });
+                                }
+
+                                if (transaction.type === 'DONATION') {
+                                    await prisma.donation.delete({
+                                        where: {
+                                            transactionsId:
+                                                existingTransaction.id,
+                                        },
+                                    });
+                                }
                                 res.status(200).json({
                                     status: 'TIMEOUT',
                                 });

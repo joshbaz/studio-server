@@ -210,10 +210,7 @@ export const updatePassword = async (req, res, next) => {
         if (!id) returnError('Admin id not passed', 400);
         if (!req.body.password) returnError('New password required', 400);
 
-        console.log(req.body.password);
-
         const newHashedPassword = await bcrypt.hash(req.body.password, 10);
-        console.log(newHashedPassword);
 
         await prisma.admin.update({
             where: { id },

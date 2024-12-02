@@ -82,23 +82,69 @@ export const getFilm = async (req, res, next) => {
             },
             include: {
                 posters: true,
-                video: true,
+                video: {
+                    include: {
+                        purchase: {
+                            include: {
+                                transaction: true,
+                            },
+                        },
+                    },
+                },
                 views: true,
                 season: {
                     include: {
                         episodes: {
                             include: {
-                                video: true,
+                                video: {
+                                    include: {
+                                        videoPrice: true,
+                                    },
+                                },
                             },
                         },
+                    },
+                },
+                donation: {
+                    include: {
+                        transaction: true,
                     },
                 },
             },
         });
 
+        // get the total donation amount for the film
+        const totalDonation = film.donation.reduce((acc, donation) => {
+            if (donation.transaction.status === 'SUCCESS') {
+                acc += donation.transaction.amount;
+            }
+            return acc;
+        }, 0);
+
+        let purchaseAmount = {};
+        if (film.access === 'rent') {
+            // get the total purchase per video resolution
+            purchaseAmount = film.video.reduce((acc, video) => {
+                if (video.purchase.length > 0) {
+                    for (let purchase of video.purchase) {
+                        if (purchase.transaction.status === 'SUCCESS') {
+                            if (acc[video.resolution]) {
+                                acc[video.resolution] +=
+                                    purchase.transaction.amount;
+                            } else {
+                                acc[video.resolution] =
+                                    purchase.transaction.amount;
+                            }
+                        }
+                    }
+                }
+                return acc;
+            }, {});
+        }
+
         if (!film) returnError('Film not found', 404);
 
-        return res.status(200).json({ film });
+        return res.status(200).json({ film, totalDonation, purchaseAmount });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -305,23 +351,25 @@ export const deleteSeason = async (req, res, next) => {
         if (!season) returnError('Season not found', 404);
 
         // series bucket name: filmId/seasonId/<vidoename>
-        for (let episode of season.episodes) {
-            if (episode.video.length > 0) {
-                for (let video of episode.video) {
-                    await deleteFromBucket({
-                        bucketName: `${season.filmId}-${seasonId}`,
-                        key: video.name,
-                    });
+        if (season.episodes.length > 0) {
+            for (let episode of season.episodes) {
+                if (episode.video.length > 0) {
+                    for (let video of episode.video) {
+                        await deleteFromBucket({
+                            bucketName: `${season.filmId}-${seasonId}`,
+                            key: video.name,
+                        });
+                    }
                 }
-            }
 
-            // delete posters
-            if (episode.poster.length > 0) {
-                for (let poster of episode.poster) {
-                    await deleteFromBucket({
-                        bucketName: `${season.filmId}-${seasonId}`,
-                        key: poster.name,
-                    });
+                // delete posters
+                if (episode.poster.length > 0) {
+                    for (let poster of episode.poster) {
+                        await deleteFromBucket({
+                            bucketName: `${season.filmId}-${seasonId}`,
+                            key: poster.name,
+                        });
+                    }
                 }
             }
         }
@@ -331,8 +379,8 @@ export const deleteSeason = async (req, res, next) => {
         });
 
         res.status(200).json({
-            episode,
-            message: 'Episode deleted',
+            season,
+            message: 'Season deleted',
         });
     } catch (error) {
         if (!error.statusCode) {
@@ -919,6 +967,44 @@ export const updateVideoPrice = async (req, res, next) => {
             message: 'Price updated successfully',
             price: updatedPrice,
         });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name getPurchaseHistory
+ * @description function to delete a video
+ * @type {import('express').RequestHandler}
+ */
+export const getPurchaseHistory = async (req, res, next) => {
+    try {
+        const transactions = await prisma.transaction.findMany({
+            where: {
+                status: { contains: 'success' },
+                type: 'PURCHASE',
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        email: true,
+                    },
+                },
+            },
+        });
+
+        const totalAmount = transactions.reduce((acc, transaction) => {
+            acc += transaction.amount;
+            return acc;
+        }, 0);
+
+        return res.status(200).json({ transactions, totalAmount });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

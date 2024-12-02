@@ -20,13 +20,13 @@ model admin {
   password          String
   firstname         String
   lastname          String
-  privileges        String
+  privileges        String?
   role              String    @default("admin")
   imageURL          String?
-  phoneNumber       String
+  phoneNumber       String?   @unique
   active            Boolean   @default(false)
   deactivated       Boolean   @default(false)
-  status            String    @default("offline")
+  status            String?   @default("offline")
   oneTimePassword   String?
   passwordExpiresAt DateTime?
   createdAt         DateTime  @default(now())

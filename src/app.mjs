@@ -82,7 +82,7 @@ export default function customizeApp(app) {
     const corsOptions = {
         origin: [
             env.CLIENT_URL,
-            "*",
+            '*',
             'http://localhost:8081',
             'http://192.168.0.184:4500',
             'http://localhost:5173',
@@ -144,7 +144,7 @@ export default function customizeApp(app) {
         }
         console.log('error', err?.message);
         res.status(500).send({
-            message: `Internal Server Error: ${err.message}`,
+            message: err?.message ?? 'Internal server error',
         });
     });
 }

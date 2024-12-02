@@ -60,10 +60,55 @@ export const filmSchema = z.object({
 
 // Season schema
 export const episodeSchema = z.object({
+    seasonId: z.string({ message: 'Season ID is required' }).optional(),
     title: z.string({ message: 'Episode title is required' }).min(1),
     episode: z.number({ message: 'Episode number is required' }).min(1),
     overview: z.string({ message: 'Episode overview is required' }).min(1),
-    seasonId: z.string({ message: 'Season ID is required' }).optional(),
+    plotSummary: z
+        .string({ message: 'Episode plot summary is required' })
+        .min(1),
+    releaseDate: z
+        .string({ message: 'Release date is required' })
+        .refine((data) => isValid(new Date(data)), {
+            message: 'Release date is invalid',
+        }),
+    audienceTarget: z.string().optional().default(''),
+    audienceAgeGroup: z.string().optional().default(''),
+    cast: z.array(z.string()).optional().default([]),
+    directors: z.array(z.string()).optional().default([]),
+    producers: z.array(z.string()).optional().default([]),
+    writers: z.array(z.string()).optional().default([]),
+    soundcore: z.array(z.string()).optional().default([]),
+    audioLanguages: z.array(z.string()).optional().default([]),
+    yearOfProduction: z.string().optional().default(''),
+    genre: z.array(z.string()).optional().default([]),
+    tags: z.array(z.string()).optional().default([]),
+    visibility: z
+        .string()
+        .optional()
+        .default('not published')
+        .refine((data) => {
+            if (data !== null) {
+                const visibilities = [
+                    'published',
+                    'not published',
+                    'coming soon',
+                ];
+                return visibilities.includes(data);
+            }
+            return false;
+        }),
+    access: z
+        .string()
+        .optional()
+        .default('free')
+        .refine((data) => {
+            if (data === null) {
+                const accessTypes = ['free', 'premium'];
+                return accessTypes.includes(data);
+            }
+            return true;
+        }),
 });
 
 export const seasonSchema = z.object({

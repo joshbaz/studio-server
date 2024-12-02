@@ -1,42 +1,24 @@
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
-import { deleteFromBucket } from '@/utils/video.mjs';
+import { deleteFromBucket, uploadToBucket } from '@/services/s3.js';
 
 // utils
 /**
- * @name checkUploadPermission
- * @description function to check upload permission
- * @param {Express.Request} req
- * @param {Express.Response} res
- * @param {String} adminId
- * @returns  {Promise<File>}
+ * @name formatFileSize
+ * @description function to format file size
+ * @param {number} size
+ * @returns {"B" | "KB" | "MB" | "GB"}
  */
-
-async function checkUploadPermission(req, res) {
-    const { filmId } = req.params;
-
-    if (!filmId) {
-        return res.status(400).json({ message: 'No film selected' });
+function formatFileSize(size) {
+    if (size < 1024) {
+        return `${size} B`;
+    } else if (size < 1024 ** 2) {
+        return `${(size / 1024).toFixed(2)} KB`;
+    } else if (size < 1024 ** 3) {
+        return `${(size / 1024 ** 2).toFixed(2)} MB`;
+    } else {
+        return `${(size / 1024 ** 3).toFixed(2)} GB`;
     }
-    const film = await prisma.film.findUnique({
-        where: { id: filmId },
-    });
-
-    if (!film) {
-        const error = new Error('Film not found');
-        error.statusCode = 404;
-        throw error;
-    }
-
-    // get the file from the request
-    const file = req.file;
-    if (!file) {
-        const error = new Error('No file uploaded');
-        error.statusCode = 400;
-        throw error;
-    }
-
-    return { film, file };
 }
 
 //Films
@@ -152,6 +134,78 @@ export const createFilm = async (req, res, next) => {
     }
 };
 
+/**
+ *
+ * @name addPosters
+ * @description function to add posters to film
+ * @type {import('express').RequestHandler}
+ */
+export const uploadPoster = async (req, res, next) => {
+    try {
+        const { filmId } = req.params;
+        const { isCover, isBackdrop } = req.body;
+
+        if (!filmId) returnError('FilmID is required', 400);
+
+        const film = await prisma.film.findUnique({
+            where: { id: filmId },
+            include: {
+                posters: true,
+            },
+        });
+
+        if (!film) returnError('Film not found', 404);
+
+        // get the file from the request
+        const poster = req.file;
+        if (!poster) returnError('No file uploaded', 400);
+
+        const bucketParams = {
+            bucketName: filmId,
+            key: poster.originalname,
+            buffer: poster.buffer,
+            contentType: poster.mimetype,
+            isPublic: true,
+        };
+
+        // open SSE connection
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const data = await uploadToBucket(res, bucketParams);
+
+        const posterData = {
+            url: data.url,
+            name: poster.originalname,
+            type: poster.mimetype,
+            isCover: isCover === 'true' ? true : false,
+            isBackdrop: isBackdrop === 'true' ? true : false,
+            filmId,
+        };
+
+        // create a new poster
+        const newPoster = await prisma.poster.create({
+            data: posterData,
+        });
+
+        res.write(
+            `data: ${JSON.stringify({
+                message: 'Upload complete',
+                poster: newPoster,
+            })}\n\n`
+        );
+
+        res.end();
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
+        res.end();
+    }
+};
+
 // Seasons
 
 /**
@@ -241,6 +295,7 @@ export const deleteSeason = async (req, res, next) => {
                                 name: true,
                             },
                         },
+                        poster: true,
                     },
                 },
                 film: true,
@@ -256,6 +311,16 @@ export const deleteSeason = async (req, res, next) => {
                     await deleteFromBucket({
                         bucketName: `${season.filmId}-${seasonId}`,
                         key: video.name,
+                    });
+                }
+            }
+
+            // delete posters
+            if (episode.poster.length > 0) {
+                for (let poster of episode.poster) {
+                    await deleteFromBucket({
+                        bucketName: `${season.filmId}-${seasonId}`,
+                        key: poster.name,
                     });
                 }
             }
@@ -301,6 +366,7 @@ export const createEpisode = async (req, res, next) => {
             data: {
                 seasonId,
                 ...req.data,
+                releaseDate: new Date(req.data.releaseDate),
             },
         });
 
@@ -313,6 +379,79 @@ export const createEpisode = async (req, res, next) => {
             error.statusCode = 500;
         }
         next(error);
+    }
+};
+
+/**
+ *
+ * @name addPosters
+ * @description function to add posters to film
+ * @type {import('express').RequestHandler}
+ */
+export const uploadEpisodePoster = async (req, res, next) => {
+    try {
+        const { episodeId } = req.params;
+        const { isCover, isBackdrop } = req.body;
+
+        if (!episodeId) returnError('No episode selected', 400);
+
+        const episode = await prisma.episode.findUnique({
+            where: { id: episodeId },
+            include: {
+                season: {
+                    include: {
+                        film: true,
+                    },
+                },
+            },
+        });
+
+        if (!episode) returnError('Episode not found', 404);
+
+        // bucket name: filmid-seasonid/<postername>
+        const bucketParams = {
+            bucketName: `${episode.season.filmId}-${episode.seasonId}`,
+            key: poster.originalname,
+            buffer: poster.buffer,
+            contentType: poster.mimetype,
+            isPublic: true,
+        };
+
+        // open SSE connection
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const data = await uploadToBucket(res, bucketParams);
+
+        const posterData = {
+            url: data.url,
+            name: poster.originalname,
+            type: poster.mimetype,
+            isCover: isCover === 'true' ? true : false,
+            isBackdrop: isBackdrop === 'true' ? true : false,
+            filmId,
+        };
+
+        // create a new poster
+        const newPoster = await prisma.poster.create({
+            data: posterData,
+        });
+
+        res.write(
+            `${JSON.stringify({
+                message: 'Upload complete',
+                poster: newPoster,
+            })}`
+        );
+
+        res.end();
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
+        res.end();
     }
 };
 
@@ -364,6 +503,7 @@ export const deleteEpisode = async (req, res, next) => {
                         film: true,
                     },
                 },
+                poster: true,
             },
         });
 
@@ -376,6 +516,16 @@ export const deleteEpisode = async (req, res, next) => {
                 await deleteFromBucket({
                     bucketName: `${episode.season.filmId}-${episode.seasonId}`,
                     key: video.name,
+                });
+            }
+        }
+
+        // delete posters
+        if (episode.poster.length > 0) {
+            for (let poster of episode.poster) {
+                await deleteFromBucket({
+                    bucketName: `${episode.season.filmId}-${episode.seasonId}`,
+                    key: poster.name,
                 });
             }
         }
@@ -447,17 +597,32 @@ export const deleteFilm = async (req, res, next) => {
     try {
         const { filmId } = req.params;
 
-        const videos = await prisma.video.findMany({
-            where: { filmId },
+        const film = await prisma.film.findUnique({
+            where: { id: filmId },
+            include: {
+                video: true,
+                posters: true,
+            },
         });
 
-        if (videos && videos.length > 0) {
-            for (let video of videos) {
+        // delete videos
+        if (film?.video && film.video.length > 0) {
+            for (let video of film.video) {
                 await deleteFromBucket({ bucketName: filmId, key: video.name });
             }
         }
 
-        const film = await prisma.film.delete({
+        // delete posters
+        if (film?.posters && film.posters.length > 0) {
+            for (let poster of film.posters) {
+                await deleteFromBucket({
+                    bucketName: filmId,
+                    key: poster.name,
+                });
+            }
+        }
+
+        await prisma.film.delete({
             where: { id: filmId },
         });
 
@@ -476,14 +641,25 @@ export const deleteFilm = async (req, res, next) => {
 // Video Uploads
 // film (type: movie)
 /**
-/**
- * @name upload film to bucket
+ * @name uploadFilm film to bucket
  * @description function to upload film to bucket and get signed url
  * @type {import('express').RequestHandler}
  */
-export const uploadVideo = async (req, res, next) => {
+export const uploadFilm = async (req, res) => {
     try {
         const { filmId } = req.params;
+
+        if (!filmId) returnError('Film ID is required', 400);
+
+        const film = await prisma.film.findUnique({
+            where: { id: filmId },
+        });
+
+        if (!film) returnError('Film not found', 404);
+
+        const file = req.file;
+        if (!file) returnError('No file uploaded', 400);
+
         const { isTrailer, resolution, price, currency } = req.body;
 
         if (!resolution) {
@@ -494,7 +670,10 @@ export const uploadVideo = async (req, res, next) => {
             returnError('Price and currency are required', 400);
         }
 
-        const { file } = await checkUploadPermission(req, res);
+        // open SSE connection
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
 
         const filename = `${resolution}-${file.originalname.replace(
             /\s/g,
@@ -509,7 +688,7 @@ export const uploadVideo = async (req, res, next) => {
             isPublic: true,
         };
 
-        const data = await uploadToBucket(bucketParams);
+        const data = await uploadToBucket(res, bucketParams);
         const videoData = {
             url: data.url,
             format: file.mimetype,
@@ -539,14 +718,124 @@ export const uploadVideo = async (req, res, next) => {
             });
         }
 
+        res.write(
+            `data: ${JSON.stringify({
+                message: 'Upload complete',
+                video: newVideo,
+            })}\n\n`
+        );
+
+        res.end();
+
         // return success message
-        res.status(200).json({ url: 'Upload successful', video: newVideo });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.status(error.statusCode).json({ message: error.message });
-        next(error);
+        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
+        res.end();
+    }
+};
+
+/**
+ * @name uploadEpisode film to bucket
+ * @description function to upload film to bucket and get signed url
+ * @type {import('express').RequestHandler}
+ */
+export const uploadEpisode = async (req, res, next) => {
+    try {
+        const { episodeId } = req.params;
+
+        if (!episodeId) returnError('Episode ID is required', 400);
+
+        const episode = await prisma.episode.findUnique({
+            where: { id: episodeId },
+            include: {
+                season: {
+                    include: {
+                        film: true,
+                    },
+                },
+            },
+        });
+
+        if (!episode) returnError('Episode not found', 404);
+
+        const file = req.file;
+        if (!file) returnError('No file uploaded', 400);
+
+        const { isTrailer, resolution, price, currency } = req.body;
+
+        if (!resolution) {
+            returnError('Resolution is required', 400);
+        }
+
+        if (!currency || !price) {
+            returnError('Price and currency are required', 400);
+        }
+
+        // open SSE connection
+        res.setHeader('Content-Type', 'text/event-stream');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Connection', 'keep-alive');
+
+        const filename = `${resolution}-${file.originalname.replace(
+            /\s/g,
+            '-'
+        )}`.toLowerCase(); // replace spaces with hyphens
+
+        const bucketParams = {
+            bucketName: `${episode.season.filmId}-${episode.seasonId}`,
+            key: filename,
+            buffer: file.buffer,
+            contentType: file.mimetype,
+            isPublic: true,
+        };
+
+        const data = await uploadToBucket(res, bucketParams);
+        const videoData = {
+            url: data.url,
+            format: file.mimetype,
+            name: filename, // used as the key in the bucket
+            size: formatFileSize(file.size),
+            encoding: file.encoding,
+            isTrailer,
+            episodeId,
+            resolution, // SD, HD, FHD, UHD
+        };
+
+        // create a video record with all the details including the signed url
+        const newVideo = await prisma.video.create({
+            data: videoData,
+        });
+
+        if (price && currency && newVideo.id) {
+            // add a new entry to the video pricing table
+            const formattedPrice =
+                typeof price === 'string' ? parseFloat(price) : price;
+            await prisma.videoPrice.create({
+                data: {
+                    currency,
+                    videoId: newVideo.id,
+                    price: formattedPrice,
+                },
+            });
+        }
+
+        res.write(
+            `${JSON.stringify({
+                message: 'Upload complete',
+                video: newVideo,
+            })}`
+        );
+
+        res.end();
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        res.write(`${JSON.stringify({ message: error.message })}`);
+        res.end();
     }
 };
 
@@ -594,6 +883,41 @@ export const getDonations = async (req, res, next) => {
         return res.status(200).json({
             appDonations,
             webDonations,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name updateVideoPrice
+ * @description function to get film pricing
+ * @type {import('express').RequestHandler}
+ */
+
+export const updateVideoPrice = async (req, res, next) => {
+    try {
+        const { videoId } = req.params;
+        const { price, currency } = req.body;
+
+        if (!price || !currency) {
+            returnError('Price and currency are required', 400);
+        }
+
+        const formattedPrice =
+            typeof price === 'string' ? parseFloat(price) : price;
+
+        const updatedPrice = await prisma.videoPrice.update({
+            where: { videoId },
+            data: { price: formattedPrice, currency },
+        });
+
+        res.status(200).json({
+            message: 'Price updated successfully',
+            price: updatedPrice,
         });
     } catch (error) {
         if (!error.statusCode) {

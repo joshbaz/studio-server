@@ -1,50 +1,11 @@
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, uploadToBucket, deleteFromBucket } from '@/utils/video.mjs';
+import { s3Client, uploadToBucket, deleteFromBucket } from '@/services/s3.js';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import axios from 'axios';
-import { v4 as uuidv4, v5 as uuidv5 } from 'uuid';
+import { v4 as uuidv4 } from 'uuid';
 import { env } from '@/env.mjs';
-import {
-    mtnPaymentRequest,
-    checkPaymentStatus as checkMtnStatus,
-} from '@/services/mtnpayments.js';
-import { generatePesaAuthTk } from '../middleware/pesapalmw.js';
-
-/**
- * @name isVerifiedAdmin
- * @description Check if the admin is verified
- * @param {String} adminId
- * @param {import("express").Response} res
- * @returns void
- */
-async function verifyAdmin(adminId) {
-    if (!adminId) {
-        const error = new Error(
-            'You do not have the right permissions for this action'
-        );
-        error.statusCode = 401;
-        throw error;
-    }
-
-    const existingAdmin = await prisma.admin.findUnique({
-        where: { id: adminId },
-        select: { role: true, deactivated: true },
-    });
-
-    if (!existingAdmin) {
-        const error = new Error('You cannot perform this action');
-        error.statusCode = 400;
-        throw error;
-    }
-    if (existingAdmin.role !== 'admin' || existingAdmin.deactivated) {
-        const error = new Error(
-            'You are not authorized to perform this action'
-        );
-        error.statusCode = 401;
-        throw error;
-    }
-}
+import { checkPaymentStatus as checkMtnStatus } from '@/services/mtnpayments.js';
 
 /**
  * @name streamVideo
@@ -131,80 +92,6 @@ function formatFileSize(size) {
 }
 
 /**
- * @name upload film to bucket
- * @description function to upload film to bucket and get signed url
- * @type {import('express').RequestHandler}
- */
-export const uploadVideo = async (req, res, next) => {
-    try {
-        const { filmId } = req.params;
-        const { adminId, isTrailer, resolution, price, currency } = req.body;
-
-        if (!resolution) {
-            returnError('Resolution is required', 400);
-        }
-
-        if (!currency || !price) {
-            returnError('Price and currency are required', 400);
-        }
-
-        const { file } = await checkUploadPermission(req, res, adminId);
-
-        const filename = `${resolution}-${file.originalname.replace(
-            /\s/g,
-            '-'
-        )}`.toLowerCase(); // replace spaces with hyphens
-
-        const bucketParams = {
-            bucketName: filmId,
-            key: filename,
-            buffer: file.buffer,
-            contentType: file.mimetype,
-            isPublic: true,
-        };
-
-        const data = await uploadToBucket(bucketParams);
-        const videoData = {
-            url: data.url,
-            format: file.mimetype,
-            name: filename, // used as the key in the bucket
-            size: formatFileSize(file.size),
-            encoding: file.encoding,
-            isTrailer,
-            filmId,
-            resolution, // SD, HD, FHD, UHD
-        };
-
-        // create a video record with all the details including the signed url
-        const newVideo = await prisma.video.create({
-            data: videoData,
-        });
-
-        if (price && currency && newVideo.id) {
-            // add a new entry to the video pricing table
-            const formattedPrice =
-                typeof price === 'string' ? parseFloat(price) : price;
-            await prisma.videoPrice.create({
-                data: {
-                    currency,
-                    price: formattedPrice,
-                    videoId: newVideo.id,
-                },
-            });
-        }
-
-        // return success message
-        res.status(200).json({ url: 'Upload successful', video: newVideo });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        res.status(error.statusCode).json({ message: error.message });
-        next(error);
-    }
-};
-
-/**
  * @name streamFilm
  * @description function to stream film from bucket to client
  * @type {import('express').RequestHandler}
@@ -212,8 +99,6 @@ export const uploadVideo = async (req, res, next) => {
 export const streamFilm = async (req, res, next) => {
     try {
         const { trackId } = req.params;
-
-        console.log('trackId', trackId);
 
         if (!trackId) {
             returnError('No video id provided', 400);
@@ -457,56 +342,6 @@ export const fetchSimilarFilms = async (req, res, next) => {
             error.statusCode = 500;
         }
         res.status(error.statusCode).json({ message: error.message });
-    }
-};
-
-/**
- *
- * @name addPosters
- * @description function to add posters to film
- * @type {import('express').RequestHandler}
- */
-export const uploadPoster = async (req, res, next) => {
-    try {
-        const { filmId } = req.params;
-        const { adminId, isCover, isBackdrop } = req.body;
-
-        const { file: poster } = await checkUploadPermission(req, res, adminId);
-
-        console.log('poster', poster);
-
-        const bucketParams = {
-            bucketName: filmId,
-            key: poster.originalname,
-            buffer: poster.buffer,
-            contentType: poster.mimetype,
-            isPublic: true,
-        };
-
-        const data = await uploadToBucket(bucketParams);
-        const posterData = {
-            url: data.url,
-            type: poster.mimetype,
-            isCover: isCover === 'true' ? true : false,
-            isBackdrop: isBackdrop === 'true' ? true : false,
-            filmId,
-        };
-
-        // create a new poster
-        const newPoster = await prisma.poster.create({
-            data: posterData,
-        });
-
-        res.status(201).json({
-            poster: newPoster,
-            message: 'Poster added successfully',
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        res.status(error.statusCode).json({ message: error.message });
-        next(error);
     }
 };
 
@@ -845,41 +680,6 @@ export const getFilmBySearch = async (req, res, next) => {
             .find({ title: { $regex: query, $options: 'i' } })
             .limit(40);
         res.status(200).json(getfilms);
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-/**
- * @name updateVideoPrice
- * @description function to get film pricing
- * @type {import('express').RequestHandler}
- */
-
-export const updateVideoPrice = async (req, res, next) => {
-    try {
-        const { videoId } = req.params;
-        const { price, currency } = req.body;
-
-        if (!price || !currency) {
-            returnError('Price and currency are required', 400);
-        }
-
-        const formattedPrice =
-            typeof price === 'string' ? parseFloat(price) : price;
-
-        const updatedPrice = await prisma.videoPrice.update({
-            where: { videoId },
-            data: { price: formattedPrice, currency },
-        });
-
-        res.status(200).json({
-            message: 'Price updated successfully',
-            price: updatedPrice,
-        });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

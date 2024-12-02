@@ -106,13 +106,14 @@ enum WatchlistType {
 }
 
 model watchlist {
-  id        String         @id @default(auto()) @map("_id") @db.ObjectId
-  film      film?          @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId    String?        @db.ObjectId
-  type      WatchlistType? @default(SAVED)
-  user      user?          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String?        @db.ObjectId
-  createdAt DateTime       @default(now())
+  id     String         @id @default(auto()) @map("_id") @db.ObjectId
+  film   film?          @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId String?        @db.ObjectId
+  type   WatchlistType? @default(SAVED)
+  user   user?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String?        @db.ObjectId
+
+  createdAt DateTime @default(now())
 }
 
 model film {
@@ -160,12 +161,15 @@ model film {
 model poster {
   id         String  @id @default(auto()) @map("_id") @db.ObjectId
   type       String
+  name       String  @unique
   url        String
   isCover    Boolean @default(false)
   isBackdrop Boolean @default(false)
 
-  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId String? @db.ObjectId
+  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId    String?  @db.ObjectId
+  episode   episode? @relation(fields: [episodeId], references: [id])
+  episodeId String?  @db.ObjectId
 }
 
 enum LikeType {
@@ -215,15 +219,37 @@ model season {
 }
 
 model episode {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  overview  String
-  episode   Int       @default(1)
-  video     video[]
-  season    season?   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  seasonId  String?   @db.ObjectId
-  createdAt DateTime  @default(now())
-  watched   watched[]
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  title             String
+  overview          String
+  episode           Int       @default(1)
+  plotSummary       String
+  releaseDate       DateTime
+  yearOfProduction  String?
+  released          String?
+  runtime           String?
+  genre             String[]
+  tags              String[]
+  audioLanguages    String[]
+  embeddedSubtitles Boolean   @default(false)
+  subtitleLanguage  String[]
+  audienceTarget    String?
+  audienceAgeGroup  String?
+  visibility        String?   @default("not published") // coming soon, published, not published
+  access            String?   @default("free") // free, rent
+  cast              String[]
+  directors         String[]
+  producers         String[]
+  writers           String[]
+  soundcore         String[]
+  video             video[]
+  season            season?   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId          String?   @db.ObjectId
+  watched           watched[]
+  poster            poster[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Resolution {
@@ -237,7 +263,7 @@ model video {
   id         String      @id @default(auto()) @map("_id") @db.ObjectId
   url        String
   format     String
-  name       String
+  name       String      @unique
   fps        String?
   resolution String?     @default("HD")
   bitrate    String?

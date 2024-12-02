@@ -1,7 +1,6 @@
 import express from 'express';
 import { getUsers } from '../controllers/userControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
-import prisma from '@/utils/db.mjs';
 import {
     getDonations,
     getFilms,
@@ -15,6 +14,11 @@ import {
     updateEpisode,
     deleteSeason,
     deleteEpisode,
+    uploadPoster,
+    uploadEpisode,
+    uploadFilm,
+    uploadEpisodePoster,
+    updateVideoPrice,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -22,18 +26,36 @@ import {
     filmSchema,
     seasonSchema,
 } from '../validationschemas/index.js';
+import { upload } from '@/services/multer.js';
 
 const router = express.Router();
 
 // GET Routes
 router.get('/films', getFilms);
 router.get('/films/:filmId', getFilm);
-
 router.get('/users', getUsers);
 router.get('/donations', verifyToken, getDonations);
 
 // POST Routes
 router.post('/newfilm', verifyToken, validateData(filmSchema), createFilm);
+router.post(
+    '/filmupload/:filmId',
+    verifyToken,
+    upload.single('film'),
+    uploadFilm
+);
+router.post(
+    '/episodeupload/:episodeId',
+    verifyToken,
+    upload.single('film'),
+    uploadEpisode
+);
+router.post(
+    '/posterupload/:filmId',
+    verifyToken,
+    upload.single('poster'),
+    uploadPoster
+);
 router.post(
     '/newseason/:filmId',
     verifyToken,
@@ -45,6 +67,12 @@ router.post(
     verifyToken,
     validateData(episodeSchema),
     createEpisode
+);
+router.post(
+    '/uploadposter/:episodeId',
+    verifyToken,
+    upload.single('poster'),
+    uploadEpisodePoster
 );
 
 // PUT Routes
@@ -61,6 +89,7 @@ router.put(
     validateData(episodeSchema),
     updateEpisode
 );
+router.put('/updateVideoPrice/:videoId', verifyToken, updateVideoPrice);
 
 // DELETE Routes
 router.delete('/films/:filmId', verifyToken, deleteFilm);

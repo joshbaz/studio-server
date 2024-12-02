@@ -19,6 +19,7 @@ import {
     uploadFilm,
     uploadEpisodePoster,
     updateVideoPrice,
+    getPurchaseHistory,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -35,6 +36,7 @@ router.get('/films', getFilms);
 router.get('/films/:filmId', getFilm);
 router.get('/users', getUsers);
 router.get('/donations', verifyToken, getDonations);
+router.get('/purchasehistory', verifyToken, getPurchaseHistory);
 
 // POST Routes
 router.post('/newfilm', verifyToken, validateData(filmSchema), createFilm);

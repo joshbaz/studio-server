@@ -11,7 +11,6 @@ import {
     removeFromWatchlist,
     likeRateFilm,
     purchaseFilm,
-    deleteVideo,
     checkPaymentStatus,
     donateToFilm,
     checkPesapalPaymentStatus,
@@ -67,6 +66,5 @@ router.put('/likerate/:filmId/:userId', verifyToken, likeRateFilm);
 
 // DELETE
 router.delete('/watchlist/:id/:userId', verifyToken, removeFromWatchlist);
-router.delete('/video/:videoId', verifyToken, deleteVideo);
 
 export default router;

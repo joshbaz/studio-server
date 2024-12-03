@@ -101,6 +101,7 @@ export const getFilm = async (req, res, next) => {
                                         videoPrice: true,
                                     },
                                 },
+                                poster: true,
                             },
                         },
                     },
@@ -456,6 +457,10 @@ export const uploadEpisodePoster = async (req, res, next) => {
 
         if (!episode) returnError('Episode not found', 404);
 
+        // get the file from the request
+        const poster = req.file;
+        if (!poster) returnError('No file uploaded', 400);
+
         // bucket name: filmid-seasonid/<postername>
         const bucketParams = {
             bucketName: `${episode.season.filmId}-${episode.seasonId}`,
@@ -466,9 +471,14 @@ export const uploadEpisodePoster = async (req, res, next) => {
         };
 
         // open SSE connection
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        const headers = {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+        };
+
+        // open SSE connection
+        res.writeHead(200, headers);
 
         const data = await uploadToBucket(res, bucketParams);
 

@@ -1,5 +1,5 @@
 import { GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
-import { s3Client, uploadToBucket, deleteFromBucket } from '@/services/s3.js';
+import { s3Client } from '@/services/s3.js';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import axios from 'axios';
@@ -72,24 +72,6 @@ export const streamVideo = async ({ bucketName, key, range }, res) => {
         throw err;
     }
 };
-
-/**
- * @name formatFileSize
- * @description Format file size to human readable format (KB, MB, GB)
- * @param {Number} size
- * @returns {String}
- */
-function formatFileSize(size) {
-    if (size < 1024) {
-        return `${size} B`;
-    } else if (size < 1024 ** 2) {
-        return `${(size / 1024).toFixed(2)} KB`;
-    } else if (size < 1024 ** 3) {
-        return `${(size / 1024 ** 2).toFixed(2)} MB`;
-    } else {
-        return `${(size / 1024 ** 3).toFixed(2)} GB`;
-    }
-}
 
 /**
  * @name streamFilm
@@ -203,8 +185,6 @@ export const fetchFilm = async (req, res, next) => {
             where: { id: filmId },
             include: {
                 posters: true,
-                cast: true,
-                crew: true,
                 video: {
                     include: {
                         videoPrice: true,
@@ -227,9 +207,18 @@ export const fetchFilm = async (req, res, next) => {
             returnError('Film not found', 404);
         }
 
-        // const findPurchased = film.video.find((video) => {
-        //     return video.purchase.userId === req.userId;
-        // });
+        // check if the user has purchased a video in the film
+        const videoPurchased = await prisma.purchase.findFirst({
+            where: {
+                status: 'SUCCESS',
+                userId: req.userId,
+                video: {
+                    filmId,
+                },
+            },
+        });
+
+        film.videoPurchased = videoPurchased ? true : false;
 
         res.status(200).json({ film });
     } catch (error) {
@@ -595,82 +584,6 @@ export const likeRateFilm = async (req, res, next) => {
     }
 };
 
-export const addEpisode = async (req, res, next) => {
-    try {
-        const paramsId = req.params.id;
-
-        let getFilmss = await filmModels.findById(paramsId);
-
-        if (!getFilmss) {
-            console.log('error', 'film not found');
-        } else if (
-            getFilmss.filmType !== 'series' &&
-            getFilmss.filmType !== 'TV series'
-        ) {
-            console.log('error', 'film not series');
-        }
-
-        let firstSeason = {
-            seasonTitle: 'Season 1',
-            seasonCounter: '1',
-            totalEpisodes: '13',
-            episodes: [
-                {
-                    episodeId: '6654912f36470e427423ebf0',
-                },
-                {
-                    episodeId: '6654942036470e427423ebf3',
-                },
-                {
-                    episodeId: '6654942e36470e427423ebf4',
-                },
-                {
-                    episodeId: '6654943936470e427423ebf5',
-                },
-                {
-                    episodeId: '6654944a36470e427423ebf6',
-                },
-                {
-                    episodeId: '6654945736470e427423ebf7',
-                },
-                {
-                    episodeId: '6654947236470e427423ebf8',
-                },
-                {
-                    episodeId: '6654947d36470e427423ebf9',
-                },
-                {
-                    episodeId: '6654948f36470e427423ebfa',
-                },
-                {
-                    episodeId: '6654949a36470e427423ebfb',
-                },
-                {
-                    episodeId: '665494a836470e427423ebfc',
-                },
-                {
-                    episodeId: '665494b636470e427423ebfd',
-                },
-                {
-                    episodeId: '665494c536470e427423ebfe',
-                },
-            ],
-        };
-
-        getFilmss.seasons = [firstSeason];
-
-        console.log(getFilmss);
-        await getFilmss.save();
-        console.log(getFilmss);
-        res.status(200).json('saved');
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
 //get film by tag
 export const getFilmBySearch = async (req, res, next) => {
     try {
@@ -680,41 +593,6 @@ export const getFilmBySearch = async (req, res, next) => {
             .find({ title: { $regex: query, $options: 'i' } })
             .limit(40);
         res.status(200).json(getfilms);
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-/**
- * @name deleteVideo
- * @description function to get film pricing
- * @type {import('express').RequestHandler}
- */
-
-export const deleteVideo = async (req, res, next) => {
-    try {
-        const { videoId } = req.params;
-        const { adminId } = req.body;
-
-        await verifyAdmin(adminId, res);
-
-        const video = await prisma.video.findUnique({
-            where: { id: videoId },
-        });
-
-        if (!video) {
-            returnError('Video not found', 404);
-        }
-
-        await prisma.video.delete({
-            where: { id: videoId },
-        });
-
-        await deleteFromBucket({ bucketName: video.filmId, key: video.name });
-        res.status(200).json({ message: 'Video deleted successfully' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

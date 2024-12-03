@@ -246,7 +246,7 @@ model episode {
   season            season?   @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   seasonId          String?   @db.ObjectId
   watched           watched[]
-  poster            poster[]
+  posters           poster[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

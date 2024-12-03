@@ -101,7 +101,7 @@ export const getFilm = async (req, res, next) => {
                                         videoPrice: true,
                                     },
                                 },
-                                poster: true,
+                                posters: true,
                             },
                         },
                     },

@@ -21,6 +21,7 @@ import {
     updateVideoPrice,
     getPurchaseHistory,
     deletePoster,
+    uploadTrailer,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -77,6 +78,12 @@ router.post(
     verifyToken,
     upload.single('poster'),
     uploadEpisodePoster
+);
+router.post(
+    '/uploadtrailer/:id', // id can be filmId or episodeId
+    verifyToken,
+    upload.single('trailer'),
+    uploadTrailer
 );
 
 // PUT Routes

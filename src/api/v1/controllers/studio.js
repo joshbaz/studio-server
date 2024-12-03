@@ -706,7 +706,7 @@ export const uploadFilm = async (req, res) => {
         const file = req.file;
         if (!file) returnError('No file uploaded', 400);
 
-        const { isTrailer, resolution, price, currency } = req.body;
+        const { resolution, price, currency } = req.body;
 
         if (!resolution) {
             returnError('Resolution is required', 400);
@@ -745,7 +745,6 @@ export const uploadFilm = async (req, res) => {
             name: filename, // used as the key in the bucket
             size: formatFileSize(file.size),
             encoding: file.encoding,
-            isTrailer,
             filmId,
             resolution, // SD, HD, FHD, UHD
         };
@@ -784,6 +783,109 @@ export const uploadFilm = async (req, res) => {
         }
         res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
         res.end();
+    }
+};
+
+/**
+ * @name uploadTrailer
+ * @description function to upload film trailer to bucket
+ * @type {import('express').RequestHandler}
+ */
+export const uploadTrailer = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) returnError('Film id or episode ID is required', 400);
+
+        const body = req.body;
+
+        console.log(id, body.type);
+
+        if (!body.type) {
+            returnError('Either type "film" or "episode" is required', 400);
+        }
+
+        let resource = null;
+
+        if (body.type === 'film') {
+            resource = await prisma.film.findUnique({
+                where: { id },
+            });
+        }
+
+        if (body.type === 'episode') {
+            resource = await prisma.episode.findUnique({
+                where: { id },
+                include: {
+                    season: {
+                        select: { id: true, filmId: true },
+                    },
+                },
+            });
+        }
+
+        if (!resource) returnError('Film or episode was not found', 404);
+
+        const file = req.file;
+        if (!file) returnError('No file uploaded', 400);
+
+        // const headers = {
+        //     'Content-Type': 'text/event-stream',
+        //     'Cache-Control': 'no-cache',
+        //     Connection: 'keep-alive',
+        // };
+
+        // // open SSE connection
+        // res.writeHead(206, headers);
+
+        const filename = `trailer-${file.originalname.replace(
+            /\s/g,
+            '-'
+        )}`.toLowerCase(); // replace spaces with hyphens
+
+        const bucketName =
+            body?.type === 'film'
+                ? id
+                : `${resource.season.filmId}-${resource.seasonId}`;
+
+        const bucketParams = {
+            bucketName: bucketName,
+            key: filename,
+            buffer: file.buffer,
+            contentType: file.mimetype,
+            isPublic: true,
+        };
+
+        const data = await uploadToBucket(undefined, bucketParams);
+        const videoData = {
+            url: data.url,
+            format: file.mimetype,
+            name: filename, // used as the key in the bucket
+            size: formatFileSize(file.size),
+            encoding: file.encoding,
+            isTrailer: true,
+        };
+
+        if (body?.type === 'film') {
+            videoData.filmId = id;
+        } else {
+            videoData.episodeId = id;
+        }
+
+        // create a video record with all the details including the signed url
+        const newVideo = await prisma.video.create({
+            data: videoData,
+        });
+
+        res.status(200).json({
+            message: 'Trailer uploaded successfully',
+            video: newVideo,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
     }
 };
 
@@ -986,15 +1088,17 @@ export const getPurchaseHistory = async (req, res, next) => {
     try {
         const transactions = await prisma.transaction.findMany({
             where: {
-                status: { contains: 'success' },
+                status: {
+                    in: ['SUCCESS', 'PENDING'],
+                },
                 type: 'PURCHASE',
             },
             include: {
                 user: {
                     select: {
                         id: true,
-                        firstName: true,
-                        lastName: true,
+                        firstname: true,
+                        lastname: true,
                         email: true,
                     },
                 },

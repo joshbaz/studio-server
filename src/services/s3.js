@@ -52,16 +52,17 @@ export const uploadToBucket = async (
                 (progress.loaded / progress.total) * 100
             );
 
-            if (res) {
-                res.write(
-                    `data: ${JSON.stringify({ progress: customProgress })}\n\n`
-                );
-            }
+            // Broadcast progress to all connected clients
+            wss.clients.forEach((client) => {
+                if (client.readyState === WebSocket.OPEN) {
+                    client.send(JSON.stringify(progress));
+                }
+            });
             console.log(`Progress: ${customProgress}%`);
         });
 
         // send done message
-        if (res) res.write('data: Upload completed\n\n');
+        // if (res) res.write('data: Upload completed\n\n');
 
         const { $metadata: Omit, ETag, ...response } = await upload.done();
 

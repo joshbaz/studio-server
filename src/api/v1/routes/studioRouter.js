@@ -20,6 +20,7 @@ import {
     uploadEpisodePoster,
     updateVideoPrice,
     getPurchaseHistory,
+    deletePoster,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -28,6 +29,7 @@ import {
     seasonSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
+import { deleteVideo } from '../controllers/filmControllers.js';
 
 const router = express.Router();
 
@@ -97,5 +99,7 @@ router.put('/updateVideoPrice/:videoId', verifyToken, updateVideoPrice);
 router.delete('/films/:filmId', verifyToken, deleteFilm);
 router.delete('/season/:seasonId', verifyToken, deleteSeason);
 router.delete('/episode/:episodeId', verifyToken, deleteEpisode);
+router.delete('/video/:videoId', verifyToken, deleteVideo);
+router.delete('/poster/:posterId', verifyToken, deletePoster);
 
 export default router;

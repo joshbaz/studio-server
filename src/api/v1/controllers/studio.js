@@ -604,8 +604,6 @@ export const updateFilm = async (req, res, next) => {
         // check if film exists
         const { filmId } = req.params;
 
-        console.log('Request.data', req.data);
-
         const film = await prisma.film.findUnique({
             where: {
                 id: filmId,
@@ -718,10 +716,14 @@ export const uploadFilm = async (req, res) => {
             returnError('Price and currency are required', 400);
         }
 
+        const headers = {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+        };
+
         // open SSE connection
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        res.writeHead(200, headers);
 
         const filename = `${resolution}-${file.originalname.replace(
             /\s/g,
@@ -1005,6 +1007,107 @@ export const getPurchaseHistory = async (req, res, next) => {
         }, 0);
 
         return res.status(200).json({ transactions, totalAmount });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name deletePoster
+ * @description function to delete a video
+ * @type {import('express').RequestHandler}
+ */
+export const deletePoster = async (req, res, next) => {
+    try {
+        const { posterId } = req.params;
+
+        const poster = await prisma.poster.findUnique({
+            where: { id: posterId },
+            include: {
+                film: true,
+                episode: {
+                    include: {
+                        season: true,
+                    },
+                },
+            },
+        });
+
+        if (!poster) returnError('Poster not found', 404);
+
+        if (poster.film) {
+            await deleteFromBucket({
+                key: poster.name,
+                bucketName: poster.film.id,
+            });
+        }
+
+        if (poster.episode) {
+            await deleteFromBucket({
+                key: poster.name,
+                bucketName: `${poster.episode.season.filmId}-${poster.episode.seasonId}`,
+            });
+        }
+
+        await prisma.poster.delete({
+            where: { id: posterId },
+        });
+
+        return res.status(200).json({ message: 'Poster deleted' });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name deleteVideo
+ * @description function to delete a video
+ * @type {import('express').RequestHandler}
+ */
+export const deleteVideo = async (req, res, next) => {
+    try {
+        const { videoId } = req.params;
+
+        const video = await prisma.video.findUnique({
+            where: { id: videoId },
+            include: {
+                film: true,
+                episode: {
+                    select: {
+                        id: true,
+                        seasonId: true,
+                    },
+                },
+            },
+        });
+
+        if (!video) returnError('Video not found', 404);
+
+        if (video.film) {
+            await deleteFromBucket({
+                key: video.name,
+                bucketName: video.film.id,
+            });
+        }
+
+        if (video.episode) {
+            await deleteFromBucket({
+                key: video.name,
+                bucketName: `${video.filmId}-${video.episode.seasonId}`,
+            });
+        }
+
+        await prisma.video.delete({
+            where: { id: videoId },
+        });
+
+        return res.status(200).json({ message: 'Video deleted' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

@@ -53,7 +53,9 @@ export const uploadToBucket = async (
             );
 
             if (res) {
-                res.write(`${JSON.stringify({ progress: customProgress })}\n`);
+                res.write(
+                    `data: ${JSON.stringify({ progress: customProgress })}\n\n`
+                );
             }
             console.log(`Progress: ${customProgress}%`);
         });

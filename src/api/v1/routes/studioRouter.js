@@ -22,6 +22,7 @@ import {
     getPurchaseHistory,
     deletePoster,
     uploadTrailer,
+    deleteVideo,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -30,7 +31,6 @@ import {
     seasonSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
-import { deleteVideo } from '../controllers/filmControllers.js';
 
 const router = express.Router();
 

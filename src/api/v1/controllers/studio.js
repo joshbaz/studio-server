@@ -730,6 +730,15 @@ export const uploadFilm = async (req, res) => {
             '-'
         )}`.toLowerCase(); // replace spaces with hyphens
 
+        // check if we have a video with the same name in the bucket
+        const videoExists = await prisma.video.findFirst({
+            where: { name: filename },
+        });
+
+        if (videoExists.id) {
+            returnError('A video with the same name already exists', 400);
+        }
+
         const bucketParams = {
             bucketName: filmId,
             key: filename,
@@ -843,6 +852,15 @@ export const uploadTrailer = async (req, res, next) => {
             '-'
         )}`.toLowerCase(); // replace spaces with hyphens
 
+        // check if we have a video with the same name in the bucket
+        const videoExists = await prisma.video.findFirst({
+            where: { name: filename },
+        });
+
+        if (videoExists.id) {
+            returnError('A video with the same name already exists', 400);
+        }
+
         const bucketName =
             body?.type === 'film'
                 ? id
@@ -930,15 +948,28 @@ export const uploadEpisode = async (req, res, next) => {
             returnError('Price and currency are required', 400);
         }
 
+        const headers = {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+        };
+
         // open SSE connection
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        res.writeHead(200, headers);
 
         const filename = `${resolution}-${file.originalname.replace(
             /\s/g,
             '-'
         )}`.toLowerCase(); // replace spaces with hyphens
+
+        // check if we have a video with the same name in the bucket
+        const videoExists = await prisma.video.findFirst({
+            where: { name: filename },
+        });
+
+        if (videoExists.id) {
+            returnError('A video with the same name already exists', 400);
+        }
 
         const bucketParams = {
             bucketName: `${episode.season.filmId}-${episode.seasonId}`,
@@ -979,10 +1010,10 @@ export const uploadEpisode = async (req, res, next) => {
         }
 
         res.write(
-            `${JSON.stringify({
+            `data:${JSON.stringify({
                 message: 'Upload complete',
                 video: newVideo,
-            })}`
+            })} \n\n`
         );
 
         res.end();
@@ -990,7 +1021,7 @@ export const uploadEpisode = async (req, res, next) => {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.write(`${JSON.stringify({ message: error.message })}`);
+        res.write(`data: ${JSON.stringify({ message: error.message })} \n\n`);
         res.end();
     }
 };

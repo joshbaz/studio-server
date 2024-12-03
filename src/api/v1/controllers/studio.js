@@ -213,7 +213,7 @@ export const uploadPoster = async (req, res, next) => {
         if (!poster) returnError('No file uploaded', 400);
 
         const posterData = {
-            url: poster.path,
+            url: poster.originalname,
             name: poster.originalname,
             type: poster.mimetype,
             isCover: isCover === 'true' ? true : false,
@@ -476,7 +476,7 @@ export const uploadEpisodePoster = async (req, res, next) => {
         if (!poster) returnError('No file uploaded', 400);
 
         const posterData = {
-            url: poster.path,
+            url: poster.originalname,
             name: poster.originalname,
             type: poster.mimetype,
             isCover: isCover === 'true' ? true : false,
@@ -770,7 +770,7 @@ export const uploadFilm = async (req, res) => {
 
         // create a video record with all the details including the signed url
         const videoData = {
-            url: file.path,
+            url: file.originalname,
             format: file.mimetype,
             name: filename, // used as the key in the bucket
             size: formatFileSize(file.size),
@@ -897,7 +897,7 @@ export const uploadTrailer = async (req, res, next) => {
         }
 
         const videoData = {
-            url: file.path,
+            url: file.originalname,
             format: file.mimetype,
             name: filename, // used as the key in the bucket
             size: formatFileSize(file.size),

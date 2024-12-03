@@ -212,23 +212,8 @@ export const uploadPoster = async (req, res, next) => {
         const poster = req.file;
         if (!poster) returnError('No file uploaded', 400);
 
-        const bucketParams = {
-            bucketName: filmId,
-            key: poster.originalname,
-            buffer: poster.buffer,
-            contentType: poster.mimetype,
-            isPublic: true,
-        };
-
-        // open SSE connection
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-
-        const data = await uploadToBucket(res, bucketParams);
-
         const posterData = {
-            url: data.url,
+            url: poster.path,
             name: poster.originalname,
             type: poster.mimetype,
             isCover: isCover === 'true' ? true : false,
@@ -241,10 +226,34 @@ export const uploadPoster = async (req, res, next) => {
             data: posterData,
         });
 
+        const bucketParams = {
+            bucketName: filmId,
+            key: poster.originalname,
+            buffer: poster.buffer,
+            contentType: poster.mimetype,
+            isPublic: true,
+        };
+
+        // open SSE connection
+        const headers = {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+        };
+
+        // open SSE connection
+        res.writeHead(200, headers);
+
+        const data = await uploadToBucket(res, bucketParams);
+
+        await prisma.poster.update({
+            where: { id: newPoster.id },
+            data: { url: data.url },
+        });
+
         res.write(
             `data: ${JSON.stringify({
                 message: 'Upload complete',
-                poster: newPoster,
             })}\n\n`
         );
 
@@ -466,6 +475,20 @@ export const uploadEpisodePoster = async (req, res, next) => {
         const poster = req.file;
         if (!poster) returnError('No file uploaded', 400);
 
+        const posterData = {
+            url: poster.path,
+            name: poster.originalname,
+            type: poster.mimetype,
+            isCover: isCover === 'true' ? true : false,
+            isBackdrop: isBackdrop === 'true' ? true : false,
+            episodeId,
+        };
+
+        // create a new poster
+        const newPoster = await prisma.poster.create({
+            data: posterData,
+        });
+
         // bucket name: filmid-seasonid/<postername>
         const bucketParams = {
             bucketName: `${episode.season.filmId}-${episode.seasonId}`,
@@ -484,27 +507,18 @@ export const uploadEpisodePoster = async (req, res, next) => {
 
         // open SSE connection
         res.writeHead(200, headers);
-
         const data = await uploadToBucket(res, bucketParams);
 
-        const posterData = {
-            url: data.url,
-            name: poster.originalname,
-            type: poster.mimetype,
-            isCover: isCover === 'true' ? true : false,
-            isBackdrop: isBackdrop === 'true' ? true : false,
-            filmId,
-        };
-
-        // create a new poster
-        const newPoster = await prisma.poster.create({
-            data: posterData,
+        await prisma.poster.update({
+            where: { id: newPoster.id },
+            data: {
+                url: data.url,
+            },
         });
 
         res.write(
             `${JSON.stringify({
                 message: 'Upload complete',
-                poster: newPoster,
             })}`
         );
 
@@ -750,9 +764,24 @@ export const uploadFilm = async (req, res) => {
             where: { name: filename },
         });
 
-        if (videoExists.id) {
+        if (videoExists) {
             returnError('A video with the same name already exists', 400);
         }
+
+        // create a video record with all the details including the signed url
+        const videoData = {
+            url: file.path,
+            format: file.mimetype,
+            name: filename, // used as the key in the bucket
+            size: formatFileSize(file.size),
+            encoding: file.encoding,
+            filmId,
+            resolution, // SD, HD, FHD, UHD
+        };
+
+        const newVideo = await prisma.video.create({
+            data: videoData,
+        });
 
         const bucketParams = {
             bucketName: filmId,
@@ -763,19 +792,12 @@ export const uploadFilm = async (req, res) => {
         };
 
         const data = await uploadToBucket(res, bucketParams);
-        const videoData = {
-            url: data.url,
-            format: file.mimetype,
-            name: filename, // used as the key in the bucket
-            size: formatFileSize(file.size),
-            encoding: file.encoding,
-            filmId,
-            resolution, // SD, HD, FHD, UHD
-        };
 
-        // create a video record with all the details including the signed url
-        const newVideo = await prisma.video.create({
-            data: videoData,
+        await prisma.video.update({
+            where: { id: newVideo.id },
+            data: {
+                url: data.url,
+            },
         });
 
         if (price && currency && newVideo.id) {
@@ -822,8 +844,6 @@ export const uploadTrailer = async (req, res, next) => {
         if (!id) returnError('Film id or episode ID is required', 400);
 
         const body = req.body;
-
-        console.log(id, body.type);
 
         if (!body.type) {
             returnError('Either type "film" or "episode" is required', 400);
@@ -876,22 +896,8 @@ export const uploadTrailer = async (req, res, next) => {
             returnError('A video with the same name already exists', 400);
         }
 
-        const bucketName =
-            body?.type === 'film'
-                ? id
-                : `${resource.season.filmId}-${resource.seasonId}`;
-
-        const bucketParams = {
-            bucketName: bucketName,
-            key: filename,
-            buffer: file.buffer,
-            contentType: file.mimetype,
-            isPublic: true,
-        };
-
-        const data = await uploadToBucket(undefined, bucketParams);
         const videoData = {
-            url: data.url,
+            url: file.path,
             format: file.mimetype,
             name: filename, // used as the key in the bucket
             size: formatFileSize(file.size),
@@ -910,10 +916,29 @@ export const uploadTrailer = async (req, res, next) => {
             data: videoData,
         });
 
+        const bucketName =
+            body?.type === 'film'
+                ? id
+                : `${resource.season.filmId}-${resource.seasonId}`;
+
+        const bucketParams = {
+            bucketName: bucketName,
+            key: filename,
+            buffer: file.buffer,
+            contentType: file.mimetype,
+            isPublic: true,
+        };
+
+        const data = await uploadToBucket(res, bucketParams);
+
+        await prisma.video.update({
+            where: { id: newVideo.id },
+            data: { url: data.url },
+        });
+
         res.write(
             `data: ${JSON.stringify({
                 message: 'Upload complete',
-                video: newVideo,
             })}\n\n`
         );
         res.end();

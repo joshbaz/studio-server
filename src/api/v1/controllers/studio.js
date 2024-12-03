@@ -928,6 +928,15 @@ export const uploadEpisode = async (req, res, next) => {
             '-'
         )}`.toLowerCase(); // replace spaces with hyphens
 
+        // check if we have a video with the same name in the bucket
+        const videoExists = await prisma.video.findFirst({
+            where: { name: filename },
+        });
+
+        if (videoExists) {
+            returnError('A video with the same name already exists', 400);
+        }
+
         const videoData = {
             url: file.originalname,
             format: file.mimetype,
@@ -943,15 +952,6 @@ export const uploadEpisode = async (req, res, next) => {
         const newVideo = await prisma.video.create({
             data: videoData,
         });
-
-        // check if we have a video with the same name in the bucket
-        const videoExists = await prisma.video.findFirst({
-            where: { name: filename },
-        });
-
-        if (videoExists.id) {
-            returnError('A video with the same name already exists', 400);
-        }
 
         const bucketParams = {
             bucketName: `${episode.season.filmId}-${episode.seasonId}`,

@@ -234,36 +234,19 @@ export const uploadPoster = async (req, res, next) => {
             isPublic: true,
         };
 
-        // open SSE connection
-        const headers = {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-        };
-
-        // open SSE connection
-        res.writeHead(200, headers);
-
-        const data = await uploadToBucket(res, bucketParams);
+        const data = await uploadToBucket(bucketParams);
 
         await prisma.poster.update({
             where: { id: newPoster.id },
             data: { url: data.url },
         });
 
-        res.write(
-            `data: ${JSON.stringify({
-                message: 'Upload complete',
-            })}\n\n`
-        );
-
-        res.end();
+        res.status(200).json({ message: 'Upload complete' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
-        res.end();
+        next(error);
     }
 };
 
@@ -498,16 +481,7 @@ export const uploadEpisodePoster = async (req, res, next) => {
             isPublic: true,
         };
 
-        // open SSE connection
-        const headers = {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-        };
-
-        // open SSE connection
-        res.writeHead(200, headers);
-        const data = await uploadToBucket(res, bucketParams);
+        const data = await uploadToBucket(bucketParams);
 
         await prisma.poster.update({
             where: { id: newPoster.id },
@@ -516,19 +490,12 @@ export const uploadEpisodePoster = async (req, res, next) => {
             },
         });
 
-        res.write(
-            `${JSON.stringify({
-                message: 'Upload complete',
-            })}`
-        );
-
-        res.end();
+        res.status(200).json({ message: 'Upload complete' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
-        res.end();
+        next(error);
     }
 };
 
@@ -641,7 +608,7 @@ export const updateFilm = async (req, res, next) => {
 
         if (!film) returnError('Film not found', 404);
 
-        const updated = await prisma.film.update({
+        await prisma.film.update({
             where: { id: filmId },
             data: {
                 ...req.data,
@@ -650,10 +617,7 @@ export const updateFilm = async (req, res, next) => {
             },
         });
 
-        res.status(200).json({
-            message: 'Film updated successfully',
-            film: updated,
-        });
+        res.status(200).json({ message: 'Film updated successfully' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -745,15 +709,6 @@ export const uploadFilm = async (req, res) => {
             returnError('Price and currency are required', 400);
         }
 
-        const headers = {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-        };
-
-        // open SSE connection
-        res.writeHead(200, headers);
-
         const filename = `${resolution}-${file.originalname.replace(
             /\s/g,
             '-'
@@ -813,14 +768,7 @@ export const uploadFilm = async (req, res) => {
             });
         }
 
-        res.write(
-            `data: ${JSON.stringify({
-                message: 'Upload complete',
-                video: newVideo,
-            })}\n\n`
-        );
-
-        res.end();
+        res.status(200).json({ message: 'Upload complete' });
 
         // return success message
     } catch (error) {
@@ -873,15 +821,6 @@ export const uploadTrailer = async (req, res, next) => {
         const file = req.file;
         if (!file) returnError('No file uploaded', 400);
 
-        const headers = {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-        };
-
-        // open SSE connection
-        res.writeHead(206, headers);
-
         const filename = `trailer-${file.originalname.replace(
             /\s/g,
             '-'
@@ -892,7 +831,7 @@ export const uploadTrailer = async (req, res, next) => {
             where: { name: filename },
         });
 
-        if (videoExists.id) {
+        if (videoExists) {
             returnError('A video with the same name already exists', 400);
         }
 
@@ -929,25 +868,21 @@ export const uploadTrailer = async (req, res, next) => {
             isPublic: true,
         };
 
-        const data = await uploadToBucket(res, bucketParams);
+        const data = await uploadToBucket(bucketParams);
 
         await prisma.video.update({
             where: { id: newVideo.id },
             data: { url: data.url },
         });
 
-        res.write(
-            `data: ${JSON.stringify({
-                message: 'Upload complete',
-            })}\n\n`
-        );
-        res.end();
+        res.status(200).json({
+            message: 'Trailer uploaded.',
+        });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
-        res.end();
+        next(error);
     }
 };
 
@@ -988,19 +923,26 @@ export const uploadEpisode = async (req, res, next) => {
             returnError('Price and currency are required', 400);
         }
 
-        const headers = {
-            'Content-Type': 'text/event-stream',
-            'Cache-Control': 'no-cache',
-            Connection: 'keep-alive',
-        };
-
-        // open SSE connection
-        res.writeHead(200, headers);
-
         const filename = `${resolution}-${file.originalname.replace(
             /\s/g,
             '-'
         )}`.toLowerCase(); // replace spaces with hyphens
+
+        const videoData = {
+            url: file.originalname,
+            format: file.mimetype,
+            name: filename, // used as the key in the bucket
+            size: formatFileSize(file.size),
+            encoding: file.encoding,
+            isTrailer,
+            episodeId,
+            resolution, // SD, HD, FHD, UHD
+        };
+
+        // create a video record with all the details including the signed url
+        const newVideo = await prisma.video.create({
+            data: videoData,
+        });
 
         // check if we have a video with the same name in the bucket
         const videoExists = await prisma.video.findFirst({
@@ -1019,21 +961,11 @@ export const uploadEpisode = async (req, res, next) => {
             isPublic: true,
         };
 
-        const data = await uploadToBucket(res, bucketParams);
-        const videoData = {
-            url: data.url,
-            format: file.mimetype,
-            name: filename, // used as the key in the bucket
-            size: formatFileSize(file.size),
-            encoding: file.encoding,
-            isTrailer,
-            episodeId,
-            resolution, // SD, HD, FHD, UHD
-        };
+        const data = await uploadToBucket(bucketParams);
 
-        // create a video record with all the details including the signed url
-        const newVideo = await prisma.video.create({
-            data: videoData,
+        await prisma.video.update({
+            where: { id: newVideo.id },
+            data: { url: data.url },
         });
 
         if (price && currency && newVideo.id) {
@@ -1049,20 +981,12 @@ export const uploadEpisode = async (req, res, next) => {
             });
         }
 
-        res.write(
-            `data:${JSON.stringify({
-                message: 'Upload complete',
-                video: newVideo,
-            })} \n\n`
-        );
-
-        res.end();
+        res.status(200).json({ message: 'Upload complete' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.write(`data: ${JSON.stringify({ message: error.message })} \n\n`);
-        res.end();
+        next(error);
     }
 };
 

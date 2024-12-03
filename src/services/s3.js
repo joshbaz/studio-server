@@ -24,14 +24,16 @@ export const s3Client = new S3Client({
 /**
  * @name uploadToBucket
  * @description Upload file to Digital Ocean Spaces
- * @param {Express.Response} res
  * @param {UploadToBucketParams} params
  * @returns {Promise<string>}
  */
-export const uploadToBucket = async (
-    res,
-    { key, buffer, isPublic, bucketName, contentType }
-) => {
+export const uploadToBucket = async ({
+    key,
+    buffer,
+    isPublic,
+    bucketName,
+    contentType,
+}) => {
     try {
         const uploadParams = {
             Key: key,
@@ -53,9 +55,6 @@ export const uploadToBucket = async (
             );
 
             // Broadcast progress to all connected clients
-            if (res) {
-                res.write(`data: Progress: ${customProgress}%\n\n`);
-            }
             console.log(`Progress: ${customProgress}%`);
         });
 
@@ -69,9 +68,6 @@ export const uploadToBucket = async (
             ...response,
         };
     } catch (error) {
-        if (res) {
-            res.write(`data: Error ${error.message}\n\n`);
-        }
         throw new Error(error.message);
     }
 };

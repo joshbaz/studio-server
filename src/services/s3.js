@@ -53,11 +53,9 @@ export const uploadToBucket = async (
             );
 
             // Broadcast progress to all connected clients
-            wss.clients.forEach((client) => {
-                if (client.readyState === WebSocket.OPEN) {
-                    client.send(JSON.stringify(progress));
-                }
-            });
+            if (res) {
+                res.write(`data: Progress: ${customProgress}%\n\n`);
+            }
             console.log(`Progress: ${customProgress}%`);
         });
 

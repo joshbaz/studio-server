@@ -829,14 +829,14 @@ export const uploadTrailer = async (req, res, next) => {
         const file = req.file;
         if (!file) returnError('No file uploaded', 400);
 
-        // const headers = {
-        //     'Content-Type': 'text/event-stream',
-        //     'Cache-Control': 'no-cache',
-        //     Connection: 'keep-alive',
-        // };
+        const headers = {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+        };
 
-        // // open SSE connection
-        // res.writeHead(206, headers);
+        // open SSE connection
+        res.writeHead(206, headers);
 
         const filename = `trailer-${file.originalname.replace(
             /\s/g,
@@ -877,15 +877,19 @@ export const uploadTrailer = async (req, res, next) => {
             data: videoData,
         });
 
-        res.status(200).json({
-            message: 'Trailer uploaded successfully',
-            video: newVideo,
-        });
+        res.write(
+            `data: ${JSON.stringify({
+                message: 'Upload complete',
+                video: newVideo,
+            })}\n\n`
+        );
+        res.end();
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        next(error);
+        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
+        res.end();
     }
 };
 

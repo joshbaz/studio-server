@@ -8,8 +8,6 @@ import { env } from './env.mjs';
 import rateLimit from 'express-rate-limit';
 import { specs, swaggerUICss } from './services/swagger.js';
 import swaggerUi from 'swagger-ui-express';
-import { WebSocketServer } from 'ws';
-import { wss } from './services/websockets.js';
 
 const htmlTemplate = `<!DOCTYPE html>
 <html lang="en">
@@ -113,19 +111,6 @@ export default function customizeApp(app) {
 
     // Setup static files
     // app.use(express.static(path.join(__dirname, 'public')));
-
-    // setup websocket
-    // app.set('wss', wss);
-
-    wss.on('connection', (ws) => {
-        console.log('ws connected: ', ws);
-    });
-
-    app.on('upgrade', (request, socket, head) => {
-        wss.handleUpgrade(request, socket, head, (ws) => {
-            wss.emit('connection', ws, request);
-        });
-    });
 
     // Swagger Docs
     app.use(

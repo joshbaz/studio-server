@@ -89,6 +89,7 @@ export const getFilm = async (req, res, next) => {
                                 transaction: true,
                             },
                         },
+                        videoPrice: true,
                     },
                 },
                 views: true,
@@ -114,16 +115,22 @@ export const getFilm = async (req, res, next) => {
             },
         });
 
+        if (!film) returnError('Film not found', 404);
         // get the total donation amount for the film
-        const totalDonation = film.donation.reduce((acc, donation) => {
-            if (donation.transaction.status === 'SUCCESS') {
-                acc += donation.transaction.amount;
-            }
-            return acc;
-        }, 0);
+        let totalDonation = 0;
+
+        console.log(film?.donation);
+        if (film?.donation.length > 0) {
+            totalDonation = film.donation.reduce((acc, donation) => {
+                if (donation.transaction.status === 'SUCCESS') {
+                    acc += donation.transaction.amount;
+                }
+                return acc;
+            }, 0);
+        }
 
         let purchaseAmount = {};
-        if (film.access === 'rent') {
+        if (film?.access === 'rent') {
             // get the total purchase per video resolution
             purchaseAmount = film.video.reduce((acc, video) => {
                 if (video.purchase.length > 0) {
@@ -142,8 +149,6 @@ export const getFilm = async (req, res, next) => {
                 return acc;
             }, {});
         }
-
-        if (!film) returnError('Film not found', 404);
 
         return res.status(200).json({ film, totalDonation, purchaseAmount });
     } catch (error) {

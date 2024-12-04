@@ -999,36 +999,10 @@ export const uploadEpisode = async (req, res, next) => {
 export const getDonations = async (req, res, next) => {
     try {
         const appDonations = await prisma.donation.findMany({
-            where: {
-                OR: [
-                    {
-                        status: {
-                            contains: 'success',
-                        },
-                    },
-                    {
-                        status: {
-                            contains: 'pending',
-                        },
-                    },
-                ],
-            },
+            where: { status: 'Transaction Successful' },
         });
         const webDonations = await prisma.webDonation.findMany({
-            where: {
-                OR: [
-                    {
-                        payment_status_description: {
-                            contains: 'success',
-                        },
-                    },
-                    {
-                        payment_status_description: {
-                            contains: 'pending',
-                        },
-                    },
-                ],
-            },
+            where: { payment_status_description: 'Transaction Successful' },
         });
 
         return res.status(200).json({

@@ -31,14 +31,6 @@ export const env = createEnv({
         }),
         CLIENT_URL: z.string().optional(),
 
-        // Resend
-        RESEND_API_KEY: z
-            .string({ message: 'RESEND_API_KEY is required' })
-            .optional(), // TODO: make this required
-        RESEND_API_HOST: z
-            .string({ message: 'RESEND_API_HOST is required' })
-            .optional(),
-
         // Africas Talking SMS API
         AT_API_KEY: z.string({ message: 'AT_API_KEY is required' }),
 

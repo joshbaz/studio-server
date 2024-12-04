@@ -6,8 +6,8 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import { env } from './env.mjs';
 import rateLimit from 'express-rate-limit';
-import { specs, swaggerUICss } from './services/swagger.js';
-import swaggerUi from 'swagger-ui-express';
+// import { specs, swaggerUICss } from './services/swagger.js';
+// import swaggerUi from 'swagger-ui-express';
 
 const htmlTemplate = `<!DOCTYPE html>
 <html lang="en">
@@ -112,16 +112,16 @@ export default function customizeApp(app) {
     // Setup static files
     // app.use(express.static(path.join(__dirname, 'public')));
 
-    // Swagger Docs
-    app.use(
-        '/docs',
-        swaggerUi.serve,
-        swaggerUi.setup(specs, {
-            customCss:
-                '.swagger-ui .opblock .opblock-summary-path-description-wrapper { align-items: center; display: flex; flex-wrap: wrap; gap: 0 10px; padding: 0 10px; width: 100%; }',
-            customCssUrl: swaggerUICss,
-        })
-    );
+    // // Swagger Docs
+    // app.use(
+    //     '/docs',
+    //     swaggerUi.serve,
+    //     swaggerUi.setup(specs, {
+    //         customCss:
+    //             '.swagger-ui .opblock .opblock-summary-path-description-wrapper { align-items: center; display: flex; flex-wrap: wrap; gap: 0 10px; padding: 0 10px; width: 100%; }',
+    //         customCssUrl: swaggerUICss,
+    //     })
+    // );
 
     // Test correct number of proxies between the user and the server
     app.get('/ip', (req, res) => {

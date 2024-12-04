@@ -89,6 +89,7 @@ export default function customizeApp(app) {
             'http://localhost:5173',
             'https://staging.nyatimotionpictures.com',
             'https://nyatimotionpictures.com',
+            'https://studio.nyatimotionpictures.com',
         ],
         methods: ['GET', 'POST', 'PUT', 'DELETE'],
         preflightContinue: false,

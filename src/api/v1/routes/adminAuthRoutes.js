@@ -32,7 +32,6 @@ router.get('/', (req, res) => {
 
 router.post(
     '/register',
-    verifyToken,
     [
         body('email')
             .isEmail()

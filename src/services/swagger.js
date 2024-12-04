@@ -1,5 +1,4 @@
-import swaggerJSDoc from 'swagger-jsdoc';
-import swaggerUi from 'swagger-ui-express';
+// import swaggerJSDoc from 'swagger-jsdoc';
 
 const options = {
     definition: {
@@ -27,6 +26,6 @@ const options = {
     apis: ['../api/**/*.js'],
 };
 
-export const specs = swaggerJSDoc(options);
+export const specs = options; //swaggerJSDoc(options);
 export const swaggerUICss =
     'https://cdnjs.cloudflare.com/ajax/libs/swagger-ui/4.3.0/swagger-ui.min.css';

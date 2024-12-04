@@ -134,6 +134,16 @@ export const fetchFilms = async (req, res, next) => {
                 posters: true,
                 views: true,
                 likes: true,
+                video: {
+                    include: {
+                        videoPrice: true,
+                    },
+                },
+                season: {
+                    include: {
+                        episodes: true,
+                    },
+                },
             },
         };
 

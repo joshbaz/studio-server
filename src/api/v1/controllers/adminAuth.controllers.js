@@ -40,7 +40,7 @@ export const register = async (req, res, next) => {
                 privileges,
                 role,
                 phoneNumber,
-                createdDate,
+                createdAt: createdDate,
             },
         });
 
@@ -51,7 +51,6 @@ export const register = async (req, res, next) => {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.status(500).json({ message: 'Something went wrong' });
         next(error);
     }
 };
@@ -154,7 +153,7 @@ export const getProfile = async (req, res, next) => {
                 phoneNumber: true,
                 role: true,
                 privileges: true,
-                createdDate: true,
+                createdAt: true,
             },
         });
 
@@ -167,8 +166,6 @@ export const getProfile = async (req, res, next) => {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        next(error);
-        res.status(500).json({ message: 'Something went wrong!!' });
         next(error);
     }
 };
@@ -192,8 +189,6 @@ export const logout = async (req, res, next) => {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        next(error);
-        res.status(500).json({ message: 'Something went wrong!!' });
         next(error);
     }
 };

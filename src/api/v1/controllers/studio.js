@@ -999,7 +999,7 @@ export const uploadEpisode = async (req, res, next) => {
 export const getDonations = async (req, res, next) => {
     try {
         const appDonations = await prisma.donation.findMany({
-            where: { status: 'Transaction Successful' },
+            where: { status: 'SUCCESS' },
         });
         const webDonations = await prisma.webDonation.findMany({
             where: { payment_status_description: 'Transaction Successful' },

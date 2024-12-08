@@ -203,6 +203,15 @@ export const fetchFilm = async (req, res, next) => {
                         },
                     },
                 },
+                season: {
+                    include: {
+                        episodes: {
+                            include: {
+                                posters: true,
+                            },
+                        },
+                    },
+                },
                 watchlist: {
                     where: { userId: req.userId, filmId },
                 },

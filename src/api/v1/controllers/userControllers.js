@@ -406,13 +406,6 @@ export const sendOTP = async (req, res, next) => {
 
         let response;
         if (isEmail) {
-            // response = await resend.emails.send({
-            //    from: 'noreply@mbuguanewton.dev',
-            //    to: contact,
-            //    subject: 'Your Nyati Motion Pictures OTP login Code',
-            //    html: renderVerificationTemplate(otp),
-            // });
-
             response = await sendMail({
                 from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
                 to: contact,
@@ -558,7 +551,7 @@ export const verifyOTP = async (req, res, next) => {
 
         await sendMail({
             from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
-            to: 'mymbugua@gmail.com',
+            to: existingUser.email,
             subject: 'Nyatiflix Account Confirmation.',
             html: renderConfirmationTemplate({
                 firstname: existingUser.firstname,

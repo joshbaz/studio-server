@@ -1316,12 +1316,93 @@ export const updateCategory = async (req, res, next) => {
 
         const update = await prisma.category.update({
             where: { id: categoryId },
-            data: { ...req.data },
+            data: {
+                name: req.data.name,
+                slug: req.data.slug,
+                description: req.data.description,
+            },
         });
 
         res.status(200).json({
             message: 'Category updated successfully',
             update,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name connectOrDisconnectCategory
+ * @description function to connect or disconnect a category to a film
+ * @type {import('express').RequestHandler}
+ */
+export const connectFilmToCategory = async (req, res, next) => {
+    try {
+        const { categoryId } = req.params;
+        const { filmList } = req.data;
+
+        if (!categoryId) returnError('Category ID is required', 400);
+
+        const category = await prisma.category.findUnique({
+            where: { id: categoryId },
+        });
+
+        if (!category) returnError('Category not found', 404);
+
+        if (filmList.length > 0) {
+            for (let filmId of filmList) {
+                await prisma.category.update({
+                    where: { id: category.id },
+                    data: { films: { connect: { id: filmId } } },
+                });
+            }
+        }
+
+        return res.status(200).json({
+            message: 'Film connected to category successfully',
+            category,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name disconnectFilmFromCategory
+ * @description function to connect or disconnect a category to a film
+ * @type {import('express').RequestHandler}
+ */
+export const disconnectFilmFromCategory = async (req, res, next) => {
+    try {
+        const { categoryId } = req.params;
+        const { filmList } = req.data;
+
+        if (!categoryId) returnError('Category ID is required', 400);
+
+        const category = await prisma.category.findUnique({
+            where: { id: categoryId },
+        });
+
+        if (!category) returnError('Category not found', 404);
+
+        if (filmList.length > 0) {
+            for (let filmId of filmList) {
+                await prisma.category.update({
+                    where: { id: category.id },
+                    data: { films: { disconnect: { id: filmId } } },
+                });
+            }
+        }
+        return res.status(200).json({
+            message: 'Film disconnected from category successfully',
+            category,
         });
     } catch (error) {
         if (!error.statusCode) {

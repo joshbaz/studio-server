@@ -28,6 +28,8 @@ import {
     updateCategory,
     deleteCategory,
     createCategory,
+    connectFilmToCategory,
+    disconnectFilmFromCategory,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -122,6 +124,18 @@ router.put(
     verifyToken,
     validateData(categoryUpdateSchema),
     updateCategory
+);
+router.put(
+    '/category/connectfilm/:categoryId',
+    verifyToken,
+    validateData(categoryFilmSchema),
+    connectFilmToCategory
+);
+router.put(
+    '/category/disconnectfilm/:categoryId',
+    verifyToken,
+    validateData(categoryFilmSchema),
+    disconnectFilmFromCategory
 );
 
 // DELETE Routes

@@ -176,4 +176,5 @@ export const categoryUpdateSchema = z.object({
     name: z.string({ message: 'Name is required' }).optional(),
     slug: z.string({ message: 'Slug is required' }).optional(),
     description: z.string({ message: 'Description is required' }).optional(),
+    filmList: z.array(z.string()).optional().default([]),
 });

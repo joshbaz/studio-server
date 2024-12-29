@@ -1192,3 +1192,174 @@ export const deleteVideo = async (req, res, next) => {
         next(error);
     }
 };
+
+// Categories
+/**
+ * @name getCategories
+ * @description function to get all categories
+ * @type {import('express').RequestHandler}
+ */
+export const getCategories = async (_, res, next) => {
+    try {
+        const categories = await prisma.category.findMany({
+            include: {
+                films: true,
+            },
+        });
+        return res.status(200).json({ categories });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name getCategory
+ * @description  function to get a category
+ * @type {import('express').RequestHandler}
+ */
+export const getCategory = async (req, res, next) => {
+    try {
+        const { categoryId } = req.params;
+
+        if (!categoryId) returnError('Category ID is required', 400);
+
+        const category = await prisma.category.findUnique({
+            where: { id: categoryId },
+            include: {
+                films: {
+                    include: {
+                        posters: true,
+                        views: true,
+                        donation: true,
+                    },
+                },
+            },
+        });
+
+        if (!category) res.status(200).json({ category: null });
+
+        return res.status(200).json({ category });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name createCategory
+ * @description function to create a category
+ * @type {import('express').RequestHandler}
+ */
+
+export const createCategory = async (req, res, next) => {
+    const { name, slug, description, filmList } = req.data;
+
+    try {
+        let category = await prisma.category.create({
+            data: {
+                name,
+                slug,
+                description,
+            },
+        });
+
+        if (filmList.length > 0) {
+            for (let filmId of filmList) {
+                await prisma.category.update({
+                    where: { id: category.id },
+                    data: { films: { connect: { id: filmId } } },
+                });
+            }
+        }
+
+        // get the category
+        category = await prisma.category.findUnique({
+            where: { id: category.id },
+            include: {
+                films: {
+                    include: {
+                        posters: true,
+                        views: true,
+                        donation: true,
+                    },
+                },
+            },
+        });
+
+        res.status(201).json({
+            message: 'Category created successfully',
+            category: category,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name updateCategory
+ * @description function to update a category
+ * @type {import('express').RequestHandler}
+ */
+export const updateCategory = async (req, res, next) => {
+    try {
+        const { categoryId } = req.params;
+
+        if (!categoryId) returnError('Category ID is required', 400);
+
+        const update = await prisma.category.update({
+            where: { id: categoryId },
+            data: { ...req.data },
+        });
+
+        res.status(200).json({
+            message: 'Category updated successfully',
+            update,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name deleteCategory
+ * @description function to delete a category
+ * @type {import('express').RequestHandler}
+ */
+export const deleteCategory = async (req, res, next) => {
+    try {
+        const { categoryId } = req.params;
+
+        if (!categoryId) returnError('Category ID is required', 400);
+
+        const category = await prisma.category.findUnique({
+            where: { id: categoryId },
+        });
+
+        if (!category) returnError('Category not found', 404);
+
+        await prisma.category.delete({
+            where: { id: categoryId },
+        });
+
+        res.status(200).json({
+            message: 'Category deleted successfully',
+            category,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};

@@ -23,12 +23,19 @@ import {
     deletePoster,
     uploadTrailer,
     deleteVideo,
+    getCategories,
+    getCategory,
+    updateCategory,
+    deleteCategory,
+    createCategory,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
     episodeSchema,
     filmSchema,
     seasonSchema,
+    categoryUpdateSchema,
+    categoryFilmSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
 
@@ -40,6 +47,8 @@ router.get('/films/:filmId', getFilm);
 router.get('/users', getUsers);
 router.get('/donations', verifyToken, getDonations);
 router.get('/purchasehistory', verifyToken, getPurchaseHistory);
+router.get('/categories', verifyToken, getCategories);
+router.get('/category/:categoryId', verifyToken, getCategory);
 
 // POST Routes
 router.post('/newfilm', verifyToken, validateData(filmSchema), createFilm);
@@ -86,6 +95,13 @@ router.post(
     uploadTrailer
 );
 
+router.post(
+    '/newcategory',
+    verifyToken,
+    validateData(categoryFilmSchema),
+    createCategory
+);
+
 // PUT Routes
 router.put('/films/:filmId', verifyToken, validateData(filmSchema), updateFilm);
 router.put(
@@ -101,6 +117,12 @@ router.put(
     updateEpisode
 );
 router.put('/updateVideoPrice/:videoId', verifyToken, updateVideoPrice);
+router.put(
+    '/category/:categoryId',
+    verifyToken,
+    validateData(categoryUpdateSchema),
+    updateCategory
+);
 
 // DELETE Routes
 router.delete('/films/:filmId', verifyToken, deleteFilm);
@@ -108,5 +130,6 @@ router.delete('/season/:seasonId', verifyToken, deleteSeason);
 router.delete('/episode/:episodeId', verifyToken, deleteEpisode);
 router.delete('/video/:videoId', verifyToken, deleteVideo);
 router.delete('/poster/:posterId', verifyToken, deletePoster);
+router.delete('/category/:categoryId', verifyToken, deleteCategory);
 
 export default router;

@@ -157,3 +157,23 @@ export const subscriptionPlanSchema = z.object({
     }),
     deletedAt: z.string().optional().nullable(),
 });
+
+export const categorySchema = z.object({
+    id: z.string().optional().nullable(),
+    name: z.string({ message: 'Name is required' }),
+    slug: z.string({ message: 'Slug is required' }),
+    description: z.string({ message: 'Description is required' }).optional(),
+
+    createdAt: z.string().optional().nullable(),
+    updatedAt: z.string().optional().nullable(),
+});
+
+export const categoryFilmSchema = categorySchema.extend({
+    filmList: z.array(z.string()).optional().default([]),
+});
+
+export const categoryUpdateSchema = z.object({
+    name: z.string({ message: 'Name is required' }).optional(),
+    slug: z.string({ message: 'Slug is required' }).optional(),
+    description: z.string({ message: 'Description is required' }).optional(),
+});

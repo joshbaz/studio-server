@@ -151,6 +151,8 @@ model film {
   likes             likes[]
   views             views[]
   rating            rating[]
+  Category          Category?      @relation(fields: [categoryId], references: [id])
+  categoryId        String?        @db.ObjectId
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -184,6 +186,9 @@ model likes {
   userId    String?  @db.ObjectId
   film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId    String?  @db.ObjectId
+  episode   episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId String?  @db.ObjectId
+
   type      LikeType @default(NONE)
   createdAt DateTime @default(now())
 }
@@ -247,6 +252,7 @@ model episode {
   seasonId          String?   @db.ObjectId
   watched           watched[]
   posters           poster[]
+  likes             likes[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -444,4 +450,15 @@ model webDonation {
   createdAt DateTime @default(now())
 
   @@index([transactionType, paymentType, orderTrackingId], name: "webdonation_index")
+}
+
+model Category {
+  id          String  @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  slug        String
+  description String?
+  films       film[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

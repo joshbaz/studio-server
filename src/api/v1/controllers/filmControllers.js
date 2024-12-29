@@ -173,7 +173,6 @@ export const fetchFilms = async (req, res, next) => {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.status(error.statusCode).json({ message: error.message });
         next(error);
     }
 };
@@ -208,12 +207,19 @@ export const fetchFilm = async (req, res, next) => {
                         episodes: {
                             include: {
                                 posters: true,
+                                likes: true,
                             },
                         },
                     },
                 },
                 watchlist: {
                     where: { userId: req.userId, filmId },
+                    select: {
+                        id: true,
+                        filmId: true,
+                        type: true,
+                        userId: true,
+                    },
                 },
                 likes: {
                     where: { userId: req.userId, filmId },
@@ -402,7 +408,6 @@ export const bookmark = async (req, res, next) => {};
 export const addWatchList = async (req, res, next) => {
     try {
         const { filmId, userId } = req.params;
-        console.log('FilmId', filmId, userId);
 
         if (!filmId || !userId) {
             returnError('Unauthorized', 401);
@@ -417,9 +422,7 @@ export const addWatchList = async (req, res, next) => {
         });
 
         if (filmExists) {
-            return res
-                .status(200)
-                .json({ message: 'Film already in watchlist' });
+            returnError('Film already in watchlist', 400);
         }
 
         await prisma.watchlist.create({
@@ -552,49 +555,61 @@ export const removeFromWatchlist = async (req, res, next) => {
 export const likeRateFilm = async (req, res, next) => {
     try {
         const { filmId, userId } = req.params;
-        const data = req.body; // { likeType: "THUMBS_UP" or "THUMBS_DOWN" or "NONE" }
+        const data = req.body; // { likeType: "THUMBS_UP" or "THUMBS_DOWN" or "NONE", type: "film" or "episode" }
 
         if (!filmId || !userId) {
             returnError('Unauthorized', 401);
         }
 
-        // check if the film is already liked
-        const filmExists = await prisma.likes.findFirst({
-            where: {
-                filmId,
-                userId,
-            },
-        });
-
-        if (filmExists) {
-            // change the like status to the selected status
-            await prisma.likes.update({
-                where: {
-                    id: filmExists.id,
-                },
-                data: {
-                    type: data.likeType, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE"
-                },
-            });
-        } else {
-            await prisma.likes.create({
-                data: {
-                    user: {
-                        connect: {
-                            id: userId,
+        switch (data.type) {
+            case 'film':
+                const filmExists = await prisma.likes.findFirst({
+                    where: { filmId, userId },
+                });
+                if (filmExists) {
+                    // change the like status to the selected status
+                    await prisma.likes.update({
+                        where: { id: filmExists.id },
+                        data: { type: data.likeType }, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE",
+                    });
+                } else {
+                    await prisma.likes.create({
+                        data: {
+                            userId,
+                            filmId,
+                            type: data.likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
                         },
+                    });
+                }
+                break;
+            case 'episode':
+                const episodeExists = await prisma.likes.findFirst({
+                    where: {
+                        userId,
+                        episodeId: filmId,
                     },
-                    film: {
-                        connect: {
-                            id: filmId,
+                });
+                if (episodeExists) {
+                    // change the like status to the selected status
+                    await prisma.likes.update({
+                        where: { id: episodeExists.id },
+                        data: { type: data.likeType }, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE",
+                    });
+                } else {
+                    await prisma.likes.create({
+                        data: {
+                            userId,
+                            episodeId: filmId,
+                            type: data.likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
                         },
-                    },
-                    type: data.likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
-                },
-            });
+                    });
+                }
+                break;
+            default:
+                returnError('Invalid type', 400);
         }
 
-        return res.status(200).json({ message: 'ok' });
+        res.status(200).json({ message: 'ok' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

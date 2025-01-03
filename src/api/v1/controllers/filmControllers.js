@@ -208,6 +208,7 @@ export const fetchFilm = async (req, res, next) => {
                             include: {
                                 posters: true,
                                 likes: true,
+                                video: true,
                             },
                         },
                     },

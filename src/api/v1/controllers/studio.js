@@ -746,13 +746,11 @@ export const uploadFilm = async (req, res) => {
             isPublic: true,
         };
 
-        const data = await uploadToBucket(res, bucketParams);
+        const data = await uploadToBucket(bucketParams);
 
         await prisma.video.update({
             where: { id: newVideo.id },
-            data: {
-                url: data.url,
-            },
+            data: { url: data.url },
         });
 
         if (price && currency && newVideo.id) {
@@ -769,14 +767,12 @@ export const uploadFilm = async (req, res) => {
         }
 
         res.status(200).json({ message: 'Upload complete' });
-
-        // return success message
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.write(`data: ${JSON.stringify({ message: error.message })}\n\n`);
-        res.end();
+
+        next(error);
     }
 };
 
@@ -1257,9 +1253,55 @@ export const getCategory = async (req, res, next) => {
  */
 
 export const createCategory = async (req, res, next) => {
-    const { name, slug, description, filmList } = req.data;
+    const { name, type, description, films, episodes, genre } = req.data; // name, type, film[], genre[], seasons[], episodes[]
 
     try {
+        switch (type) {
+            case 'series':
+                if (seasons.length > 0 && episodes.length > 0) {
+                    for (let seasonId of seasons) {
+                        // fetch season
+                        const season = await prisma.season.findUnique({
+                            where: { id: seasonId },
+                            include: {
+                                episodes: {
+                                    select: { id: true },
+                                },
+                            },
+                        });
+
+                        // select 4 random episodes from the season
+                        const episodes = season.episodes.slice(0, 4);
+
+                        for (let episode of episodes) {
+                            await prisma.category.update({
+                                where: { id: category.id },
+                                data: {
+                                    episodes: { connect: { id: episode.id } },
+                                },
+                            });
+                        }
+                    }
+
+                    // for (let episodeId of episodes) {
+                    //     await prisma.category.update({
+                    //         where: { id: category.id },
+                    //         data: { episodes: { connect: { id: episodeId } } },
+                    //     });
+                    // }
+                }
+                break;
+            case 'genre':
+                const filmIds = await prisma.film.findMany({
+                    where: {
+                        OR: genre.map((genre) => {
+                            return { genre: { contains: genre } };
+                        }),
+                    },
+                    select: { id: true },
+                });
+                break;
+        }
         let category = await prisma.category.create({
             data: {
                 name,

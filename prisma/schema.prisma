@@ -136,6 +136,7 @@ model film {
   audienceAgeGroup  String?
   visibility        String?        @default("not published") // coming soon, published, not published
   access            String         @default("free") // free, rent
+  featured          Boolean        @default(false)
   cast              String[]
   directors         String[]
   producers         String[]

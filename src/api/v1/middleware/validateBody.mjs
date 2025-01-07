@@ -8,9 +8,9 @@ import { StatusCodes } from 'http-status-codes';
  * @returns {import('express').RequestHandler}
  */
 export function validateData(schema) {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         try {
-            const { data, error } = schema.safeParse(req.body);
+            const { data, error } = await schema.safeParseAsync(req.body);
             if (error) {
                 throw new ZodError([error]);
             }
@@ -26,7 +26,6 @@ export function validateData(schema) {
                     details: errorMessages,
                 });
             } else {
-                console.error(error);
                 res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({
                     error: 'Internal Server Error',
                 });

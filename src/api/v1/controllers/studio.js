@@ -28,7 +28,7 @@ function formatFileSize(size) {
  * @description Get all films
  * @type {import('express').RequestHandler}
  */
-export const getFilms = async (req, res, next) => {
+export const getFilms = async (_, res, next) => {
     try {
         const films = await prisma.film.findMany({
             select: {
@@ -39,6 +39,7 @@ export const getFilms = async (req, res, next) => {
                 genre: true,
                 yearOfProduction: true,
                 createdAt: true,
+                featured: true,
             },
         });
 
@@ -599,6 +600,7 @@ export const updateFilm = async (req, res, next) => {
     try {
         // check if film exists
         const { filmId } = req.params;
+        let update = req.data;
 
         const film = await prisma.film.findUnique({
             where: {
@@ -608,11 +610,14 @@ export const updateFilm = async (req, res, next) => {
 
         if (!film) returnError('Film not found', 404);
 
+        if (update.releaseDate) {
+            update.releaseDate = new Date(update.releaseDate);
+        }
+
         await prisma.film.update({
             where: { id: filmId },
             data: {
-                ...req.data,
-                releaseDate: new Date(req.data.releaseDate),
+                ...update,
                 updatedAt: new Date(),
             },
         });

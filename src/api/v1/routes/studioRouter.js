@@ -38,8 +38,10 @@ import {
     seasonSchema,
     categoryUpdateSchema,
     categoryFilmSchema,
+    updateFilmSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
+import prisma from '@/utils/db.mjs';
 
 const router = express.Router();
 
@@ -105,7 +107,12 @@ router.post(
 );
 
 // PUT Routes
-router.put('/films/:filmId', verifyToken, validateData(filmSchema), updateFilm);
+router.put(
+    '/films/:filmId',
+    verifyToken,
+    validateData(updateFilmSchema),
+    updateFilm
+);
 router.put(
     '/season/:seasonId',
     verifyToken,

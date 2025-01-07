@@ -56,6 +56,66 @@ export const filmSchema = z.object({
     producers: z.array(z.string()).optional().default([]),
     writers: z.array(z.string()).optional().default([]),
     soundcore: z.array(z.string()).optional().default([]),
+    featured: z.boolean().optional().default(false),
+});
+
+export const updateFilmSchema = z.object({
+    title: z.string().optional(),
+    overview: z.string().optional(),
+    plotSummary: z.string().optional(),
+    releaseDate: z
+        .string()
+        .refine((data) => isValid(new Date(data)), {
+            message: 'Release date is invalid',
+        })
+        .optional(),
+    type: z
+        .string()
+        .refine(
+            (data) => {
+                const types = ['movie', 'series'];
+                return types.includes(data);
+            },
+            { message: 'Film type is invalid' }
+        )
+        .optional(),
+    enableDonation: z.boolean().optional(),
+    audioLanguages: z.array(z.string()).optional(),
+    yearOfProduction: z.string().optional(),
+    genre: z.array(z.string()).optional(),
+    tags: z.array(z.string()).optional(),
+    access: z
+        .string()
+        .optional()
+        .refine((data) => {
+            if (data) {
+                const accessTypes = ['free', 'premium'];
+                return accessTypes.includes(data);
+            }
+            return true;
+        }),
+    visibility: z
+        .string()
+        .optional()
+        .refine((data) => {
+            if (data) {
+                const visibilities = [
+                    'published',
+                    'not published',
+                    'coming soon',
+                ];
+                return visibilities.includes(data);
+            }
+            return true;
+        }),
+    audienceTarget: z.string().optional(),
+    audienceAgeGroup: z.string().optional(),
+    cast: z.array(z.string()).optional(),
+    directors: z.array(z.string()).optional(),
+    producers: z.array(z.string()).optional(),
+    writers: z.array(z.string()).optional(),
+    soundcore: z.array(z.string()).optional(),
+    featured: z.boolean().optional(),
 });
 
 // Season schema

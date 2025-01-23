@@ -249,6 +249,7 @@ export const fetchFilm = async (req, res, next) => {
         next(error);
     }
 };
+
 /**
  * @name fetchSeason
  * @description function to fetch a season by id
@@ -275,6 +276,30 @@ export const fetchSeason = async (req, res, next) => {
         });
 
         res.status(200).json({ season });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+
+        next(error);
+    }
+};
+/**
+ * @name fetchSeasons
+ * @description function to fetch all seasons
+ * @type {import('express').RequestHandler}
+ */
+export const fetchSeasons = async (_, res, next) => {
+    try {
+        console.log('fetchSeasons');
+        const seasons = await prisma.season.findMany({
+            include: {
+                film: true,
+                posters: true,
+            },
+        });
+
+        res.status(200).json({ seasons });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

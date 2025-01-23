@@ -16,6 +16,7 @@ import {
     checkPesapalPaymentStatus,
     fetchSeason,
     fetchEpisode,
+    fetchSeasons,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
@@ -55,6 +56,7 @@ router.get(
     generateMTNAuthTk,
     checkPaymentStatus
 );
+router.get('/season/all', verifyToken, fetchSeasons);
 router.get('/season/:seasonId', verifyToken, fetchSeason);
 router.get('/episode/:episodeId', verifyToken, fetchEpisode);
 

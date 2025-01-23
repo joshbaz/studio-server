@@ -1214,7 +1214,15 @@ export const deleteVideo = async (req, res, next) => {
 export const getCategories = async (_, res, next) => {
     try {
         const categories = await prisma.category.findMany({
-            include: { films: { include: { posters: true } } },
+            include: {
+                films: { include: { posters: true } },
+                seasons: {
+                    include: {
+                        film: true,
+                        posters: true,
+                    },
+                },
+            },
         });
         return res.status(200).json({ categories: categories ?? [] });
     } catch (error) {
@@ -1243,7 +1251,13 @@ export const getCategory = async (req, res, next) => {
                     include: {
                         posters: true,
                         views: true,
-                        donation: true,
+                    },
+                },
+                seasons: {
+                    include: {
+                        film: true,
+                        posters: true,
+                        trailers: true,
                     },
                 },
             },
@@ -1267,7 +1281,7 @@ export const getCategory = async (req, res, next) => {
  */
 
 export const createCategory = async (req, res, next) => {
-    const { name, type, films, genre } = req.data; // name, type, film[], genre[], seasons[]
+    const { name, type, films, genre, seasons } = req.data; // name, type, film[], genre[], seasons[]
 
     // types: mixed, films, series, genre
     if (!name || !type) returnError('Name and type are required', 400);
@@ -1538,7 +1552,6 @@ export const deleteCategory = async (req, res, next) => {
 
         res.status(200).json({
             message: 'Category deleted successfully',
-            category,
         });
     } catch (error) {
         if (!error.statusCode) {

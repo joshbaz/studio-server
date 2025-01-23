@@ -328,6 +328,13 @@ export const removeFilmFromCategorySchema = z
     })
     .superRefine((data, ctx) => {
         // Validate 'mixed' or 'films' requires a non-empty films array
+        const types = ['mixed', 'films', 'genre', 'series'];
+        if (!types.includes(data.type)) {
+            ctx.addIssue({
+                path: ['type'],
+                message: 'Type is invalid',
+            });
+        }
         const requiresFilms =
             data.type === 'mixed' ||
             data.type === 'films' ||

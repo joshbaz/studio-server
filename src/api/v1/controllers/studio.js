@@ -730,13 +730,13 @@ export const uploadFilm = async (req, res) => {
 
         // create a video record with all the details including the signed url
         const videoData = {
-            url: file.originalname,
-            format: file.mimetype,
-            name: filename, // used as the key in the bucket
-            size: formatFileSize(file.size),
-            encoding: file.encoding,
             filmId,
             resolution, // SD, HD, FHD, UHD
+            name: filename, // used as the key in the bucket
+            format: file.mimetype,
+            url: file.originalname,
+            encoding: file.encoding,
+            size: formatFileSize(file.size),
         };
 
         const newVideo = await prisma.video.create({
@@ -847,6 +847,8 @@ export const uploadTrailer = async (req, res, next) => {
 
         if (body?.type === 'film') {
             videoData.filmId = id;
+        } else if (body?.type === 'season') {
+            videoData.seasonId = id;
         } else {
             videoData.episodeId = id;
         }
@@ -856,10 +858,19 @@ export const uploadTrailer = async (req, res, next) => {
             data: videoData,
         });
 
-        const bucketName =
-            body?.type === 'film'
-                ? id
-                : `${resource.season.filmId}-${resource.seasonId}`;
+        let bucketName = id;
+
+        switch (body?.type) {
+            case 'film':
+                bucketName = id;
+                break;
+            case 'season':
+                bucketName = `${resource.filmId}-${resource.seasonId}`;
+                break;
+            case 'episode':
+                bucketName = `${resource.season.filmId}-${resource.seasonId}`;
+                break;
+        }
 
         const bucketParams = {
             bucketName: bucketName,
@@ -1203,11 +1214,9 @@ export const deleteVideo = async (req, res, next) => {
 export const getCategories = async (_, res, next) => {
     try {
         const categories = await prisma.category.findMany({
-            include: {
-                films: true,
-            },
+            include: { films: { include: { posters: true } } },
         });
-        return res.status(200).json({ categories });
+        return res.status(200).json({ categories: categories ?? [] });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -1258,90 +1267,217 @@ export const getCategory = async (req, res, next) => {
  */
 
 export const createCategory = async (req, res, next) => {
-    const { name, type, description, films, episodes, genre } = req.data; // name, type, film[], genre[], seasons[], episodes[]
+    const { name, type, films, genre } = req.data; // name, type, film[], genre[], seasons[]
+
+    // types: mixed, films, series, genre
+    if (!name || !type) returnError('Name and type are required', 400);
+
+    // initialize category
+    let category = await prisma.category.create({
+        data: { name, type },
+        include: {
+            films: {
+                include: {
+                    video: { where: { isTrailer: true } },
+                    posters: true,
+                },
+            },
+            seasons: {
+                include: {
+                    posters: true,
+                    trailers: true,
+                    episodes: {
+                        include: {
+                            video: { where: { isTrailer: true } },
+                            posters: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
 
     try {
         switch (type) {
-            case 'series':
-                if (seasons.length > 0 && episodes.length > 0) {
-                    for (let seasonId of seasons) {
-                        // fetch season
-                        const season = await prisma.season.findUnique({
-                            where: { id: seasonId },
-                            include: {
-                                episodes: {
-                                    select: { id: true },
-                                },
-                            },
+            case 'mixed':
+            case 'films':
+                // we need the filmslist with the ids of the selected films
+                if (films.length > 0) {
+                    for (let filmId of films) {
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { films: { connect: { id: filmId } } },
                         });
-
-                        // select 4 random episodes from the season
-                        const episodes = season.episodes.slice(0, 4);
-
-                        for (let episode of episodes) {
-                            await prisma.category.update({
-                                where: { id: category.id },
-                                data: {
-                                    episodes: { connect: { id: episode.id } },
-                                },
-                            });
-                        }
                     }
-
-                    // for (let episodeId of episodes) {
-                    //     await prisma.category.update({
-                    //         where: { id: category.id },
-                    //         data: { episodes: { connect: { id: episodeId } } },
-                    //     });
-                    // }
+                }
+                break;
+            case 'series':
+                if (seasons.length > 0) {
+                    for (let seasonId of seasons) {
+                        // update category with season
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { seasons: { connect: { id: seasonId } } },
+                        });
+                    }
                 }
                 break;
             case 'genre':
                 const filmIds = await prisma.film.findMany({
-                    where: {
-                        OR: genre.map((genre) => {
-                            return { genre: { contains: genre } };
-                        }),
-                    },
+                    where: { genre: { hasSome: genre } },
                     select: { id: true },
+                    take: 10,
                 });
+
+                if (filmIds.length > 0) {
+                    for (let filmId of filmIds) {
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { films: { connect: { id: filmId.id } } },
+                        });
+                    }
+                }
                 break;
         }
-        let category = await prisma.category.create({
-            data: {
-                name,
-                slug,
-                description,
-            },
-        });
-
-        if (filmList.length > 0) {
-            for (let filmId of filmList) {
-                await prisma.category.update({
-                    where: { id: category.id },
-                    data: { films: { connect: { id: filmId } } },
-                });
-            }
-        }
-
-        // get the category
-        category = await prisma.category.findUnique({
-            where: { id: category.id },
-            include: {
-                films: {
-                    include: {
-                        posters: true,
-                        views: true,
-                        donation: true,
-                    },
-                },
-            },
-        });
 
         res.status(201).json({
             message: 'Category created successfully',
-            category: category,
         });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name addFilmToCategory
+ * @description function to connect or disconnect a category to a film
+ * @type {import('express').RequestHandler}
+ */
+export const addFilmToCategory = async (req, res, next) => {
+    try {
+        const { categoryId } = req.params;
+        const { type, films, genre, seasons } = req.data;
+
+        if (!categoryId) returnError('Category ID is required', 400);
+
+        const category = await prisma.category.findUnique({
+            where: { id: categoryId },
+            include: { films: { select: { id: true } } },
+        });
+
+        if (!category) returnError('Category not found', 404);
+
+        switch (type) {
+            case 'films':
+            case 'mixed':
+                if (films.length > 0) {
+                    for (let filmId of films) {
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { films: { connect: { id: filmId } } },
+                        });
+                    }
+                }
+                break;
+            case 'series':
+                if (seasons.length > 0) {
+                    for (let seasonId of seasons) {
+                        // update category with season
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { seasons: { connect: { id: seasonId } } },
+                        });
+                    }
+                }
+                break;
+            case 'genre':
+                const filmIds = await prisma.film.findMany({
+                    where: { genre: { hasSome: genre } },
+                    select: { id: true },
+                    take: 10,
+                });
+
+                // filter films that are already in the category
+                const filmsToAdd = filmIds.filter(
+                    (film) => !category.films.some((f) => f.id === film.id)
+                );
+
+                if (filmsToAdd.length > 0) {
+                    for (let filmId of filmsToAdd) {
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { films: { connect: { id: filmId.id } } },
+                        });
+                    }
+                }
+
+                break;
+            default:
+                returnError('Invalid type', 400);
+        }
+
+        res.status(200).json({
+            message: 'Film added to category successfully',
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name removeFilmFromCategory
+ * @description function to connect or disconnect a category to a film
+ * @type {import('express').RequestHandler}
+ */
+export const removeFilmFromCategory = async (req, res, next) => {
+    try {
+        const { categoryId } = req.params;
+        const { type, films, seasons } = req.data;
+
+        if (!categoryId) returnError('Category ID is required', 400);
+
+        const category = await prisma.category.findUnique({
+            where: { id: categoryId },
+        });
+
+        if (!category) returnError('Category not found', 404);
+
+        switch (type) {
+            case 'films':
+            case 'mixed':
+            case 'genre':
+                if (films.length > 0) {
+                    for (let filmId of films) {
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { films: { disconnect: { id: filmId } } },
+                        });
+                    }
+                }
+                break;
+            case 'series':
+                if (seasons.length > 0) {
+                    for (let seasonId of seasons) {
+                        // update category with season
+                        await prisma.category.update({
+                            where: { id: category.id },
+                            data: { seasons: { disconnect: { id: seasonId } } },
+                        });
+                    }
+                }
+                break;
+            default:
+                returnError('Invalid type', 400);
+                break;
+        }
+
+        res.status(200).json({ message: 'Removed from category successfully' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -1361,95 +1497,15 @@ export const updateCategory = async (req, res, next) => {
 
         if (!categoryId) returnError('Category ID is required', 400);
 
-        const update = await prisma.category.update({
+        await prisma.category.update({
             where: { id: categoryId },
             data: {
                 name: req.data.name,
-                slug: req.data.slug,
-                description: req.data.description,
             },
         });
 
         res.status(200).json({
             message: 'Category updated successfully',
-            update,
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-/**
- * @name connectOrDisconnectCategory
- * @description function to connect or disconnect a category to a film
- * @type {import('express').RequestHandler}
- */
-export const connectFilmToCategory = async (req, res, next) => {
-    try {
-        const { categoryId } = req.params;
-        const { filmList } = req.data;
-
-        if (!categoryId) returnError('Category ID is required', 400);
-
-        const category = await prisma.category.findUnique({
-            where: { id: categoryId },
-        });
-
-        if (!category) returnError('Category not found', 404);
-
-        if (filmList.length > 0) {
-            for (let filmId of filmList) {
-                await prisma.category.update({
-                    where: { id: category.id },
-                    data: { films: { connect: { id: filmId } } },
-                });
-            }
-        }
-
-        return res.status(200).json({
-            message: 'Film connected to category successfully',
-            category,
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-/**
- * @name disconnectFilmFromCategory
- * @description function to connect or disconnect a category to a film
- * @type {import('express').RequestHandler}
- */
-export const disconnectFilmFromCategory = async (req, res, next) => {
-    try {
-        const { categoryId } = req.params;
-        const { filmList } = req.data;
-
-        if (!categoryId) returnError('Category ID is required', 400);
-
-        const category = await prisma.category.findUnique({
-            where: { id: categoryId },
-        });
-
-        if (!category) returnError('Category not found', 404);
-
-        if (filmList.length > 0) {
-            for (let filmId of filmList) {
-                await prisma.category.update({
-                    where: { id: category.id },
-                    data: { films: { disconnect: { id: filmId } } },
-                });
-            }
-        }
-        return res.status(200).json({
-            message: 'Film disconnected from category successfully',
-            category,
         });
     } catch (error) {
         if (!error.statusCode) {

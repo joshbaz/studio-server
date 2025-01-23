@@ -122,7 +122,7 @@ model film {
   overview          String
   plotSummary       String
   releaseDate       DateTime
-  type              String         @default("movie")
+  type              String         @default("movie") //film (shorts), film (feature)
   yearOfProduction  String?
   released          String?
   runtime           String?
@@ -156,7 +156,7 @@ model film {
   categoryId        String?        @db.ObjectId
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  // updatedAt DateTime @updatedAt
 
   @@index([title], name: "title_index")
 }
@@ -173,6 +173,8 @@ model poster {
   filmId    String?  @db.ObjectId
   episode   episode? @relation(fields: [episodeId], references: [id])
   episodeId String?  @db.ObjectId
+  season    season?  @relation(fields: [seasonId], references: [id])
+  seasonId  String?  @db.ObjectId
 }
 
 enum LikeType {
@@ -189,39 +191,48 @@ model likes {
   filmId    String?  @db.ObjectId
   episode   episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   episodeId String?  @db.ObjectId
-
   type      LikeType @default(NONE)
+
   createdAt DateTime @default(now())
 }
 
 model rating {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String?  @db.ObjectId
-  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId    String?  @db.ObjectId
-  rating    Int
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  user   user?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String? @db.ObjectId
+  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId String? @db.ObjectId
+  rating Int
+
   createdAt DateTime @default(now())
 }
 
 model views {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String?  @db.ObjectId
-  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId    String?  @db.ObjectId
+  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  user   user?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String? @db.ObjectId
+  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId String? @db.ObjectId
+
   createdAt DateTime @default(now())
 }
 
 model season {
-  id        String    @id @default(auto()) @map("_id") @db.ObjectId
-  title     String
-  season    Int
-  episodes  episode[]
-  film      film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId    String?   @db.ObjectId
-  createdAt DateTime  @default(now())
-  watched   watched[]
+  id       String    @id @default(auto()) @map("_id") @db.ObjectId
+  title    String
+  season   Int
+  trailers video[]
+  posters  poster[]
+  episodes episode[]
+  film     film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId   String?   @db.ObjectId
+  watched  watched[]
+
+  Category   Category? @relation(fields: [categoryId], references: [id])
+  categoryId String?   @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model episode {
@@ -255,10 +266,8 @@ model episode {
   posters           poster[]
   likes             likes[]
 
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  Category   Category? @relation(fields: [categoryId], references: [id])
-  categoryId String?   @db.ObjectId
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Resolution {
@@ -283,11 +292,15 @@ model video {
   isTrailer  Boolean     @default(false)
   film       film?       @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId     String?     @db.ObjectId
-  createdAt  DateTime    @default(now())
   episode    episode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   episodeId  String?     @db.ObjectId
   videoPrice videoPrice?
   purchase   purchase[]
+  season     season?     @relation(fields: [seasonId], references: [id])
+  seasonId   String?     @db.ObjectId
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // video prices
@@ -456,11 +469,11 @@ model webDonation {
 }
 
 model Category {
-  id       String    @id @default(auto()) @map("_id") @db.ObjectId
-  name     String
-  type     String // ( movies, mixed, genre - same idea ) , series - seasons=["id"] episodes=[""], episodes 
-  films    film[]
-  episodes episode[]
+  id      String   @id @default(auto()) @map("_id") @db.ObjectId
+  name    String
+  type    String // ( movies, mixed, genre - same idea ) , series - seasons=["id"] episodes=[""], episodes 
+  films   film[]
+  seasons season[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

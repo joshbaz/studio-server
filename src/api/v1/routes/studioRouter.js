@@ -25,23 +25,24 @@ import {
     deleteVideo,
     getCategories,
     getCategory,
-    updateCategory,
     deleteCategory,
     createCategory,
-    connectFilmToCategory,
-    disconnectFilmFromCategory,
+    removeFilmFromCategory,
+    addFilmToCategory,
+    updateCategory,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
     episodeSchema,
     filmSchema,
     seasonSchema,
-    categoryUpdateSchema,
-    categoryFilmSchema,
+    categorySchema,
     updateFilmSchema,
+    removeFilmFromCategorySchema,
+    addCategorySchema,
+    updateCategorySchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
-import prisma from '@/utils/db.mjs';
 
 const router = express.Router();
 
@@ -102,7 +103,7 @@ router.post(
 router.post(
     '/newcategory',
     verifyToken,
-    validateData(categoryFilmSchema),
+    validateData(categorySchema),
     createCategory
 );
 
@@ -127,22 +128,22 @@ router.put(
 );
 router.put('/updateVideoPrice/:videoId', verifyToken, updateVideoPrice);
 router.put(
-    '/category/:categoryId',
+    '/category/update/:categoryId',
     verifyToken,
-    validateData(categoryUpdateSchema),
+    validateData(updateCategorySchema),
     updateCategory
 );
 router.put(
-    '/category/connectfilm/:categoryId',
+    '/category/addfilm/:categoryId',
     verifyToken,
-    validateData(categoryFilmSchema),
-    connectFilmToCategory
+    validateData(addCategorySchema),
+    addFilmToCategory
 );
 router.put(
-    '/category/disconnectfilm/:categoryId',
+    '/category/remove/:categoryId',
     verifyToken,
-    validateData(categoryFilmSchema),
-    disconnectFilmFromCategory
+    validateData(removeFilmFromCategorySchema),
+    removeFilmFromCategory
 );
 
 // DELETE Routes

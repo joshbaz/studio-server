@@ -29,7 +29,7 @@ export const filmSchema = z.object({
         .default('free')
         .refine((data) => {
             if (data === null) {
-                const accessTypes = ['free', 'premium'];
+                const accessTypes = ['free', 'rent'];
                 return accessTypes.includes(data);
             }
             return true;
@@ -89,7 +89,7 @@ export const updateFilmSchema = z.object({
         .optional()
         .refine((data) => {
             if (data) {
-                const accessTypes = ['free', 'premium'];
+                const accessTypes = ['free', 'rent'];
                 return accessTypes.includes(data);
             }
             return true;
@@ -218,23 +218,133 @@ export const subscriptionPlanSchema = z.object({
     deletedAt: z.string().optional().nullable(),
 });
 
-export const categorySchema = z.object({
-    id: z.string().optional().nullable(),
+export const categorySchema = z
+    .object({
+        name: z.string({ message: 'Name is required' }),
+        type: z.union(
+            [
+                z.literal('mixed'),
+                z.literal('films'),
+                z.literal('series'),
+                z.literal('genre'),
+            ],
+            { message: 'Type is required' }
+        ),
+        films: z.array(z.string()).optional().default([]),
+        genre: z.array(z.string()).optional().default([]),
+        seasons: z.array(z.string()).optional().default([]),
+    })
+    .superRefine((data, ctx) => {
+        // Validate 'mixed' or 'films' requires a non-empty films array
+        if (
+            (data.type === 'mixed' || data.type === 'films') &&
+            data.films.length === 0
+        ) {
+            ctx.addIssue({
+                path: ['films'],
+                message:
+                    "Films array cannot be empty when type is 'mixed' or 'films'",
+            });
+        }
+
+        // Validate 'series' requires a non-empty seasons array
+        if (data.type === 'series' && data.seasons.length === 0) {
+            ctx.addIssue({
+                path: ['seasons'],
+                message: "Seasons array cannot be empty when type is 'series'",
+            });
+        }
+
+        // Validate 'genre' requires a non-empty genre array
+        if (data.type === 'genre' && data.genre.length === 0) {
+            ctx.addIssue({
+                path: ['genre'],
+                message: "Genre array cannot be empty when type is 'genre'",
+            });
+        }
+    });
+
+export const updateCategorySchema = z.object({
     name: z.string({ message: 'Name is required' }),
-    slug: z.string({ message: 'Slug is required' }),
-    description: z.string({ message: 'Description is required' }).optional(),
-
-    createdAt: z.string().optional().nullable(),
-    updatedAt: z.string().optional().nullable(),
 });
 
-export const categoryFilmSchema = categorySchema.extend({
-    filmList: z.array(z.string()).optional().default([]),
-});
+export const addCategorySchema = z
+    .object({
+        type: z.union(
+            [
+                z.literal('films'),
+                z.literal('series'),
+                z.literal('genre'),
+                z.literal('mixed'),
+            ],
+            { message: 'Type is required' }
+        ),
+        films: z.array(z.string()).optional().default([]),
+        seasons: z.array(z.string()).optional().default([]),
+        genre: z.array(z.string()).optional().default([]),
+    })
+    .superRefine((data, ctx) => {
+        // Validate 'mixed' or 'films' requires a non-empty films array
+        if (
+            (data.type === 'mixed' || data.type === 'films') &&
+            data.films.length === 0
+        ) {
+            ctx.addIssue({
+                path: ['films'],
+                message:
+                    "Films array cannot be empty when type is 'mixed' or 'films'",
+            });
+        }
 
-export const categoryUpdateSchema = z.object({
-    name: z.string({ message: 'Name is required' }).optional(),
-    slug: z.string({ message: 'Slug is required' }).optional(),
-    description: z.string({ message: 'Description is required' }).optional(),
-    filmList: z.array(z.string()).optional().default([]),
-});
+        // Validate 'series' requires a non-empty seasons array
+        if (data.type === 'series' && data.seasons.length === 0) {
+            ctx.addIssue({
+                path: ['seasons'],
+                message: "Seasons array cannot be empty when type is 'series'",
+            });
+        }
+        // Validate 'genre' requires a non-empty genre array
+        if (data.type === 'genre' && data.genre.length === 0) {
+            ctx.addIssue({
+                path: ['genre'],
+                message: "Genre array cannot be empty when type is 'genre'",
+            });
+        }
+    });
+
+export const removeFilmFromCategorySchema = z
+    .object({
+        type: z.union(
+            [
+                z.literal('films'),
+                z.literal('series'),
+                z.literal('genre'),
+                z.literal('mixed'),
+            ],
+            { message: 'Type is required' }
+        ),
+        films: z.array(z.string()).optional().default([]),
+        seasons: z.array(z.string()).optional().default([]),
+    })
+    .superRefine((data, ctx) => {
+        // Validate 'mixed' or 'films' requires a non-empty films array
+        const requiresFilms =
+            data.type === 'mixed' ||
+            data.type === 'films' ||
+            data.type === 'genre';
+        if (requiresFilms && data.films.length === 0) {
+            ctx.addIssue({
+                path: ['films'],
+                message:
+                    "Films array cannot be empty when type is 'mixed' or 'films' or 'genre'",
+            });
+        }
+
+        // Validate 'series' requires a non-empty seasons array
+        if (data.type === 'series' && data.seasons.length === 0) {
+            ctx.addIssue({
+                path: ['seasons'],
+                message: "Seasons array cannot be empty when type is 'series'",
+            });
+        }
+    });

@@ -134,13 +134,10 @@ export const fetchFilms = async (req, res, next) => {
                 posters: true,
                 views: true,
                 likes: true,
-                video: {
-                    include: {
-                        videoPrice: true,
-                    },
-                },
+                video: true,
                 season: {
                     include: {
+                        posters: true,
                         episodes: true,
                     },
                 },
@@ -150,7 +147,7 @@ export const fetchFilms = async (req, res, next) => {
         // get the donation only films
         if (query.donation) {
             options = {
-                ...options,
+                where: { enableDonation: true },
                 include: {
                     ...options.include,
                     donation: {
@@ -159,15 +156,13 @@ export const fetchFilms = async (req, res, next) => {
                         },
                     },
                 },
-                where: {
-                    enableDonation: true,
-                },
             };
         }
 
         const films = await prisma.film.findMany({
-            ...options,
+            include: { posters: true },
         });
+
         res.status(200).json({ films });
     } catch (error) {
         if (!error.statusCode) {
@@ -178,7 +173,6 @@ export const fetchFilms = async (req, res, next) => {
 };
 
 /**
- *
  * @name fetchFilm
  * @description function to fetch a film by id
  * @type {import('express').RequestHandler}
@@ -252,6 +246,65 @@ export const fetchFilm = async (req, res, next) => {
             error.statusCode = 500;
         }
 
+        next(error);
+    }
+};
+/**
+ * @name fetchSeason
+ * @description function to fetch a season by id
+ * @type {import('express').RequestHandler}
+ */
+export const fetchSeason = async (req, res, next) => {
+    try {
+        const { seasonId } = req.params;
+        if (!seasonId) returnError('Season ID is required', 400);
+
+        const season = await prisma.season.findUnique({
+            where: { id: seasonId },
+            include: {
+                film: true,
+                posters: true,
+                trailers: true,
+                episodes: {
+                    include: {
+                        posters: true,
+                        video: true,
+                    },
+                },
+            },
+        });
+
+        res.status(200).json({ season });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+
+        next(error);
+    }
+};
+
+/**
+ * @name fetchEpisode
+ * @description function to fetch episode
+ * @type {import('express').RequestHandler} Express request handler
+ */
+export const fetchEpisode = async (req, res, next) => {
+    try {
+        const { episodeId } = req.params;
+        const episode = await prisma.episode.findUnique({
+            where: { id: episodeId },
+            include: {
+                video: true,
+                posters: true,
+            },
+        });
+
+        res.status(200).json({ episode });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
         next(error);
     }
 };

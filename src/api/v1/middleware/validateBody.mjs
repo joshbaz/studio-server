@@ -21,9 +21,10 @@ export function validateData(schema) {
                 const errorMessages = error.errors.map((issue) => ({
                     message: issue.message,
                 }));
+
                 res.status(StatusCodes.BAD_REQUEST).json({
-                    error: 'Invalid data',
-                    details: errorMessages,
+                    error: 'Invalid body data',
+                    details: JSON.parse(errorMessages[0].message)[0].message,
                 });
             } else {
                 res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({

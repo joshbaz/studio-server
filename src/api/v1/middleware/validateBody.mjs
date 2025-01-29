@@ -17,11 +17,13 @@ export function validateData(schema) {
             req.data = data;
             next();
         } catch (error) {
+            console.log(error);
             if (error instanceof ZodError) {
                 const errorMessages = error.errors.map((issue) => ({
                     message: issue.message,
                 }));
 
+                
                 res.status(StatusCodes.BAD_REQUEST).json({
                     error: 'Invalid body data',
                     details: JSON.parse(errorMessages[0].message)[0].message,

@@ -598,6 +598,7 @@ export const deleteEpisode = async (req, res, next) => {
  */
 export const updateFilm = async (req, res, next) => {
     try {
+        console.log(req.data);
         // check if film exists
         const { filmId } = req.params;
         let update = req.data;
@@ -610,6 +611,8 @@ export const updateFilm = async (req, res, next) => {
 
         if (!film) returnError('Film not found', 404);
 
+    
+
         if (update.releaseDate) {
             update.releaseDate = new Date(update.releaseDate);
         }
@@ -618,12 +621,13 @@ export const updateFilm = async (req, res, next) => {
             where: { id: filmId },
             data: {
                 ...update,
-                updatedAt: new Date(),
+                // updatedAt: new Date(),
             },
         });
 
         res.status(200).json({ message: 'Film updated successfully' });
     } catch (error) {
+       
         if (!error.statusCode) {
             error.statusCode = 500;
         }

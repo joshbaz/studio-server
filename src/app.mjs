@@ -86,6 +86,7 @@ export default function customizeApp(app) {
             'http://localhost:8081',
             'http://192.168.0.184:4500',
             'http://localhost:5173',
+            "http://localhost:5174",
             'https://staging.nyatimotionpictures.com',
             'https://nyatimotionpictures.com',
             'https://studio.nyatimotionpictures.com',
@@ -138,6 +139,7 @@ export default function customizeApp(app) {
 
     // Error handling - 4xx except 404
     app.use((err, _, res, next) => {
+        console.log("one four",err);
         if (err.statusCode >= 400 && err.statusCode < 500) {
             let message = err.message;
             if (!message && err.statusCode === 404) {

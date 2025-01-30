@@ -129,8 +129,8 @@ model film {
   genre             String[]
   tags              String[]
   enableDonation    Boolean        @default(false)
-  donationTargetAmount Int?
-  donationDeadline String?
+  donationTargetAmount Int?        @default(0)
+  donationDeadline String?         @default("")
   audioLanguages    String[]
   embeddedSubtitles Boolean        @default(false)
   subtitleLanguage  String[]

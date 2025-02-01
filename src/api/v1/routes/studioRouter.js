@@ -30,6 +30,8 @@ import {
     removeFilmFromCategory,
     addFilmToCategory,
     updateCategory,
+    checkUploadChunk,
+    uploadChunk,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -54,15 +56,13 @@ router.get('/donations', verifyToken, getDonations);
 router.get('/purchasehistory', verifyToken, getPurchaseHistory);
 router.get('/categories', verifyToken, getCategories);
 router.get('/category/:categoryId', verifyToken, getCategory);
+router.get('/check-upload-chunk', checkUploadChunk);
 
 // POST Routes
 router.post('/newfilm', verifyToken, validateData(filmSchema), createFilm);
-router.post(
-    '/filmupload/:filmId',
-    verifyToken,
-    upload.single('film'),
-    uploadFilm
-);
+router.post('/upload-chunk', upload.single('chunk'), uploadChunk);
+router.post('/complete-upload', uploadFilm);
+router.post('/filmupload/:filmId', uploadFilm);
 router.post(
     '/episodeupload/:episodeId',
     verifyToken,

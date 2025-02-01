@@ -1,6 +1,12 @@
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import { deleteFromBucket, uploadToBucket } from '@/services/s3.js';
+import ChunkService from '@/services/chunkService.js';
+import { UPLOAD_DIR } from '@/services/multer.js';
+import { io } from '@/utils/sockets.js';
+import { transcodeVideo } from '@/services/transcodeVideo.js';
+
+const chunkService = new ChunkService();
 
 // utils
 /**
@@ -19,6 +25,17 @@ function formatFileSize(size) {
     } else {
         return `${(size / 1024 ** 3).toFixed(2)} GB`;
     }
+}
+
+/**
+ * @name broadcastProgress
+ * @description function to broadcast upload progress to all clients
+ * @param {number} progress
+ * @returns {void}
+ */
+function broadcastProgress({ progress, clientId, content }) {
+    console.log(`Progress: ${progress}%`);
+    io.to(clientId).emit('uploadProgress', { content, progress });
 }
 
 //Films
@@ -685,91 +702,166 @@ export const deleteFilm = async (req, res, next) => {
 // Video Uploads
 // film (type: movie)
 /**
+ * @name uploadChunk
+ * @description function to upload chunk to temp folder
+ * @type {import('express').RequestHandler}
+ */
+export const uploadChunk = async (req, res, next) => {
+    try {
+        const { fileName, start } = req.body;
+        console.log('fileName', fileName, start);
+        if (!fileName || !start) {
+            returnError('File name and start are required', 400);
+        }
+
+        const chunkExists = chunkService.checkChunk(fileName, start);
+        if (chunkExists) {
+            returnError('Chunk already exists', 400);
+        }
+
+        const filePath = req.file.path;
+        const chunkPath = await chunkService.saveChunk(
+            filePath,
+            fileName,
+            start
+        );
+
+        res.status(200).json({
+            message: 'Chunk uploaded successfully',
+            chunkPath,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name checkUploadChunk
+ * @description function to check if chunk is uploaded
+ * @type {import('express').RequestHandler}
+ */
+export const checkUploadChunk = async (req, res, next) => {
+    try {
+        const { fileName, start } = req.query;
+        const chunkExists = chunkService.checkChunk(fileName, start);
+        res.status(200).json({ exists: chunkExists });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
  * @name uploadFilm film to bucket
  * @description function to upload film to bucket and get signed url
  * @type {import('express').RequestHandler}
  */
-export const uploadFilm = async (req, res) => {
+export const uploadFilm = async (req, res, next) => {
     try {
         const { filmId } = req.params;
+        const { clientId, fileName } = req.body;
 
-        if (!filmId) returnError('Film ID is required', 400);
+        // if (!filmId) returnError('Film ID is required', 400);
 
-        const film = await prisma.film.findUnique({
-            where: { id: filmId },
-        });
+        // const film = await prisma.film.findUnique({
+        //     where: { id: filmId },
+        // });
 
-        if (!film) returnError('Film not found', 404);
+        // if (!film) returnError('Film not found', 404);
 
-        const file = req.file;
-        if (!file) returnError('No file uploaded', 400);
+        // get complete file path
+        const filePath = chunkService.combineChunks(fileName);
 
-        const { resolution, price, currency } = req.body;
+        console.log('File path', filePath);
 
-        if (!resolution) {
-            returnError('Resolution is required', 400);
-        }
+        // transcode the video
+        const transcoded = await transcodeVideo(filePath, fileName, UPLOAD_DIR);
 
-        if (!currency || !price) {
-            returnError('Price and currency are required', 400);
-        }
+        console.log('Transcoded', transcoded);
+        // upload the transcoded videos to the bucket
+        // const promises = transcoded.map(async (video) => {
+        //     const bucketParams = {
+        //         bucketName: filmId,
+        //         key: `${video.label}/${fileName}`,
+        //         buffer: fs.createReadStream(video.outputPath),
+        //         contentType: 'video/mp4',
+        //         isPublic: true,
+        //     };
 
-        const filename = `${resolution}-${file.originalname.replace(
-            /\s/g,
-            '-'
-        )}`.toLowerCase(); // replace spaces with hyphens
+        //     return await uploadToBucket(bucketParams, (progress) =>
+        //         broadcastProgress({
+        //             progress,
+        //             clientId,
+        //             content: { resolution: video.label },
+        //         })
+        //     );
+        // });
+
+        // console.log('Promises', promises);
+
+        // const file = req.file;
+        // if (!file) returnError('No file uploaded', 400);
+
+        // const { resolution, price, currency } = req.body;
+
+        // if (!resolution) {
+        //     returnError('Resolution is required', 400);
+        // }
+
+        // if (!currency || !price) {
+        //     returnError('Price and currency are required', 400);
+        // }
+
+        // const filename = `${resolution}-${file.originalname.replace(
+        //     /\s/g,
+        //     '-'
+        // )}`.toLowerCase(); // replace spaces with hyphens
 
         // check if we have a video with the same name in the bucket
-        const videoExists = await prisma.video.findFirst({
-            where: { name: filename },
-        });
+        // const videoExists = await prisma.video.findFirst({
+        //     where: { name: filename },
+        // });
 
-        if (videoExists) {
-            returnError('A video with the same name already exists', 400);
-        }
+        // if (videoExists) {
+        //     returnError('A video with the same name already exists', 400);
+        // }
 
         // create a video record with all the details including the signed url
-        const videoData = {
-            filmId,
-            resolution, // SD, HD, FHD, UHD
-            name: filename, // used as the key in the bucket
-            format: file.mimetype,
-            url: file.originalname,
-            encoding: file.encoding,
-            size: formatFileSize(file.size),
-        };
+        // const videoData = {
+        //     filmId,
+        //     resolution, // SD, HD, FHD, UHD
+        //     name: filename, // used as the key in the bucket
+        //     format: file.mimetype,
+        //     url: file.originalname,
+        //     encoding: file.encoding,
+        //     size: formatFileSize(file.size),
+        // };
 
-        const newVideo = await prisma.video.create({
-            data: videoData,
-        });
+        // const newVideo = await prisma.video.create({
+        //     data: videoData,
+        // });
 
-        const bucketParams = {
-            bucketName: filmId,
-            key: filename,
-            buffer: file.buffer,
-            contentType: file.mimetype,
-            isPublic: true,
-        };
+        // const bucketParams = {
+        //     bucketName: filmId,
+        //     key: filename,
+        //     buffer: file.buffer,
+        //     contentType: file.mimetype,
+        //     isPublic: true,
+        // };
 
-        const data = await uploadToBucket(bucketParams);
+        // const data = await uploadToBucket(bucketParams, (progress) =>
+        //     broadcastProgress({ progress, clientId, content: { resolution } })
+        // );
 
-        await prisma.video.update({
-            where: { id: newVideo.id },
-            data: { url: data.url },
-        });
-
-        if (price && currency && newVideo.id) {
-            // add a new entry to the video pricing table
-            const formattedPrice =
-                typeof price === 'string' ? parseFloat(price) : price;
-            await prisma.videoPrice.create({
-                data: {
-                    currency,
-                    price: formattedPrice,
-                    videoId: newVideo.id,
-                },
-            });
-        }
+        // await prisma.video.update({
+        //     where: { id: newVideo.id },
+        //     data: { url: data.url },
+        // });
 
         res.status(200).json({ message: 'Upload complete' });
     } catch (error) {

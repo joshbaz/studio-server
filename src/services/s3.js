@@ -25,15 +25,13 @@ export const s3Client = new S3Client({
  * @name uploadToBucket
  * @description Upload file to Digital Ocean Spaces
  * @param {UploadToBucketParams} params
+ * @param {VoidFunction} [onUploadProgress] - Callback function to track upload progress
  * @returns {Promise<string>}
  */
-export const uploadToBucket = async ({
-    key,
-    buffer,
-    isPublic,
-    bucketName,
-    contentType,
-}) => {
+export const uploadToBucket = async (
+    { key, buffer, isPublic, bucketName, contentType },
+    onUploadProgress
+) => {
     try {
         const uploadParams = {
             Key: key,
@@ -55,7 +53,7 @@ export const uploadToBucket = async ({
             );
 
             // Broadcast progress to all connected clients
-            console.log(`Progress: ${customProgress}%`);
+            if (onUploadProgress) onUploadProgress(customProgress);
         });
 
         // send done message

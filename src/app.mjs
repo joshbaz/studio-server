@@ -4,8 +4,8 @@ import api from './api/index.mjs';
 import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
-import { env } from './env.mjs';
 import rateLimit from 'express-rate-limit';
+import { CORS_OPTIONS } from './utils/corsOptions.js';
 // import { specs, swaggerUICss } from './services/swagger.js';
 // import swaggerUi from 'swagger-ui-express';
 
@@ -75,34 +75,23 @@ export default function customizeApp(app) {
     app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
 
-    /**
-     * @name corsOptions
-     * @description Cors options
-     * @type {cors.CorsOptions}
-     */
-    const corsOptions = {
-        origin: [
-            env.CLIENT_URL,
-            'http://localhost:8081',
-            'http://192.168.0.184:4500',
-            'http://localhost:5173',
-            'https://staging.nyatimotionpictures.com',
-            'https://nyatimotionpictures.com',
-            'https://studio.nyatimotionpictures.com',
-            'https://stream.nyatimotionpictures.com',
-        ],
-        methods: ['GET', 'POST', 'PUT', 'DELETE'],
-        preflightContinue: false,
-        credentials: true,
-    };
-    app.use(cors(corsOptions));
+    app.use(cors(CORS_OPTIONS));
 
     // Rate limiter
     const limiter = rateLimit({
         windowMs: 15 * 60 * 1000, // 15 minutes
         max: 100, // limit each IP to 100 requests per windowMs
+        // skip video upload route
+        skip: (req) => {
+            console.log(req.url, req.originalUrl);
+            const urlsToSkip = [
+                '/api/v1/studio/upload-chunk',
+                '/api/v1/studio/check-upload-chunk',
+            ];
+            return urlsToSkip.includes(req.url);
+        },
     });
-    app.use(limiter);
+    // app.use(limiter);
 
     // Cookie parser
     app.use(cookieParser());

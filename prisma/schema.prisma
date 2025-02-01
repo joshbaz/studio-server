@@ -129,6 +129,8 @@ model film {
   genre             String[]
   tags              String[]
   enableDonation    Boolean        @default(false)
+  donationTargetAmount Int?        @default(0)
+  donationDeadline String?         @default("")
   audioLanguages    String[]
   embeddedSubtitles Boolean        @default(false)
   subtitleLanguage  String[]
@@ -322,8 +324,8 @@ model donation {
   userId String? @db.ObjectId
   status String  @default("pending")
 
-  transaction    transaction @relation(fields: [transactionsId], references: [id])
-  transactionsId String      @db.ObjectId
+  transaction    transaction @relation(fields: [transactionId], references: [id])
+  transactionId String      @db.ObjectId
   film           film?       @relation(fields: [filmId], references: [id])
   filmId         String?     @db.ObjectId
 

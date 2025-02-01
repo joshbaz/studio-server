@@ -54,7 +54,9 @@ router.get('/films/:filmId', getFilm);
 router.get('/users', getUsers);
 router.get('/donations', verifyToken, getDonations);
 router.get('/purchasehistory', verifyToken, getPurchaseHistory);
-router.get('/categories', verifyToken, getCategories);
+router.get('/categories',
+    //  verifyToken, 
+     getCategories);
 router.get('/category/:categoryId', verifyToken, getCategory);
 router.get('/check-upload-chunk', checkUploadChunk);
 

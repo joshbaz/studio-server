@@ -70,8 +70,9 @@ router.post(
                 currency: 'UGX',
                 amount: req.body.amount,
                 description: `Donation- ${req.body.note}`,
-                callback_url: `https://nyatimotionpictures.com/pay-response`,
-                cancellation_url: '', //optional
+                callback_url: req.body?.type === "streamWeb"? 'https://stream.nyatimotionpictures.com/pesapay/generaldonation/success' : `https://nyatimotionpictures.com/pay-response`,
+                cancellation_url: req.body?.type === "streamWeb"? 'https://stream.nyatimotionpictures.com/pesapay/cancel' : '',
+                // cancellation_url: '', //optional
                 notification_id: req.ipn_id,
                 branch: '',
                 billing_address: {

@@ -1087,9 +1087,13 @@ export const donateToFilm = async (req, res, next) => {
                         description: 'Donation for film ',
                         // callback_url: "https://api.nyatimotionpictures.com/api/v1/payment/pesapal/callback/web",
                         callback_url:
-                            'https://nyatimotionpictures.com/donate/pesapay/success',
+                            body?.type === 'streamWeb'
+                                ? 'https://stream.nyatimotionpictures.com/pesapay/success'
+                                : 'https://nyatimotionpictures.com/donate/pesapay/success',
                         cancellation_url:
-                            'https://nyatimotionpictures.com/donate/pesapay/cancel', //optional
+                            body?.type === 'streamWeb'
+                                ? 'https://stream.nyatimotionpictures.com/pesapay/cancel'
+                                : 'https://nyatimotionpictures.com/donate/pesapay/cancel', //optional
                         notification_id: req.ipn_id,
                         branch: '',
                         billing_address: {

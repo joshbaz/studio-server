@@ -13,7 +13,7 @@ export const filmSchema = z.object({
         }),
     type: z.string({ message: 'Film type is required' }).refine(
         (data) => {
-            const types = ['movie', 'series'];
+            const types = ['film (shorts)', "film (feature)", 'series'];
             return types.includes(data);
         },
         { message: 'Film type is invalid' }
@@ -73,7 +73,7 @@ export const updateFilmSchema = z.object({
         .string()
         .refine(
             (data) => {
-                const types = ['movie', 'series'];
+                const types = ['film (shorts)', "film (feature)", 'series'];
                 return types.includes(data);
             },
             { message: 'Film type is invalid' }
@@ -116,6 +116,8 @@ export const updateFilmSchema = z.object({
     writers: z.array(z.string()).optional(),
     soundcore: z.array(z.string()).optional(),
     featured: z.boolean().optional(),
+    donationTargetAmount: z.number().optional(),
+    donationDeadline: z.string().optional(),
 });
 
 // Season schema
@@ -164,7 +166,7 @@ export const episodeSchema = z.object({
         .default('free')
         .refine((data) => {
             if (data === null) {
-                const accessTypes = ['free', 'premium'];
+                const accessTypes = ['free', 'rent'];
                 return accessTypes.includes(data);
             }
             return true;

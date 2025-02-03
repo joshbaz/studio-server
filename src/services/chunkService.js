@@ -73,6 +73,12 @@ class ChunkService {
         fs.rmdirSync(filePath);
         return assembledPath;
     }
+
+    async deleteChunksFolder(fileName) {
+        const filename = this.formatFileName(fileName);
+        const filePath = path.join(this.uploadDir, filename);
+        return fs.rmdirSync(filePath, { recursive: true }); // Delete the directory and its contents
+    }
 }
 
 export default ChunkService;

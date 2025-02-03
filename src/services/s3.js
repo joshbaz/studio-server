@@ -56,9 +56,6 @@ export const uploadToBucket = async (
             if (onUploadProgress) onUploadProgress(customProgress);
         });
 
-        // send done message
-        // if (res) res.write('data: Upload completed\n\n');
-
         const { $metadata: Omit, ETag, ...response } = await upload.done();
 
         return {

@@ -765,8 +765,7 @@ export const checkUploadChunk = async (req, res, next) => {
  */
 export const uploadFilm = async (req, res, next) => {
     try {
-        const { clientId, fileName, type, isTrailer, resourceId, seasonId } =
-            req.body; // type: film or episode
+        const { clientId, fileName, type, isTrailer, resourceId } = req.body; // type: film or episode / resourceId: filmId or episodeId / if type is episode, seasonId is required
 
         if (!clientId) returnError('Client ID is required', 400);
         if (!fileName) returnError('File name is required', 400);
@@ -788,6 +787,7 @@ export const uploadFilm = async (req, res, next) => {
         if (type === 'episode') {
             resource = await prisma.episode.findUnique({
                 where: { id: resourceId },
+                include: { season: { select: { id: true, filmId } } },
             });
         }
 
@@ -804,7 +804,7 @@ export const uploadFilm = async (req, res, next) => {
         // upload the transcoded videos to the bucket
         for (const file of transcoded) {
             let bucketParams = {
-                bucketName: filmId,
+                bucketName: resourceId,
                 key: `${file.label}_${formattedFilename}`,
                 buffer: fs.createReadStream(file.outputPath),
                 contentType: 'video/mp4',
@@ -845,8 +845,45 @@ export const uploadFilm = async (req, res, next) => {
                         });
                     }
                     break;
+                case 'season':
+                    bucketParams.bucketName = `${resource.filmId}-${resourceId}`;
+                    const trailer = await uploadToBucket(
+                        bucketParams,
+                        (progress) => {
+                            broadcastProgress({
+                                progress,
+                                clientId,
+                                content: {
+                                    resolution: file.label,
+                                    type: 'season',
+                                },
+                            });
+                        }
+                    );
+
+                    if (upload.url) {
+                        // create a video record with all the details including the signed url
+                        const videoData = {
+                            seasonId: resourceId,
+                            resolution: file.label,
+                            name: `${file.label}_${formattedFilename}`,
+                            format: 'video/mp4',
+                            url: trailer.url,
+                            encoding: 'libx264',
+                            size: formatFileSize(
+                                fs.statSync(file.outputPath).size
+                            ),
+                            isTrailer: true,
+                        };
+
+                        await prisma.video.create({
+                            data: videoData,
+                        });
+                    }
+                    break;
+
                 case 'episode':
-                    bucketParams.bucketName = `${filmId}-${seasonId}`;
+                    bucketParams.bucketName = `${resource.season?.filmId}-${resource.seasonId}`;
                     const upload = await uploadToBucket(
                         bucketParams,
                         (progress) => {

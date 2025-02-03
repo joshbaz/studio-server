@@ -48,9 +48,6 @@ export async function transcodeVideo(filePath, fileName, outputDir) {
                 ffmpeg(filePath)
                     .videoCodec('libx264')
                     .audioCodec('libmp3lame')
-                    .ffprobe(0, (err, data) => {
-                        console.log('File metadata:', data);
-                    })
                     .output(outputPath)
                     .size(`?x${height}`)
                     .on('end', () => resolve({ label, outputPath }))

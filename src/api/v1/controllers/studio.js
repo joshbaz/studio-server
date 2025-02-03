@@ -805,7 +805,7 @@ export const uploadFilm = async (req, res, next) => {
         for (const file of transcoded) {
             let bucketParams = {
                 bucketName: resourceId,
-                key: `${file.label}_${formattedFilename}`,
+                key: `${file.label}_${formattedFilename}.mp4`,
                 buffer: fs.createReadStream(file.outputPath),
                 contentType: 'video/mp4',
                 isPublic: true,
@@ -831,7 +831,7 @@ export const uploadFilm = async (req, res, next) => {
                         const videoData = {
                             filmId: resourceId,
                             resolution: file.label,
-                            name: `${file.label}_${formattedFilename}`,
+                            name: `${file.label}_${formattedFilename}.mp4`,
                             format: 'video/mp4',
                             url: data.url,
                             encoding: 'libx264',

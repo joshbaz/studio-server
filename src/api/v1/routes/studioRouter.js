@@ -15,7 +15,6 @@ import {
     deleteSeason,
     deleteEpisode,
     uploadPoster,
-    uploadEpisode,
     uploadFilm,
     uploadEpisodePoster,
     updateVideoPrice,
@@ -54,23 +53,15 @@ router.get('/films/:filmId', getFilm);
 router.get('/users', getUsers);
 router.get('/donations', verifyToken, getDonations);
 router.get('/purchasehistory', verifyToken, getPurchaseHistory);
-router.get('/categories',
-    //  verifyToken, 
-     getCategories);
+router.get('/categories', verifyToken, getCategories);
 router.get('/category/:categoryId', verifyToken, getCategory);
-router.get('/check-upload-chunk', checkUploadChunk);
+router.get('/check-upload-chunk', verifyToken, checkUploadChunk);
 
 // POST Routes
 router.post('/newfilm', verifyToken, validateData(filmSchema), createFilm);
-router.post('/upload-chunk', upload.single('chunk'), uploadChunk);
-router.post('/complete-upload', uploadFilm);
-router.post('/filmupload/:filmId', uploadFilm);
-router.post(
-    '/episodeupload/:episodeId',
-    verifyToken,
-    upload.single('film'),
-    uploadEpisode
-);
+router.post('/upload-chunk', verifyToken, upload.single('chunk'), uploadChunk);
+router.post('/complete-upload', verifyToken, uploadFilm);
+router.post('/trailer-upload', verifyToken, uploadTrailer); // requires resourseId { filmId or seasonId }, clientID (for socket.io), and fileName
 router.post(
     '/posterupload/:filmId',
     verifyToken,
@@ -94,12 +85,6 @@ router.post(
     verifyToken,
     upload.single('poster'),
     uploadEpisodePoster
-);
-router.post(
-    '/uploadtrailer/:id', // id can be filmId or episodeId
-    verifyToken,
-    upload.single('trailer'),
-    uploadTrailer
 );
 
 router.post(

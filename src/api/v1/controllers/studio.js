@@ -798,7 +798,7 @@ export const uploadFilm = async (req, res, next) => {
         }
 
         // transcode the video ie generate multiple resolutions of the video
-        const transcoded = await transcodeVideo(filePath, fileName, UPLOAD_DIR);
+        const transcoded = await transcodeVideo(filePath, fileName, UPLOAD_DIR, clientId);
         const formattedFilename = chunkService.formatFileName(fileName);
 
         // upload the transcoded videos to the bucket

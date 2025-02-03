@@ -1,8 +1,9 @@
 import path from 'path';
-import ffmpeg from 'fluent-ffmpeg';
-import pathToFfmpeg from 'ffmpeg-static';
+import Ffmpeg from 'fluent-ffmpeg';
+import { io } from '@/utils/sockets.js';
+// import ffmpegPath from "@ffmpeg-installer/ffmpeg";
 
-ffmpeg.setFfmpegPath(pathToFfmpeg);
+
 
 /**
  * Transcode a video to multiple resolutions
@@ -29,11 +30,12 @@ const RESOLUTIONS = {
  * @returns {Promise<Array<{label: string, outputPath: string}>>}
  */
 
-export async function transcodeVideo(filePath, fileName, outputDir) {
-    const promises = Object.entries(RESOLUTIONS).map(([label, height]) => {
+export async function transcodeVideo(filePath, fileName, outputDir, clientId) {
+    // Ffmpeg.setFfmpegPath(ffmpegPath.path);
+    const promises = Object.entries(RESOLUTIONS).map(async ([label, height]) => {
         const filename = fileName.split('.').shift().replace(/\s/g, '_');
         const outputPath = path.join(outputDir, `${label}_${filename}.mp4`);
-        return new Promise((resolve, reject) => {
+        return  await new Promise((resolve, reject) => {
             try {
                 if (!filePath) {
                     throw new Error('File path is required');
@@ -45,19 +47,28 @@ export async function transcodeVideo(filePath, fileName, outputDir) {
                     throw new Error('Output directory is required');
                 }
 
-                ffmpeg(filePath)
+                Ffmpeg(filePath)
                     .videoCodec('libx264')
-                    .audioCodec('libmp3lame')
                     .output(outputPath)
                     .size(`?x${height}`)
+                    .on('start', () => console.log('Transcoding started'))
+                    .on('progress', (progress) =>{
+                        console.log(`Transcode Progress: ${label} ${progress.targetSize} ${progress.percent}%`)
+                        let customProgress = Math.round(progress.percent)
+                        io.to(clientId).emit("TranscodeProgress", { label, customProgress })
+                    }
+                    )
                     .on('end', () => resolve({ label, outputPath }))
                     .on('error', (error) => reject(error))
                     .run();
+
+                    
             } catch (error) {
                 console.error('Error transcoding video:', error);
                 reject(error);
             }
         });
+       
     });
 
     return Promise.all(promises);

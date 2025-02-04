@@ -928,7 +928,7 @@ export const uploadTrailer = async (req, res, next) => {
 
         if (type === 'film') {
             resource = await prisma.film.findUnique({
-                where: { id },
+                where: { id: resourceId },
             });
         }
 

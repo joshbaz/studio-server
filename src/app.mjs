@@ -127,7 +127,6 @@ export default function customizeApp(app) {
 
     // Error handling - 4xx except 404
     app.use((err, _, res, next) => {
-        console.log('one four', err);
         if (err.statusCode >= 400 && err.statusCode < 500) {
             let message = err.message;
             if (!message && err.statusCode === 404) {

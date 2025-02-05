@@ -13,7 +13,7 @@ export const filmSchema = z.object({
         }),
     type: z.string({ message: 'Film type is required' }).refine(
         (data) => {
-            const types = ['film (shorts)', "film (feature)", 'series'];
+            const types = ['film (shorts)', 'film (feature)', 'series'];
             return types.includes(data);
         },
         { message: 'Film type is invalid' }
@@ -73,7 +73,7 @@ export const updateFilmSchema = z.object({
         .string()
         .refine(
             (data) => {
-                const types = ['film (shorts)', "film (feature)", 'series'];
+                const types = ['film (shorts)', 'film (feature)', 'series'];
                 return types.includes(data);
             },
             { message: 'Film type is invalid' }
@@ -357,3 +357,24 @@ export const removeFilmFromCategorySchema = z
             });
         }
     });
+
+// pricing schema
+export const pricingSchema = z.object({
+    type: z.union([z.literal('movie'), z.literal('season')], {
+        message: 'Type movie or season is required',
+    }),
+    price: z.number({ message: 'Price is required' }),
+    currency: z.string({ message: 'Currency is required' }).refine((data) => {
+        const currencies = Object.values(Currency);
+        return currencies.includes(data);
+    }),
+    resolution: z.union(
+        [z.literal('SD'), z.literal('HD'), z.literal('FHD'), z.literal('UHD')],
+        { message: 'resolution should only be SD, HD, FHD or UHD' }
+    ),
+    resourceId: z.string({ message: 'Either filmId or seasonId is required' }),
+});
+
+export const updatePricingSchema = z.object({
+    price: z.number({ message: 'Price is required' }),
+});

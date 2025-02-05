@@ -31,6 +31,9 @@ import {
     updateCategory,
     checkUploadChunk,
     uploadChunk,
+    createPricing,
+    updatePricing,
+    deletePricing,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -42,6 +45,8 @@ import {
     removeFilmFromCategorySchema,
     addCategorySchema,
     updateCategorySchema,
+    pricingSchema,
+    updatePricingSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
 
@@ -93,6 +98,12 @@ router.post(
     validateData(categorySchema),
     createCategory
 );
+router.post(
+    '/pricing',
+    verifyToken,
+    validateData(pricingSchema),
+    createPricing
+);
 
 // PUT Routes
 router.put(
@@ -132,6 +143,12 @@ router.put(
     validateData(removeFilmFromCategorySchema),
     removeFilmFromCategory
 );
+router.put(
+    '/pricing/:id',
+    verifyToken,
+    validateData(updatePricingSchema),
+    updatePricing
+);
 
 // DELETE Routes
 router.delete('/films/:filmId', verifyToken, deleteFilm);
@@ -140,5 +157,6 @@ router.delete('/episode/:episodeId', verifyToken, deleteEpisode);
 router.delete('/video/:videoId', verifyToken, deleteVideo);
 router.delete('/poster/:posterId', verifyToken, deletePoster);
 router.delete('/category/:categoryId', verifyToken, deleteCategory);
+router.delete('/pricing/:id', verifyToken, deletePricing);
 
 export default router;

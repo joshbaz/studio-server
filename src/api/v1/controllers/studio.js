@@ -112,6 +112,7 @@ export const getFilm = async (req, res, next) => {
                     },
                 },
                 views: true,
+                pricing: true,
                 season: {
                     include: {
                         episodes: {
@@ -124,6 +125,7 @@ export const getFilm = async (req, res, next) => {
                                 posters: true,
                             },
                         },
+                        pricing: true,
                     },
                 },
                 donation: {
@@ -616,7 +618,6 @@ export const deleteEpisode = async (req, res, next) => {
  */
 export const updateFilm = async (req, res, next) => {
     try {
-        console.log(req.data);
         // check if film exists
         const { filmId } = req.params;
         let update = req.data;
@@ -1573,6 +1574,135 @@ export const deleteCategory = async (req, res, next) => {
         res.status(200).json({
             message: 'Category deleted successfully',
         });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+// Handle Pricing
+
+/**
+ * @name createPricing
+ * @description function to get price by currency and type
+ * @type {import('express').RequestHandler}
+ */
+export const createPricing = async (req, res, next) => {
+    try {
+        const { type, currency, price, resourceId, resolution } = req.data; // this is validated data: type (film, season)
+
+        let resource = null;
+        console.log(type);
+        switch (type) {
+            case 'movie':
+                resource = await prisma.film.findUnique({
+                    where: { id: resourceId },
+                });
+
+                if (!resource) returnError('Film not found', 404);
+
+                // check if there is an existing price for this resolution
+                const resPricingExists = await prisma.pricing.findFirst({
+                    where: { filmId: resourceId, resolution },
+                });
+
+                if (resPricingExists) {
+                    returnError(
+                        'Pricing exists, please update it instead',
+                        400
+                    );
+                }
+
+                // create pricing
+                await prisma.pricing.create({
+                    data: {
+                        filmId: resourceId,
+                        resolution,
+                        price,
+                        currency,
+                    },
+                });
+
+                break;
+            case 'season':
+                resource = await prisma.season.findUnique({
+                    where: { id: resourceId },
+                });
+                if (!resource) returnError('Season not found', 404);
+
+                // create new pricing
+                await prisma.pricing.create({
+                    data: {
+                        price,
+                        currency,
+                        resolution,
+                        seasonId: resourceId,
+                    },
+                });
+                break;
+            default:
+                returnError('Type must be either "movie" or "season"', 400);
+                break;
+        }
+
+        res.status(201).json({ message: 'Price created successfully' });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+
+        next(error);
+    }
+};
+
+/**
+ * @name updatePricing
+ * @description function to get price by currency and type
+ * @type {import('express').RequestHandler}
+ */
+export const updatePricing = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const { price, currency } = req.data;
+
+        if (!id) returnError('ID is required', 400);
+
+        // update pricing
+        const updatedPricing = await prisma.pricing.update({
+            where: { id },
+            data: { price, currency },
+        });
+
+        if (!updatedPricing) returnError('Pricing not found', 404);
+
+        res.status(200).json({ message: 'Pricing updated successfully' });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+
+        next(error);
+    }
+};
+
+/**
+ * @name deletePricing
+ * @description function to delete a pricing
+ * @type {import('express').RequestHandler}z
+ */
+export const deletePricing = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+
+        if (!id) returnError('ID is required', 400);
+
+        await prisma.pricing.delete({
+            where: { id },
+        });
+
+        res.status(200).json({ message: 'Pricing deleted successfully' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

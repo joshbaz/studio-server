@@ -117,48 +117,49 @@ model watchlist {
 }
 
 model film {
-  id                String         @id @default(auto()) @map("_id") @db.ObjectId
-  title             String
-  overview          String
-  plotSummary       String
-  releaseDate       DateTime
-  type              String         @default("movie") //film (shorts), film (feature)
-  yearOfProduction  String?
-  released          String?
-  runtime           String?
-  genre             String[]
-  tags              String[]
-  enableDonation    Boolean        @default(false)
-  donationTargetAmount Int?        @default(0)
-  donationDeadline String?         @default("")
-  audioLanguages    String[]
-  embeddedSubtitles Boolean        @default(false)
-  subtitleLanguage  String[]
-  audienceTarget    String?
-  audienceAgeGroup  String?
-  visibility        String?        @default("not published") // coming soon, published, not published
-  access            String         @default("free") // free, rent
-  featured          Boolean        @default(false)
-  cast              String[]
-  directors         String[]
-  producers         String[]
-  writers           String[]
-  soundcore         String[]
-  posters           poster[]
-  season            season[]
-  video             video[]
-  Watchhistory      watchhistory[]
-  watched           watched[]
-  watchlist         watchlist[]
-  donation          donation[]
-  likes             likes[]
-  views             views[]
-  rating            rating[]
-  Category          Category?      @relation(fields: [categoryId], references: [id])
-  categoryId        String?        @db.ObjectId
+  id                   String         @id @default(auto()) @map("_id") @db.ObjectId
+  title                String
+  overview             String
+  plotSummary          String
+  releaseDate          DateTime
+  type                 String         @default("movie") //film (shorts), film (feature)
+  yearOfProduction     String?
+  released             String?
+  runtime              String?
+  genre                String[]
+  tags                 String[]
+  enableDonation       Boolean        @default(false)
+  donationTargetAmount Int?           @default(0)
+  donationDeadline     String?        @default("")
+  audioLanguages       String[]
+  embeddedSubtitles    Boolean        @default(false)
+  subtitleLanguage     String[]
+  audienceTarget       String?
+  audienceAgeGroup     String?
+  visibility           String?        @default("not published") // coming soon, published, not published
+  access               String         @default("free") // free, rent
+  featured             Boolean        @default(false)
+  cast                 String[]
+  directors            String[]
+  producers            String[]
+  writers              String[]
+  soundcore            String[]
+  posters              poster[]
+  season               season[]
+  video                video[]
+  Watchhistory         watchhistory[]
+  watched              watched[]
+  watchlist            watchlist[]
+  donation             donation[]
+  likes                likes[]
+  views                views[]
+  rating               rating[]
+  Category             Category?      @relation(fields: [categoryId], references: [id])
+  categoryId           String?        @db.ObjectId
+  pricing              pricing[]
 
   createdAt DateTime @default(now())
-  // updatedAt DateTime @updatedAt
+  // updatedAt DateTime? @updatedAt 
 
   @@index([title], name: "title_index")
 }
@@ -229,6 +230,7 @@ model season {
   film     film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId   String?   @db.ObjectId
   watched  watched[]
+  pricing  pricing[]
 
   Category   Category? @relation(fields: [categoryId], references: [id])
   categoryId String?   @db.ObjectId
@@ -272,13 +274,6 @@ model episode {
   updatedAt DateTime? @updatedAt
 }
 
-enum Resolution {
-  SD
-  HD
-  FHD
-  UHD
-}
-
 model video {
   id         String      @id @default(auto()) @map("_id") @db.ObjectId
   url        String
@@ -317,6 +312,21 @@ model videoPrice {
   updatedAt DateTime? @updatedAt
 }
 
+model pricing {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  price      Float
+  currency   String
+  resolution String @default("SD")
+
+  film     film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId   String? @db.ObjectId
+  season   season? @relation(fields: [seasonId], references: [id])
+  seasonId String? @db.ObjectId
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+}
+
 // Donation model
 model donation {
   id     String  @id @default(auto()) @map("_id") @db.ObjectId
@@ -324,10 +334,10 @@ model donation {
   userId String? @db.ObjectId
   status String  @default("pending")
 
-  transaction    transaction @relation(fields: [transactionId], references: [id])
+  transaction   transaction @relation(fields: [transactionId], references: [id])
   transactionId String      @db.ObjectId
-  film           film?       @relation(fields: [filmId], references: [id])
-  filmId         String?     @db.ObjectId
+  film          film?       @relation(fields: [filmId], references: [id])
+  filmId        String?     @db.ObjectId
 
   createdAt DateTime @default(now())
 }

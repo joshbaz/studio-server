@@ -128,7 +128,9 @@ export const getFilm = async (req, res, next) => {
                                 posters: true,
                             },
                         },
-                        pricing: true,
+                        pricing: {
+                            include: { priceList: true },
+                        },
                     },
                 },
                 donation: {

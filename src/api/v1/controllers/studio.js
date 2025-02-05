@@ -115,6 +115,7 @@ export const getFilm = async (req, res, next) => {
                 pricing: true,
                 season: {
                     include: {
+                        trailers:true,
                         episodes: {
                             include: {
                                 video: {
@@ -788,7 +789,7 @@ export const uploadFilm = async (req, res, next) => {
         if (type === 'episode') {
             resource = await prisma.episode.findUnique({
                 where: { id: resourceId },
-                include: { season: { select: { id: true, filmId } } },
+                include: { season: { select: { id: true, filmId:true } } },
             });
         }
 
@@ -929,18 +930,14 @@ export const uploadTrailer = async (req, res, next) => {
 
         if (type === 'film') {
             resource = await prisma.film.findUnique({
-                where: { id },
+                where: { id: resourceId },
             });
         }
 
         if (type === 'season') {
-            resource = await prisma.episode.findUnique({
-                where: { id },
-                include: {
-                    season: {
-                        select: { id: true, filmId: true },
-                    },
-                },
+            resource = await prisma.season.findUnique({
+                where: { id: resourceId },
+              
             });
         }
 
@@ -968,7 +965,7 @@ export const uploadTrailer = async (req, res, next) => {
             bucketName:
                 type === 'film'
                     ? resourceId
-                    : `${resource.season.filmId}-${resource.seasonId}`,
+                    : `${resource.filmId}-${resource.id}`,
             key: formattedFilename,
             buffer: fs.createReadStream(filePath),
             contentType: 'video/mp4',

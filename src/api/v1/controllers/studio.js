@@ -112,10 +112,12 @@ export const getFilm = async (req, res, next) => {
                     },
                 },
                 views: true,
-                pricing: true,
+                pricing: {
+                    include: { priceList: true },
+                },
                 season: {
                     include: {
-                        trailers:true,
+                        trailers: true,
                         episodes: {
                             include: {
                                 video: {
@@ -789,7 +791,7 @@ export const uploadFilm = async (req, res, next) => {
         if (type === 'episode') {
             resource = await prisma.episode.findUnique({
                 where: { id: resourceId },
-                include: { season: { select: { id: true, filmId:true } } },
+                include: { season: { select: { id: true, filmId: true } } },
             });
         }
 
@@ -937,7 +939,6 @@ export const uploadTrailer = async (req, res, next) => {
         if (type === 'season') {
             resource = await prisma.season.findUnique({
                 where: { id: resourceId },
-              
             });
         }
 
@@ -985,7 +986,7 @@ export const uploadTrailer = async (req, res, next) => {
         if (data.url) {
             // create video record
             const videoData = {
-                url: fileName,
+                url: data.url,
                 format: 'video/mp4',
                 name: formattedFilename,
                 size: formatFileSize(fs.statSync(filePath).size),
@@ -1588,63 +1589,37 @@ export const deleteCategory = async (req, res, next) => {
  */
 export const createPricing = async (req, res, next) => {
     try {
-        const { type, currency, price, resourceId, resolution } = req.data; // this is validated data: type (film, season)
+        const { type, resourceId, currency, priceList } = req.data; // this is validated data: type (movie, season)
+        const resourceField = type === 'movie' ? 'filmId' : 'seasonId';
 
         let resource = null;
-        console.log(type);
         switch (type) {
             case 'movie':
                 resource = await prisma.film.findUnique({
                     where: { id: resourceId },
                 });
-
                 if (!resource) returnError('Film not found', 404);
-
-                // check if there is an existing price for this resolution
-                const resPricingExists = await prisma.pricing.findFirst({
-                    where: { filmId: resourceId, resolution },
-                });
-
-                if (resPricingExists) {
-                    returnError(
-                        'Pricing exists, please update it instead',
-                        400
-                    );
-                }
-
-                // create pricing
-                await prisma.pricing.create({
-                    data: {
-                        filmId: resourceId,
-                        resolution,
-                        price,
-                        currency,
-                    },
-                });
-
                 break;
             case 'season':
                 resource = await prisma.season.findUnique({
                     where: { id: resourceId },
                 });
                 if (!resource) returnError('Season not found', 404);
-
-                // create new pricing
-                await prisma.pricing.create({
-                    data: {
-                        price,
-                        currency,
-                        resolution,
-                        seasonId: resourceId,
-                    },
-                });
                 break;
             default:
                 returnError('Type must be either "movie" or "season"', 400);
                 break;
         }
 
-        res.status(201).json({ message: 'Price created successfully' });
+        await prisma.pricing.create({
+            data: {
+                [resourceField]: resourceId,
+                currency,
+                priceList: { create: [...priceList] },
+            },
+        });
+
+        res.status(201).json({ message: 'Prices added successfully' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -1662,14 +1637,35 @@ export const createPricing = async (req, res, next) => {
 export const updatePricing = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { price, currency } = req.data;
+        const { currency, priceList } = req.data;
 
         if (!id) returnError('ID is required', 400);
+
+        const existingPricing = await prisma.pricing.findUnique({
+            where: { id },
+        });
+
+        if (!existingPricing) returnError('Pricing not found', 404);
+
+        const data = {
+            priceList: {
+                update: priceList.map((item) => ({
+                    where: { id: item.id },
+                    data: {
+                        price: item.price,
+                    },
+                })),
+            },
+        };
+
+        if (currency) {
+            data.currency = currency;
+        }
 
         // update pricing
         const updatedPricing = await prisma.pricing.update({
             where: { id },
-            data: { price, currency },
+            data,
         });
 
         if (!updatedPricing) returnError('Pricing not found', 404);
@@ -1680,30 +1676,6 @@ export const updatePricing = async (req, res, next) => {
             error.statusCode = 500;
         }
 
-        next(error);
-    }
-};
-
-/**
- * @name deletePricing
- * @description function to delete a pricing
- * @type {import('express').RequestHandler}z
- */
-export const deletePricing = async (req, res, next) => {
-    try {
-        const { id } = req.params;
-
-        if (!id) returnError('ID is required', 400);
-
-        await prisma.pricing.delete({
-            where: { id },
-        });
-
-        res.status(200).json({ message: 'Pricing deleted successfully' });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
         next(error);
     }
 };

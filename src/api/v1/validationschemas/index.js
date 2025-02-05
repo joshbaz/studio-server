@@ -363,18 +363,43 @@ export const pricingSchema = z.object({
     type: z.union([z.literal('movie'), z.literal('season')], {
         message: 'Type movie or season is required',
     }),
-    price: z.number({ message: 'Price is required' }),
-    currency: z.string({ message: 'Currency is required' }).refine((data) => {
-        const currencies = Object.values(Currency);
-        return currencies.includes(data);
-    }),
-    resolution: z.union(
-        [z.literal('SD'), z.literal('HD'), z.literal('FHD'), z.literal('UHD')],
-        { message: 'resolution should only be SD, HD, FHD or UHD' }
-    ),
     resourceId: z.string({ message: 'Either filmId or seasonId is required' }),
+    currency: z
+        .string({ message: 'Currency is required' })
+        .default('UGX')
+        .refine((data) => {
+            const currencies = Object.values(Currency);
+            return currencies.includes(data);
+        }),
+    priceList: z.array(
+        z.object({
+            price: z.number({ message: 'Price is required' }),
+            resolution: z.union(
+                [
+                    z.literal('SD'),
+                    z.literal('HD'),
+                    z.literal('FHD'),
+                    z.literal('UHD'),
+                ],
+                { message: 'resolution should only be SD, HD, FHD or UHD' }
+            ),
+        })
+    ),
 });
 
 export const updatePricingSchema = z.object({
-    price: z.number({ message: 'Price is required' }),
+    currency: z
+        .string({ message: 'Currency is required' })
+        .optional()
+        .refine((data) => {
+            if (!data) return true;
+            const currencies = Object.values(Currency);
+            return currencies.includes(data);
+        }),
+    priceList: z.array(
+        z.object({
+            id: z.string({ message: 'ID is required' }),
+            price: z.number({ message: 'Price is required' }),
+        })
+    ),
 });

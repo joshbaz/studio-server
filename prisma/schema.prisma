@@ -313,15 +313,26 @@ model videoPrice {
 }
 
 model pricing {
-  id         String @id @default(auto()) @map("_id") @db.ObjectId
-  price      Float
-  currency   String
-  resolution String @default("SD")
+  id        String  @id @default(auto()) @map("_id") @db.ObjectId
+  currency  String
+  priceList price[]
 
   film     film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId   String? @db.ObjectId
   season   season? @relation(fields: [seasonId], references: [id])
   seasonId String? @db.ObjectId
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+}
+
+model price {
+  id         String @id @default(auto()) @map("_id") @db.ObjectId
+  price      Float
+  resolution String @default("SD")
+
+  pricing   pricing @relation(fields: [pricingId], references: [id], onDelete: Cascade)
+  pricingId String  @db.ObjectId
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt

@@ -33,7 +33,6 @@ import {
     uploadChunk,
     createPricing,
     updatePricing,
-    deletePricing,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -157,6 +156,5 @@ router.delete('/episode/:episodeId', verifyToken, deleteEpisode);
 router.delete('/video/:videoId', verifyToken, deleteVideo);
 router.delete('/poster/:posterId', verifyToken, deletePoster);
 router.delete('/category/:categoryId', verifyToken, deleteCategory);
-router.delete('/pricing/:id', verifyToken, deletePricing);
 
 export default router;

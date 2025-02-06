@@ -50,7 +50,7 @@ dev(){
 # function to run in production
 prod(){
     echo "Generating Prisma client..."
-    prisma generate && prisma db push
+    pnpx prisma generate && pnpx prisma db push
     if [ $? -ne 0 ]; then
         echo "Failed to generate Prisma client."
         exit 1
@@ -58,7 +58,7 @@ prod(){
         echo "Prisma client generated successfully."
     fi
     echo "Starting aesops API in production mode..."
-    node dist/index.js
+    pnpm start
     if [ $? -ne 0 ]; then
         echo "Failed to start the API in production mode."
         exit 1

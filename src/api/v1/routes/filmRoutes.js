@@ -21,7 +21,7 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
 import { generateIPN_ID, generatePesaAuthTk } from '../middleware/pesapalmw.js';
 import { validateData } from '../middleware/validateBody.mjs';
-import { watchlistSchema } from '../validationschemas/index.js';
+import { likeSchema, watchlistSchema } from '../validationschemas/index.js';
 
 const router = express.Router();
 
@@ -47,6 +47,7 @@ router.post(
     generateMTNAuthTk,
     donateToFilm
 );
+router.post('/likerate', verifyToken, validateData(likeSchema), likeRateFilm);
 
 // GET
 router.get('/stream/:trackId', streamFilm);
@@ -72,8 +73,5 @@ router.get(
     generatePesaAuthTk,
     checkPesapalPaymentStatus
 );
-
-// PUT
-router.put('/likerate/:filmId/:userId', verifyToken, likeRateFilm);
 
 export default router;

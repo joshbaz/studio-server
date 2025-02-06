@@ -93,9 +93,7 @@ export const streamFilm = async (req, res, next) => {
                 id: true,
                 name: true,
                 film: {
-                    select: {
-                        id: true,
-                    },
+                    select: { id: true },
                 },
             },
         });
@@ -188,9 +186,11 @@ export const fetchFilm = async (req, res, next) => {
             where: { id: filmId },
             include: {
                 posters: true,
+                pricing: {
+                    include: { priceList: true },
+                },
                 video: {
                     include: {
-                        videoPrice: true,
                         purchase: {
                             where: { userId: req.userId },
                         },
@@ -198,10 +198,10 @@ export const fetchFilm = async (req, res, next) => {
                 },
                 season: {
                     include: {
+                        likes: { where: { userId: req.userId } },
                         episodes: {
                             include: {
                                 posters: true,
-                                likes: true,
                                 video: true,
                             },
                         },
@@ -257,6 +257,7 @@ export const fetchFilm = async (req, res, next) => {
  */
 export const fetchSeason = async (req, res, next) => {
     try {
+        const { userId } = req.userId;
         const { seasonId } = req.params;
         if (!seasonId) returnError('Season ID is required', 400);
 
@@ -269,12 +270,12 @@ export const fetchSeason = async (req, res, next) => {
                 pricing: {
                     include: { priceList: true },
                 },
+                likes: { where: { userId } },
                 episodes: {
                     orderBy: { episode: 'asc' },
                     include: {
                         posters: true,
                         video: true,
-                        likes: true,
                     },
                 },
             },
@@ -296,11 +297,11 @@ export const fetchSeason = async (req, res, next) => {
  */
 export const fetchSeasons = async (_, res, next) => {
     try {
-        console.log('fetchSeasons');
         const seasons = await prisma.season.findMany({
             include: {
                 film: true,
                 posters: true,
+                likes: true,
             },
         });
 
@@ -642,53 +643,52 @@ export const getWatchList = async (req, res, next) => {
  */
 export const likeRateFilm = async (req, res, next) => {
     try {
-        const { filmId, userId } = req.params;
-        const data = req.body; // { likeType: "THUMBS_UP" or "THUMBS_DOWN" or "NONE", type: "film" or "episode" }
+        const { type, likeType, userId, resourceId } = req.data; // { likeType: "THUMBS_UP" or "THUMBS_DOWN" or "NONE", type: "film" or "season" }
 
-        if (!filmId || !userId) {
+        if (!resourceId || !userId) {
             returnError('Unauthorized', 401);
         }
 
-        switch (data.type) {
+        switch (type) {
             case 'film':
                 const filmExists = await prisma.likes.findFirst({
-                    where: { filmId, userId },
+                    where: { filmId: resourceId, userId },
                 });
                 if (filmExists) {
                     // change the like status to the selected status
                     await prisma.likes.update({
                         where: { id: filmExists.id },
-                        data: { type: data.likeType }, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE",
+                        data: { type: likeType }, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE",
                     });
                 } else {
                     await prisma.likes.create({
                         data: {
                             userId,
-                            filmId,
-                            type: data.likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
+                            resourceId,
+                            type: likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
                         },
                     });
                 }
                 break;
-            case 'episode':
-                const episodeExists = await prisma.likes.findFirst({
+            case 'season':
+                const seasonExists = await prisma.likes.findFirst({
                     where: {
                         userId,
-                        episodeId: filmId,
+                        seasonId: resourceId,
                     },
                 });
-                if (episodeExists) {
+                if (seasonExists) {
                     // change the like status to the selected status
                     await prisma.likes.update({
-                        where: { id: episodeExists.id },
-                        data: { type: data.likeType }, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE",
+                        where: { id: seasonExists.id },
+                        data: { type: likeType }, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE",
                     });
                 } else {
                     await prisma.likes.create({
                         data: {
                             userId,
-                            episodeId: filmId,
-                            type: data.likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
+                            seasonId: resourceId,
+                            type: likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
                         },
                     });
                 }

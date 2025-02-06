@@ -437,6 +437,24 @@ export const watchlistSchema = z.object({
     }),
 });
 
+export const likeSchema = z.object({
+    userId: z.string({ message: 'User ID is required' }).min(1),
+    resourceId: z.string({ message: 'Resource ID is required' }).min(1),
+    type: z.union([z.literal('season'), z.literal('film')], {
+        message: 'Type must be one of the following:, season or film',
+    }),
+    likeType: z
+        .union(
+            [
+                z.literal('NONE'),
+                z.literal('THUMBS_UP'),
+                z.literal('THUMBS_DOWN'),
+            ],
+            'LikeType should either be NONE, THUMBS_UP, THUMBS_DOWN'
+        )
+        .default('NONE'),
+});
+
 export const deleteVideoSchema = z.object({
     videoIds: z.array(z.string()).default([]),
 });

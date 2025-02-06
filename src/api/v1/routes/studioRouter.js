@@ -32,6 +32,7 @@ import {
     uploadChunk,
     createPricing,
     updatePricing,
+    deleteVideos,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -46,6 +47,7 @@ import {
     pricingSchema,
     updatePricingSchema,
     seasonUpdateSchema,
+    deleteVideoSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
 import multer from 'multer';
@@ -168,5 +170,11 @@ router.delete('/episode/:episodeId', verifyToken, deleteEpisode);
 router.delete('/video/:videoId', verifyToken, deleteVideo);
 router.delete('/poster/:posterId', verifyToken, deletePoster);
 router.delete('/category/:categoryId', verifyToken, deleteCategory);
+router.delete(
+    '/videos',
+    verifyToken,
+    validateData(deleteVideoSchema),
+    deleteVideos
+);
 
 export default router;

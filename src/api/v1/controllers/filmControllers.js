@@ -266,7 +266,9 @@ export const fetchSeason = async (req, res, next) => {
                 film: true,
                 posters: true,
                 trailers: true,
-                pricing: true,
+                pricing: {
+                    include: { priceList: true },
+                },
                 episodes: {
                     orderBy: { episode: 'asc' },
                     include: {

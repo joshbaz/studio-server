@@ -436,3 +436,7 @@ export const watchlistSchema = z.object({
         message: 'Type must be one of the following:, season or film',
     }),
 });
+
+export const deleteVideoSchema = z.object({
+    videoIds: z.array(z.string()).default([]),
+});

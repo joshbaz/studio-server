@@ -1679,10 +1679,45 @@ export const updatePricing = async (req, res, next) => {
  */
 export const deleteVideos = async (req, res, next) => {
     try {
-        /**
-         * @type {{ videoIds: string[]}}
-         */
-        const data = req.data;
+        const { videoIds } = req.data; // videoIds[]
+        if (!videoIds?.length) returnError('Video IDs are required', 400);
+
+        const videos = await prisma.video.findMany({
+            where: { id: { in: videoIds } },
+            include: {
+                film: { select: { id: true } },
+                episode: { select: { id: true, seasonId: true } },
+            },
+        });
+
+        if (!videos?.length) returnError('Videos not found', 404);
+
+        for (let video of videos) {
+            if (!video) continue;
+
+            if (video.film) {
+                // means that the video is movie
+                await deleteFromBucket({
+                    bucketName: video.film.id,
+                    key: video.name,
+                });
+            }
+
+            if (video.episode) {
+                // means that the video is an episode
+                await deleteFromBucket({
+                    bucketName: `${video?.filmId}-${video.episode.seasonId}`,
+                    key: video.name,
+                });
+            }
+        }
+
+        // delete videos
+        await prisma.video.deleteMany({
+            where: { id: { in: videoIds } },
+        });
+
+        res.status(200).json({ message: 'Videos deleted successfully' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

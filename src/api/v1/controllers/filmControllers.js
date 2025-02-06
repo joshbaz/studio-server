@@ -617,7 +617,7 @@ export const getWatchList = async (req, res, next) => {
                         id: curr.season.id,
                         title: curr.season.title,
                         poster: curr.season?.posters[0] ?? null,
-                        type: curr.season.film.type,
+                        type: 'season',
                     };
 
                     acc[curr.type].push(season);

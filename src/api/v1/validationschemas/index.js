@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { Status, DurationUnit, Currency } from '@prisma/client';
 import { isValid } from 'date-fns';
+import { type } from 'os';
 
 export const filmSchema = z.object({
     title: z.string({ message: 'Film title is required' }),
@@ -426,4 +427,12 @@ export const updatePricingSchema = z.object({
             price: z.number({ message: 'Price is required' }),
         })
     ),
+});
+
+export const watchlistSchema = z.object({
+    userId: z.string({ message: 'User ID is required' }).min(1),
+    resourceId: z.string({ message: 'Resource ID is required' }).min(1),
+    type: z.union([z.literal('season'), z.literal('film')], {
+        message: 'Type must be one of the following:, season or film',
+    }),
 });

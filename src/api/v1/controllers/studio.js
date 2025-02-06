@@ -1671,3 +1671,23 @@ export const updatePricing = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * @name deleteVideos
+ * @description function to get price by currency and type
+ * @type {import('express').RequestHandler}
+ */
+export const deleteVideos = async (req, res, next) => {
+    try {
+        /**
+         * @type {{ videoIds: string[]}}
+         */
+        const data = req.data;
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+
+        next(error);
+    }
+};

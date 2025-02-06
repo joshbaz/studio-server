@@ -8,7 +8,6 @@ import {
     getVideoSource,
     addWatchList,
     getWatchList,
-    removeFromWatchlist,
     likeRateFilm,
     purchaseFilm,
     checkPaymentStatus,
@@ -21,10 +20,17 @@ import {
 import { verifyToken } from '../middleware/verifyToken.js';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
 import { generateIPN_ID, generatePesaAuthTk } from '../middleware/pesapalmw.js';
+import { validateData } from '../middleware/validateBody.mjs';
+import { watchlistSchema } from '../validationschemas/index.js';
 
 const router = express.Router();
 
-router.post('/watchlist/:filmId/:userId', verifyToken, addWatchList);
+router.post(
+    '/watchlist/add',
+    verifyToken,
+    validateData(watchlistSchema),
+    addWatchList
+);
 router.post(
     '/purchase/:userId/:videoId',
     // verifyToken,
@@ -69,8 +75,5 @@ router.get(
 
 // PUT
 router.put('/likerate/:filmId/:userId', verifyToken, likeRateFilm);
-
-// DELETE
-router.delete('/watchlist/:id/:userId', verifyToken, removeFromWatchlist);
 
 export default router;

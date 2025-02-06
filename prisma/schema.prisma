@@ -106,12 +106,15 @@ enum WatchlistType {
 }
 
 model watchlist {
-  id     String         @id @default(auto()) @map("_id") @db.ObjectId
-  film   film?          @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId String?        @db.ObjectId
-  type   WatchlistType? @default(SAVED)
-  user   user?          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String?        @db.ObjectId
+  id   String         @id @default(auto()) @map("_id") @db.ObjectId
+  type WatchlistType? @default(SAVED)
+
+  film     film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId   String? @db.ObjectId
+  user     user?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String? @db.ObjectId
+  season   season? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId String? @db.ObjectId
 
   createdAt DateTime @default(now())
 }
@@ -187,14 +190,15 @@ enum LikeType {
 }
 
 model likes {
-  id        String   @id @default(auto()) @map("_id") @db.ObjectId
-  user      user?    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String?  @db.ObjectId
-  film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId    String?  @db.ObjectId
-  episode   episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
-  episodeId String?  @db.ObjectId
-  type      LikeType @default(NONE)
+  id   String   @id @default(auto()) @map("_id") @db.ObjectId
+  type LikeType @default(NONE)
+
+  user     user?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId   String? @db.ObjectId
+  film     film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId   String? @db.ObjectId
+  season   season? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId String? @db.ObjectId
 
   createdAt DateTime @default(now())
 }
@@ -241,8 +245,10 @@ model season {
   Category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId String?   @db.ObjectId
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
+  createdAt DateTime    @default(now())
+  updatedAt DateTime?   @updatedAt
+  likes     likes[]
+  watchlist watchlist[]
 }
 
 model episode {
@@ -274,7 +280,6 @@ model episode {
   seasonId          String?   @db.ObjectId
   watched           watched[]
   posters           poster[]
-  likes             likes[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt

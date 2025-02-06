@@ -268,9 +268,11 @@ export const fetchSeason = async (req, res, next) => {
                 trailers: true,
                 pricing: true,
                 episodes: {
+                    orderBy: { episode: 'asc' },
                     include: {
                         posters: true,
                         video: true,
+                        likes: true,
                     },
                 },
             },
@@ -487,40 +489,59 @@ export const bookmark = async (req, res, next) => {};
  */
 export const addWatchList = async (req, res, next) => {
     try {
-        const { filmId, userId } = req.params;
+        const { type, userId, resourceId } = req.data; // film or season
 
-        if (!filmId || !userId) {
+        if (!resourceId || !userId) {
             returnError('Unauthorized', 401);
         }
 
-        // check if the film is already in the watchlist
-        const filmExists = await prisma.watchlist.findFirst({
+        const resourceField = type === 'film' ? 'filmId' : 'seasonId';
+
+        let resource = null;
+
+        switch (type) {
+            case 'film':
+                resource = await prisma.film.findUnique({
+                    where: { id: resourceId },
+                });
+                break;
+            case 'season':
+                resource = await prisma.season.findUnique({
+                    where: { id: resourceId },
+                });
+
+                break;
+            default:
+                returnError('Invalid type', 400);
+        }
+
+        if (!resource) returnError(`${type} not found`, 404);
+
+        // find if the film is in the watchlist
+        const resourceExists = await prisma.watchlist.findFirst({
             where: {
-                filmId,
+                [resourceField]: resourceId,
                 userId,
             },
         });
 
-        if (filmExists) {
-            returnError('Film already in watchlist', 400);
+        if (!resourceExists) {
+            await prisma.watchlist.create({
+                data: {
+                    userId,
+                    [resourceField]: resourceId,
+                },
+            });
+            return res.status(200).json({ message: 'Added to watchlist' });
+        } else {
+            // remove the film from the watchlist
+            await prisma.watchlist.delete({
+                where: {
+                    id: resourceExists.id,
+                },
+            });
+            return res.status(200).json({ message: 'Removed from watchlist' });
         }
-
-        await prisma.watchlist.create({
-            data: {
-                user: {
-                    connect: {
-                        id: userId,
-                    },
-                },
-                film: {
-                    connect: {
-                        id: filmId,
-                    },
-                },
-            },
-        });
-
-        return res.status(200).json({ message: 'Added to watchlist' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -557,6 +578,14 @@ export const getWatchList = async (req, res, next) => {
                         releaseDate: true,
                     },
                 },
+                season: {
+                    select: {
+                        id: true,
+                        title: true,
+                        posters: true,
+                        film: { select: { type: true } },
+                    },
+                },
             },
             take: limit ? parseInt(limit) : 20, // default limit is 20
         });
@@ -564,61 +593,38 @@ export const getWatchList = async (req, res, next) => {
         // format the watchlist to only show the id and some film details
         if (watchlist?.length > 0) {
             watchlist = watchlist.reduce((acc, curr) => {
+                console.log(curr);
                 if (!acc[curr.type]) {
                     acc[curr.type] = [];
                 }
 
-                const film = {
-                    id: curr.film.id,
-                    title: curr.film.title,
-                    releaseDate: curr.film.releaseDate,
-                    poster: curr.film?.posters[0] ?? null,
-                    type: curr.film.type,
-                };
-                acc[curr.type].push(film);
+                if (curr.film) {
+                    const film = {
+                        id: curr.film.id,
+                        title: curr.film.title,
+                        releaseDate: curr.film.releaseDate,
+                        poster: curr.film?.posters[0] ?? null,
+                        type: curr.film.type,
+                    };
+                    acc[curr.type].push(film);
+                }
+
+                if (curr.season) {
+                    const season = {
+                        id: curr.season.id,
+                        title: curr.season.title,
+                        poster: curr.season?.posters[0] ?? null,
+                        type: curr.season.film.type,
+                    };
+
+                    acc[curr.type].push(season);
+                }
+
                 return acc;
             }, {});
         }
 
         return res.status(200).json({ watchlist });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-/**
- * @name removeFromWatchlist - get watchlist
- * @description function to remove film from watchlist
- * @type {import('express').RequestHandler}
- */
-export const removeFromWatchlist = async (req, res, next) => {
-    try {
-        const { id, userId } = req.params;
-
-        if (!userId) {
-            returnError('Unauthorized', 401);
-        }
-
-        const item = await prisma.watchlist.findUnique({
-            where: {
-                id,
-            },
-        });
-
-        if (!item) {
-            return res.status(404).json({ message: 'Item not found' });
-        }
-
-        await prisma.watchlist.delete({
-            where: {
-                id,
-            },
-        });
-
-        return res.status(200).json({ message: 'Removed from watchlist' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

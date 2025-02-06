@@ -17,7 +17,6 @@ import {
     uploadPoster,
     uploadFilm,
     uploadEpisodePoster,
-    updateVideoPrice,
     getPurchaseHistory,
     deletePoster,
     uploadTrailer,
@@ -53,18 +52,14 @@ import multer from 'multer';
 const checkPoster = multer({
     storage: multer.memoryStorage(),
     fileFilter: (_, file, cb) => {
-       const supportedTypes = [
-         
-          'image/jpeg',
-          'image/png',
-       ];
-       if (supportedTypes.includes(file.mimetype)) {
-          cb(null, true);
-       } else {
-          cb(null, false);
-       }
+        const supportedTypes = ['image/jpeg', 'image/png'];
+        if (supportedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(null, false);
+        }
     },
- });
+});
 
 const router = express.Router();
 
@@ -140,7 +135,6 @@ router.put(
     validateData(episodeSchema),
     updateEpisode
 );
-router.put('/updateVideoPrice/:videoId', verifyToken, updateVideoPrice);
 router.put(
     '/category/update/:categoryId',
     verifyToken,

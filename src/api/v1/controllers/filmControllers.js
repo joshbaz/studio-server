@@ -262,7 +262,6 @@ export const fetchSeason = async (req, res, next) => {
 
         const season = await prisma.season.findUnique({
             where: { id: seasonId },
-            orderBy: { season: 'asc' },
             include: {
                 film: true,
                 posters: true,

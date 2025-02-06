@@ -202,7 +202,7 @@ export const seasonUpdateSchema = z.object({
             message: 'Access should be either free or rent',
         })
         .optional(), // free, rent
-    isFeatured: z.boolean().default(false).optional(),
+    featured: z.boolean().default(false).optional(),
 });
 
 export const paymentSchema = z.object({

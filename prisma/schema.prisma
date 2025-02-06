@@ -229,7 +229,7 @@ model season {
   audienceAgeGroup String?
   visibility       String?   @default("not published") // published, not published
   access           String?   @default("free") // free, rent
-  isFeatured       Boolean   @default(false)
+  featured         Boolean   @default(false)
   trailers         video[]
   posters          poster[]
   episodes         episode[]

@@ -238,7 +238,7 @@ model season {
   watched          watched[]
   pricing          pricing[]
 
-  Category   Category? @relation(fields: [categoryId], references: [id])
+  Category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId String?   @db.ObjectId
 
   createdAt DateTime  @default(now())

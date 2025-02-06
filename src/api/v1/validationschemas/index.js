@@ -181,6 +181,30 @@ export const seasonSchema = z.object({
     filmId: z.string({ message: 'Film ID is required' }).optional(),
 });
 
+export const seasonUpdateSchema = z.object({
+    title: z.string({ message: 'Season title is required' }).optional(),
+    season: z.number().optional(),
+    overview: z.string().optional(),
+    audienceTarget: z.string().optional().default(''),
+    audienceAgeGroup: z.string().optional().default(''),
+    visibility: z
+        .union(
+            [
+                z.literal('not published'),
+                z.literal('published'),
+                z.literal('coming soon'),
+            ],
+            'Access should be "not published" or "published"'
+        )
+        .optional(), // published, not published
+    access: z
+        .union([z.literal('free'), z.literal('rent')], {
+            message: 'Access should be either free or rent',
+        })
+        .optional(), // free, rent
+    isFeatured: z.boolean().default(false).optional(),
+});
+
 export const paymentSchema = z.object({
     plan: z.string({ message: 'Plan is required' }),
     paymentMethod: z.string({ message: 'Payment method is required' }),

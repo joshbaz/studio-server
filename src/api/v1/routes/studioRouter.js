@@ -45,6 +45,7 @@ import {
     updateCategorySchema,
     pricingSchema,
     updatePricingSchema,
+    seasonUpdateSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
 import multer from 'multer';
@@ -126,7 +127,7 @@ router.put(
 router.put(
     '/season/:seasonId',
     verifyToken,
-    validateData(seasonSchema),
+    validateData(seasonUpdateSchema),
     updateSeason
 );
 router.put(

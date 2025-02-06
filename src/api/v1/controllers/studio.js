@@ -346,6 +346,13 @@ export const updateSeason = async (req, res, next) => {
 
         if (!seasonId) returnError('Season ID is required', 400);
 
+        // find out if season exists
+        const season = await prisma.season.findUnique({
+            where: { id: seasonId },
+        });
+
+        if (!season) returnError('Season not found', 404);
+
         const update = await prisma.season.update({
             where: { id: seasonId },
             data: { ...req.data },

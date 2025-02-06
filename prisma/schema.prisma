@@ -221,16 +221,22 @@ model views {
 }
 
 model season {
-  id       String    @id @default(auto()) @map("_id") @db.ObjectId
-  title    String
-  season   Int
-  trailers video[]
-  posters  poster[]
-  episodes episode[]
-  film     film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId   String?   @db.ObjectId
-  watched  watched[]
-  pricing  pricing[]
+  id               String    @id @default(auto()) @map("_id") @db.ObjectId
+  title            String
+  season           Int
+  overview         String
+  audienceTarget   String?
+  audienceAgeGroup String?
+  visibility       String?   @default("not published") // published, not published
+  access           String?   @default("free") // free, rent
+  isFeatured       Boolean   @default(false)
+  trailers         video[]
+  posters          poster[]
+  episodes         episode[]
+  film             film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId           String?   @db.ObjectId
+  watched          watched[]
+  pricing          pricing[]
 
   Category   Category? @relation(fields: [categoryId], references: [id])
   categoryId String?   @db.ObjectId

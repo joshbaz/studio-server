@@ -226,17 +226,20 @@ export const uploadPoster = async (req, res, next) => {
 
         if (!filmId) returnError('FilmID is required', 400);
 
-        const film = type === "season" ? await prisma.season.findUnique({
-            where: { id: filmId },
-            include: {
-                posters: true,
-            },
-        }) : await prisma.film.findUnique({
-            where: { id: filmId },
-            include: {
-                posters: true,
-            },
-        });
+        const film =
+            type === 'season'
+                ? await prisma.season.findUnique({
+                      where: { id: filmId },
+                      include: {
+                          posters: true,
+                      },
+                  })
+                : await prisma.film.findUnique({
+                      where: { id: filmId },
+                      include: {
+                          posters: true,
+                      },
+                  });
 
         if (!film) returnError('Film not found', 404);
 
@@ -246,11 +249,10 @@ export const uploadPoster = async (req, res, next) => {
         const bucketParams = {
             bucketName: filmId,
             key: poster.originalname,
-            buffer:  poster.buffer,
+            buffer: poster.buffer,
             contentType: poster.mimetype,
             isPublic: true,
         };
-        
 
         const data = await uploadToBucket(bucketParams, (progress) => {
             broadcastProgress({
@@ -262,21 +264,24 @@ export const uploadPoster = async (req, res, next) => {
 
         if (!data.url) returnError('Error uploading file. Try again!', 500);
 
-        const posterData = type === "season" ? {
-            url: data.url,
-            name: poster.originalname,
-            type: poster.mimetype,
-            isCover: isCover === 'true' ? true : false,
-            isBackdrop: isBackdrop === 'true' ? true : false,
-            seasonId: filmId,
-        } : {
-            url: data.url,
-            name: poster.originalname,
-            type: poster.mimetype,
-            isCover: isCover === 'true' ? true : false,
-            isBackdrop: isBackdrop === 'true' ? true : false,
-            filmId,
-        };
+        const posterData =
+            type === 'season'
+                ? {
+                      url: data.url,
+                      name: poster.originalname,
+                      type: poster.mimetype,
+                      isCover: isCover === 'true' ? true : false,
+                      isBackdrop: isBackdrop === 'true' ? true : false,
+                      seasonId: filmId,
+                  }
+                : {
+                      url: data.url,
+                      name: poster.originalname,
+                      type: poster.mimetype,
+                      isCover: isCover === 'true' ? true : false,
+                      isBackdrop: isBackdrop === 'true' ? true : false,
+                      filmId,
+                  };
 
         await prisma.poster.create({ data: posterData });
 
@@ -1054,41 +1059,6 @@ export const getDonations = async (req, res, next) => {
         return res.status(200).json({
             appDonations,
             webDonations,
-        });
-    } catch (error) {
-        if (!error.statusCode) {
-            error.statusCode = 500;
-        }
-        next(error);
-    }
-};
-
-/**
- * @name updateVideoPrice
- * @description function to get film pricing
- * @type {import('express').RequestHandler}
- */
-
-export const updateVideoPrice = async (req, res, next) => {
-    try {
-        const { videoId } = req.params;
-        const { price, currency } = req.body;
-
-        if (!price || !currency) {
-            returnError('Price and currency are required', 400);
-        }
-
-        const formattedPrice =
-            typeof price === 'string' ? parseFloat(price) : price;
-
-        const updatedPrice = await prisma.videoPrice.update({
-            where: { videoId },
-            data: { price: formattedPrice, currency },
-        });
-
-        res.status(200).json({
-            message: 'Price updated successfully',
-            price: updatedPrice,
         });
     } catch (error) {
         if (!error.statusCode) {

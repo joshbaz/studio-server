@@ -224,7 +224,7 @@ model season {
   id               String    @id @default(auto()) @map("_id") @db.ObjectId
   title            String
   season           Int
-  overview         String
+  overview         String?   @default("")
   audienceTarget   String?
   audienceAgeGroup String?
   visibility       String?   @default("not published") // published, not published

@@ -118,6 +118,7 @@ export const getFilm = async (req, res, next) => {
                 season: {
                     include: {
                         trailers: true,
+                        posters: true,
                         episodes: {
                             include: {
                                 video: {
@@ -128,7 +129,9 @@ export const getFilm = async (req, res, next) => {
                                 posters: true,
                             },
                         },
-                        pricing: true,
+                        pricing: {
+                            include: { priceList: true },
+                        },
                     },
                 },
                 donation: {
@@ -219,11 +222,16 @@ export const createFilm = async (req, res, next) => {
 export const uploadPoster = async (req, res, next) => {
     try {
         const { filmId } = req.params;
-        const { isCover, isBackdrop } = req.body;
+        const { isCover, isBackdrop, type } = req.body;
 
         if (!filmId) returnError('FilmID is required', 400);
 
-        const film = await prisma.film.findUnique({
+        const film = type === "season" ? await prisma.season.findUnique({
+            where: { id: filmId },
+            include: {
+                posters: true,
+            },
+        }) : await prisma.film.findUnique({
             where: { id: filmId },
             include: {
                 posters: true,
@@ -235,14 +243,14 @@ export const uploadPoster = async (req, res, next) => {
         // get the file from the request
         const poster = req.file;
         if (!poster) returnError('No file uploaded', 400);
-
         const bucketParams = {
             bucketName: filmId,
             key: poster.originalname,
-            buffer: poster.buffer,
+            buffer:  poster.buffer,
             contentType: poster.mimetype,
             isPublic: true,
         };
+        
 
         const data = await uploadToBucket(bucketParams, (progress) => {
             broadcastProgress({
@@ -254,7 +262,14 @@ export const uploadPoster = async (req, res, next) => {
 
         if (!data.url) returnError('Error uploading file. Try again!', 500);
 
-        const posterData = {
+        const posterData = type === "season" ? {
+            url: data.url,
+            name: poster.originalname,
+            type: poster.mimetype,
+            isCover: isCover === 'true' ? true : false,
+            isBackdrop: isBackdrop === 'true' ? true : false,
+            seasonId: filmId,
+        } : {
             url: data.url,
             name: poster.originalname,
             type: poster.mimetype,

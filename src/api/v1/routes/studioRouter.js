@@ -48,6 +48,23 @@ import {
     updatePricingSchema,
 } from '../validationschemas/index.js';
 import { upload } from '@/services/multer.js';
+import multer from 'multer';
+
+const checkPoster = multer({
+    storage: multer.memoryStorage(),
+    fileFilter: (_, file, cb) => {
+       const supportedTypes = [
+         
+          'image/jpeg',
+          'image/png',
+       ];
+       if (supportedTypes.includes(file.mimetype)) {
+          cb(null, true);
+       } else {
+          cb(null, false);
+       }
+    },
+ });
 
 const router = express.Router();
 
@@ -69,7 +86,7 @@ router.post('/trailer-upload', verifyToken, uploadTrailer); // requires resourse
 router.post(
     '/posterupload/:filmId',
     verifyToken,
-    upload.single('poster'),
+    checkPoster.single('poster'),
     uploadPoster
 );
 router.post(
@@ -87,7 +104,7 @@ router.post(
 router.post(
     '/uploadposter/:episodeId',
     verifyToken,
-    upload.single('poster'),
+    checkPoster.single('poster'),
     uploadEpisodePoster
 );
 

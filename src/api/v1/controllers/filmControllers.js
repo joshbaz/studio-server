@@ -651,21 +651,28 @@ export const likeRateFilm = async (req, res, next) => {
 
         switch (type) {
             case 'film':
-                const filmExists = await prisma.likes.findFirst({
+                const filmExists = await prisma.film.findUnique({
+                    where: { id: resourceId },
+                });
+
+                if (!filmExists) returnError('Film was not found', 404);
+
+                const likeExists = await prisma.likes.findFirst({
                     where: { filmId: resourceId, userId },
                 });
-                if (filmExists) {
+
+                if (likeExists) {
                     // change the like status to the selected status
                     await prisma.likes.update({
-                        where: { id: filmExists.id },
+                        where: { id: likeExists.id },
                         data: { type: likeType }, //"THUMBS_UP" or "THUMBS_DOWN" or "NONE",
                     });
                 } else {
                     await prisma.likes.create({
                         data: {
                             userId,
-                            resourceId,
-                            type: likeType, // "THUMBS_UP" or "THUMBS_DOWN" or "NONE"
+                            type: likeType,
+                            filmId: resourceId,
                         },
                     });
                 }

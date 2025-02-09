@@ -805,7 +805,7 @@ export const uploadFilm = async (req, res, next) => {
         }
 
         // combine the chunks
-        const filePath = chunkService.combineChunks(fileName);
+        const filePath = await chunkService.combineChunks(fileName);
 
         let resource = null;
 
@@ -901,7 +901,7 @@ export const uploadTrailer = async (req, res, next) => {
             });
         }
 
-        const filePath = chunkService.combineChunks(fileName);
+        const filePath = await chunkService.combineChunks(fileName);
 
         if (!resource) {
             // if resource is not found clear the file from the temp folder

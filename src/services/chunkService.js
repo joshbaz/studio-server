@@ -60,18 +60,45 @@ class ChunkService {
             });
 
         const assembledPath = path.join(this.uploadDir, fileName);
-
         const writeStream = fs.createWriteStream(assembledPath);
-        for (const chunkFile of chunkFiles) {
-            const chunkPath = path.join(filePath, chunkFile);
-            const data = fs.readFileSync(chunkPath);
-            writeStream.write(data);
-            fs.unlinkSync(chunkPath); // Delete the chunk after combining
-        }
-        writeStream.end();
-        // delete the directory after combining the chunks
-        fs.rmdirSync(filePath);
-        return assembledPath;
+
+        const combineChunksAsync = async () => {
+            for (const chunkFile of chunkFiles) {
+                const chunkPath = path.join(filePath, chunkFile);
+                const readStream = fs.createReadStream(chunkPath);
+
+                try {
+                    await pipeline(readStream, writeStream);
+                    fs.unlinkSync(chunkPath); // Delete the chunk after combining
+                } catch (err) {
+                    console.log('Error piping chunk', err);
+                    writeStream.destroy(err);
+                    return; // Stop further processing on error
+                }
+            }
+        };
+
+        const pipeline = require('util').promisify(require('stream').pipeline); // Import util and promisify stream.pipeline
+
+        return new Promise((resolve, reject) => {
+            writeStream.on('finish', () => {
+                fs.rmdirSync(filePath, { recursive: true }); // Delete the directory after combining the chunks
+                resolve(assembledPath);
+            });
+
+            writeStream.on('error', (err) => {
+                console.error(`Failed to combine chunks for ${fileName}:`, err);
+                fs.rmdirSync(filePath, { recursive: true });
+                reject(err);
+            });
+
+            combineChunksAsync()
+                .then(() => writeStream.end())
+                .catch((err) => {
+                    console.error('Chunk combination error', err);
+                    writeStream.destroy(err);
+                });
+        });
     }
 
     async deleteChunksFolder(fileName) {

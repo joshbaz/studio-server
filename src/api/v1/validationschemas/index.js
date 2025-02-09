@@ -456,5 +456,5 @@ export const likeSchema = z.object({
 });
 
 export const deleteVideoSchema = z.object({
-    videoIds: z.array(z.string()).default([]),
+    videoIds: z.array(z.string().nullable()).default([]),
 });

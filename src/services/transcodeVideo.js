@@ -152,7 +152,6 @@ export async function transcodeVideo(
 
                                     // remove the local copy of the video after uploading it to s3
                                     fs.unlinkSync(outputPath);
-
                                     resolve(videoData);
                                 })
                                 .catch((uploadError) => {
@@ -173,6 +172,9 @@ export async function transcodeVideo(
                 throw new Error(`Failed to process resolution ${label}`);
             }
         }
+
+        // remove the original file after transcoding
+        fs.unlinkSync(filePath);
         return Promise.all(results);
     } catch (initialFfprobeError) {
         console.log('initial ffprobe error', initialFfprobeError);

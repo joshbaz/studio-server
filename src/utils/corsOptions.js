@@ -11,6 +11,7 @@ export const CORS_OPTIONS = {
         'http://localhost:8081',
         'http://192.168.0.184:4500',
         'http://localhost:5173',
+        'http://localhost:5174',
         'https://staging.nyatimotionpictures.com',
         'https://nyatimotionpictures.com',
         'https://studio.nyatimotionpictures.com',

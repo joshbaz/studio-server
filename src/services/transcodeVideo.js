@@ -5,6 +5,8 @@ import { uploadToBucket } from './s3.js';
 import ChunkService from './chunkService.js';
 import fs from 'fs';
 import { formatBitrate } from '@/utils/formatBitrate.js';
+import prisma from '@/utils/db.mjs';
+import { returnError } from '@/utils/returnError.js';
 
 const RESOLUTIONS = {
     SD: 480,
@@ -12,6 +14,14 @@ const RESOLUTIONS = {
     FHD: 1080,
     UHD: 2160,
 };
+
+const resolutionsArray = [
+    { name: "480p",    label: "SD", width: 854, height: 480, bitrate: 1000 }, // 480p   SD
+    { name: "720p",    label: "HD", width: 1280, height: 720, bitrate: 2500 }, // 720p   HD
+    { name: "1080p",    label: "FHD", width: 1920, height: 1080, bitrate: 5000 }, // 1080p Full HD
+    { name: "4K", label: "UHD", width: 3840, height: 2160, bitrate: 15000 }, // 4K UHD
+    // { name: "360p", width: 640, height: 360, bitrate: "600k" }, // 360p   
+  ];
 
 /**
     @typedef {Object} VideoDetails
@@ -25,6 +35,35 @@ const RESOLUTIONS = {
     * @property {number} bitrate - Bitrate of the video in bits per second
     * @property {string} url - URL of the transcoded video on DigitalOcean Spaces
  */
+
+    /**
+ * @name broadcastProgress
+ * @description function to broadcast upload progress to all clients
+ * @param {number} progress
+ * @returns {void}
+ */
+function broadcastProgress({ progress, clientId, content }) {
+    console.log(`Progress: ${progress}%`);
+    io.to(clientId).emit('uploadProgress', { content, progress });
+}
+
+/**
+ * @name formatFileSize
+ * @description function to format file size
+ * @param {number} size
+ * @returns {"B" | "KB" | "MB" | "GB"}
+ */
+function formatFileSize(size) {
+    if (size < 1024) {
+        return `${size} B`;
+    } else if (size < 1024 ** 2) {
+        return `${(size / 1024).toFixed(2)} KB`;
+    } else if (size < 1024 ** 3) {
+        return `${(size / 1024 ** 2).toFixed(2)} MB`;
+    } else {
+        return `${(size / 1024 ** 3).toFixed(2)} GB`;
+    }
+}
 
 /**
  * Transcode a video to multiple resolutions
@@ -179,3 +218,193 @@ export async function transcodeVideo(
         throw initialFfprobeError;
     }
 }
+
+export async function transcodeOneAtATimeOld(filePath, fileName, outputDir, clientId, filmInfo) {
+    try {
+      if (!fs.existsSync(filePath)) {
+        throw new Error("File not found or not accessible: " + filePath);
+      }
+  
+      if (!filePath) {
+        throw new Error('File path is required');
+    }
+    if (!fileName) {
+        throw new Error('File name is required');
+    }
+    if (!outputDir) {
+        throw new Error('Output directory is required');
+    }
+  
+    const duration = await new Promise((resolve, reject) => {
+      Ffmpeg.ffprobe(filePath, (err, metadata) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(metadata.format.duration); // Duration in seconds
+        }
+      });
+    });
+  
+    for (const { name, label, width, height, bitrate } of resolutionsArray) {
+        const outputFilePath = path.join(outputDir, `${label}_${fileName}`);
+        console.log(`Starting transcoding for ${name}...`);
+  
+        await new Promise((resolve, reject) => {
+            Ffmpeg(filePath)
+                .videoCodec('libx264')
+                .audioCodec('aac') 
+                .format('mp4')
+                .size(`${width}x${height}`)
+                .videoBitrate(bitrate)
+                // .outputOptions([
+                //     '-preset veryfast', // Faster encoding
+                //     '-crf 23', // Quality control (lower = better)
+                //     '-pix_fmt yuv420p', // Ensures compatibility
+                //     '-movflags faststart', // Allows streaming without full download
+                //     '-maxrate ' + bitrate, // Ensures bitrate cap
+                //     '-bufsize ' + parseInt(bitrate) * 2 + 'k' // Smooths out bitrate spikes
+                // ])
+                .output(outputFilePath)
+                .on('start', () => console.log('Transcoding started'))
+                .on('progress', (progress) => {
+                    console.log(
+                        `Transcode Progress: ${label} ${progress.targetSize} ${progress.percent}%`
+                    );
+                    let customProgress = Math.round(progress.percent);
+                    io.to(clientId).emit('TranscodeProgress', {
+                        label,
+                        customProgress,
+                    });
+                })
+                .on('end', async () => {
+                    console.log(`Transcoding finished for ${name}`);
+  
+                    try {
+                        console.log(
+                            `Uploading ${name} to DigitalOcean Spaces...`
+                        );
+
+                        if (!fs.existsSync(outputFilePath)) {
+                            console.error(`Transcoded file missing: ${outputFilePath}`);
+                            reject(new Error(`Transcoded file missing: ${outputFilePath}`));
+                            return;
+                        }
+
+                        let bucketParams = {
+                            bucketName: filmInfo.resourceId,
+                            key: `${label}_${fileName}`,
+                            buffer: fs.createReadStream(outputFilePath),
+                            contentType: 'video/mp4',
+                            isPublic: true,
+                        };
+  
+                        switch (filmInfo.type) {
+                            case 'film':
+                                const data = await uploadToBucket(
+                                    bucketParams,
+                                    (progress) => {
+                                        broadcastProgress({
+                                            progress,
+                                            clientId,
+                                            content: {
+                                                resolution: label,
+                                                type: 'film',
+                                            },
+                                        });
+                                    }
+                                );
+  
+                                if (data.url) {
+                                    // create a video record with all the details including the signed url
+                                    const videoData = {
+                                        filmId: filmInfo.resourceId,
+                                        resolution: label,
+                                        name: `${label}_${fileName}`,
+                                        format: 'video/mp4',
+                                        url: data.url,
+                                        encoding: 'libx264',
+                                        size: formatFileSize(
+                                            fs.statSync(outputFilePath).size
+                                        ),
+                                    };
+  
+                                    await prisma.video.create({
+                                        data: videoData,
+                                    });
+                                }
+                                break;
+                            case 'episode':
+                                bucketParams.bucketName = `${filmInfo?.resource.season?.filmId}-${filmInfo.resource.seasonId}`;
+                                const upload = await uploadToBucket(
+                                    bucketParams,
+                                    (progress) => {
+                                        broadcastProgress({
+                                            progress,
+                                            clientId,
+                                            content: {
+                                                resolution: label,
+                                                type: 'episode',
+                                            },
+                                        });
+                                    }
+                                );
+  
+                                if (upload.url) {
+                                    // create a video record with all the details including the signed url
+                                    const videoData = {
+                                        episodeId: filmInfo.resourceId,
+                                        resolution: label,
+                                        name: `${label}_${fileName}`,
+                                        format: 'video/mp4',
+                                        url: upload.url,
+                                        encoding: 'libx264',
+                                        size: formatFileSize(
+                                            fs.statSync(outputFilePath).size
+                                        ),
+                                    };
+  
+                                    await prisma.video.create({
+                                        data: videoData,
+                                    });
+                                }
+                                break;
+                            default:
+                                returnError(
+                                    'Type "film" or "episode" is required',
+                                    400
+                                );
+                                break;
+                        }
+  
+                        // Delete the transcoded file after upload
+                        fs.unlink(outputFilePath, (err) => {
+                            if (err)
+                                console.error(
+                                    `Error deleting ${name}:`,
+                                    err.message
+                                );
+                            else console.log(`${name} deleted locally.`);
+                        });
+                      resolve({ label, outputFilePath: outputFilePath }); // Proceed to the next resolution
+                    } catch (error) {
+                        console.log('error', error);
+                        reject(error); // If upload fails, reject the promise
+                    }
+                })
+                .on('error', (error) => reject(error))
+                // .save(outputFilePath);
+                .run();
+        });
+    }
+  
+      console.log('All resolutions processed and uploaded!');
+      // After processing all resolutions, delete the main file
+      fs.unlink(filePath, (err) => {
+        if (err) console.error('Error deleting main file:', err.message);
+        else console.log('Main file deleted.');
+      });
+    } catch (error) {
+      console.error('Error transcoding video:', error);
+      throw error;
+    }
+  }

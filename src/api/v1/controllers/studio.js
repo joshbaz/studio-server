@@ -609,7 +609,7 @@ export const deleteEpisode = async (req, res, next) => {
         if (episode.video.length > 0) {
             for (let video of episode.video) {
                 await deleteFromBucket({
-                    bucketName: `${episode.season.filmId}-${episode.seasonId}`,
+                    bucketName: `${episode?.season.filmId}-${episode.seasonId}`,
                     key: video.name,
                 });
             }

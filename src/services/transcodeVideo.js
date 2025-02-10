@@ -58,7 +58,9 @@ export async function transcodeVideo(
         // loop through each resolution and transcode the video
         for (const [label, height] of Object.entries(RESOLUTIONS)) {
             try {
-                const filename = new ChunkService().formatFileName(fileName);
+                const { filename } = new ChunkService().formatFileName(
+                    fileName
+                );
                 const name = `${label}_${filename}.mp4`;
                 const outputPath = path.join(outputDir, name);
                 const result = await new Promise((resolve, reject) => {
@@ -174,7 +176,8 @@ export async function transcodeVideo(
         }
 
         // remove the original file after transcoding
-        fs.unlinkSync(filePath);
+        // fs.unlinkSync(filePath);
+        fs.rmdirSync(path.dirname(filePath)); // Clean up the directory containing the original file
         return Promise.all(results);
     } catch (initialFfprobeError) {
         console.log('initial ffprobe error', initialFfprobeError);

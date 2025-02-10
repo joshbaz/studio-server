@@ -33,6 +33,11 @@ import {
     createPricing,
     updatePricing,
     deleteVideos,
+    checkingChunks,
+    uploadingChunks,
+    combiningChunks,
+    uploadingFilm,
+    uploadingTrailer,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -75,6 +80,13 @@ router.get('/purchasehistory', verifyToken, getPurchaseHistory);
 router.get('/categories', verifyToken, getCategories);
 router.get('/category/:categoryId', verifyToken, getCategory);
 router.get('/check-upload-chunk', verifyToken, checkUploadChunk);
+
+// JOSHUA'S ROUTES for video testing
+router.get('/check-upload-chunks', verifyToken, checkingChunks);
+router.post('/upload-chunks', verifyToken,upload.single('chunk'), uploadingChunks);
+router.post('/combine-chunks', verifyToken, combiningChunks);
+router.post('/complete-uploads', verifyToken, uploadingFilm);
+router.post('/trailer-uploads', verifyToken, uploadingTrailer);
 
 // POST Routes
 router.post('/newfilm', verifyToken, validateData(filmSchema), createFilm);

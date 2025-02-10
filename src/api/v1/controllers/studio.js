@@ -5,7 +5,9 @@ import { deleteFromBucket, uploadToBucket } from '@/services/s3.js';
 import ChunkService from '@/services/chunkService.js';
 import { UPLOAD_DIR } from '@/services/multer.js';
 import { io } from '@/utils/sockets.js';
-import { transcodeVideo } from '@/services/transcodeVideo.js';
+import { transcodeOneAtATimeOld, transcodeVideo } from '@/services/transcodeVideo.js';
+import fsExtra from 'fs-extra';
+import path from 'path';
 
 const chunkService = new ChunkService();
 
@@ -731,6 +733,327 @@ export const deleteFilm = async (req, res, next) => {
         next(error);
     }
 };
+
+// Joshua's video upload test.
+/**
+ *
+ * @name uploadingChunks
+ * @name Joshua's function to upload chunks
+ *  @name combiningChunks
+ */
+export const uploadingChunks = async (req, res, next) => {
+    try {
+        const { start, fileName } = req.body;
+        // let filesname = fileName.split('.').shift().replace(/\s/g, '_');
+        // const chunkPath = path.join(UPLOAD_DIR, `${fileName}-${start}`);
+        const chunkPath = path.join(UPLOAD_DIR, `${fileName}-${start}`);
+
+        fs.rename(req.file.path, chunkPath, (err) => {
+            if (err) {
+                console.error('Error saving chunk:', err);
+                return res.status(500).json({ error: 'Error saving chunk' });
+            }
+
+            res.status(200).json({ success: true });
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ *
+ * @name checkingChunks
+ * @name Joshua's function to CHECK if a chunk exists
+ *  @name checkingChunks
+ */
+export const checkingChunks = async (req, res, next) => {
+    try {
+        const { fileName, start } = req.query;
+
+    
+
+        if (!fileName || !start) {
+            return res
+                .status(400)
+                .json({ exists: false, error: 'Missing fileName or start' });
+        }
+        // let filesname = fileName.split('.').shift().replace(/\s/g, '_');
+        const chunkPath = path.join(UPLOAD_DIR, `${fileName}-${start}`);
+        const exists = fs.existsSync(chunkPath);
+        return res.json({ exists });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ *
+ * @name combiningChunks
+ * @name Joshua's function to combine chunks
+ *  @name combiningChunks
+ */
+
+export const combiningChunks = async (req, res, next) => {
+    try {
+        const { fileName } = req.body;
+        // let filesname = fileName.split('.').shift().replace(/\s/g, '_');
+
+        const filePath = path.join(UPLOAD_DIR, fileName);
+        const chunkFiles = fs
+            .readdirSync(UPLOAD_DIR)
+            .filter((file) => file.startsWith(fileName) && file !== fileName)
+            .sort((a, b) => {
+                const startA = parseInt(a.split('-').pop());
+                const startB = parseInt(b.split('-').pop());
+                return startA - startB;
+            });
+
+        const finalStream = fs.createWriteStream(filePath);
+
+        for (const chunkFile of chunkFiles) {
+            const chunkPath = path.join(UPLOAD_DIR, chunkFile);
+            await new Promise((resolve, reject) => {
+                const readStream = fs.createReadStream(chunkPath);
+                readStream.pipe(finalStream, { end: false }); // Pipe without closing final stream
+                readStream.on('end', () => {
+                    fs.unlink(chunkPath, (err) => {
+                        if (err)
+                            console.error(
+                                `Error deleting chunk ${chunkFile}:`,
+                                err
+                            );
+                    });
+                    resolve();
+                });
+                readStream.on('error', reject);
+            });
+        }
+
+        // Close the finalStream properly
+        finalStream.end();
+
+        finalStream.on("finish", async () => {
+            console.log("File merge complete:", filePath);
+      
+            try {
+              await fsExtra.promises.access(filePath, fs.constants.R_OK);
+              res.status(200).json({ success: true, message: "Chunks combined successfully!" });
+            } catch (err) {
+              console.error("Error accessing merged file:", err);
+              res.status(500).json({ error: "Merged file is not accessible" });
+            }
+          });
+
+          finalStream.on("error", (err) => {
+            console.error("Error writing final file:", err);
+            res.status(500).json({ error: "Error merging chunks" });
+          });
+
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ *
+ * @name uploadingFilm
+ * @name Joshua's function to combine chunks
+ *  @name uploadingFilm
+ */
+
+export const uploadingFilm = async (req, res, next) => {
+    try {
+        const { clientId, fileName, type, resourceId } = req.body;
+      
+        if (!clientId) returnError('Client ID is required', 400);
+        if (!fileName) returnError('File name is required', 400);
+        if (!resourceId) {
+            returnError('Either Film ID or EpisodeID is required', 400);
+        }
+
+        const filePath = path.join(UPLOAD_DIR, fileName);
+
+        let resource = null;
+
+        if (type === 'film') {
+            resource = await prisma.film.findUnique({
+                where: { id: resourceId },
+            });
+        }
+
+        if (type === 'episode') {
+            resource = await prisma.episode.findUnique({
+                where: { id: resourceId },
+                include: {
+                    season: { select: { id: true, filmId: true } },
+                },
+            });
+        }
+
+        if (!resource.id) {
+            // if resource is not found clear the file from the temp folder
+            fs.unlinkSync(filePath);
+            returnError(
+                "The resource you were looking for doesn't exist",
+                404
+            );
+        }
+
+          const transcoded = await transcodeOneAtATimeOld(
+            filePath,
+            fileName,
+            UPLOAD_DIR,
+            clientId,
+            {
+                resourceId: resourceId,
+                type: type,
+                resource: resource,
+            }
+        );
+
+        // const transcoded = await transcodeOneAtATime(
+        //     filePath,
+        //     fileName,
+        //     UPLOAD_DIR,
+        //     clientId,
+        //     {
+        //         resourceId: resourceId,
+        //         type: type,
+        //         resource: resource,
+        //     }
+        // );
+
+        res.status(200).json({ message: 'Upload complete' });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name uploadingTrailer
+ * @name Joshua's function to upload trailer
+ */
+export const uploadingTrailer = async (req, res, next) => {
+    try {
+        const { fileName, clientId, resourceId, type } = req.body;
+
+        console.log('body', req.body);
+
+        if (!resourceId) {
+            returnError('Resource ID is required', 400);
+        }
+
+        if (!type) {
+            returnError('Either type "film" or "season" is required', 400);
+        }
+
+        let resource = null;
+
+        if (type === 'film') {
+            resource = await prisma.film.findUnique({
+                where: { id: resourceId },
+            });
+        }
+
+        if (type === 'season') {
+            resource = await prisma.season.findUnique({
+                where: { id: resourceId },
+            });
+        }
+
+        // const filePath = await chunkService.combineChunks(fileName);
+        const filePath = path.join(UPLOAD_DIR, fileName);
+
+        if (!resource) {
+            // if resource is not found clear the file from the temp folder
+            fs.unlinkSync(filePath);
+            returnError('Film or episode was not found', 404);
+        }
+
+        // const formattedFilename = chunkService.formatFileName(fileName);
+
+        // check if we have a video with the same name in the bucket
+        const videoExists = await prisma.video.findFirst({
+            where: { name: fileName },
+        });
+
+        if (videoExists) {
+            fs.unlinkSync(filePath);
+            returnError('A video with the same name already exists', 400);
+        }
+
+        const bucketParams = {
+            bucketName:
+                type === 'film'
+                    ? resourceId
+                    : `${resource.filmId}-${resource.id}`,
+            key: fileName,
+            buffer: fs.createReadStream(filePath),
+            contentType: 'video/mp4',
+            isPublic: true,
+        };
+
+        const data = await uploadToBucket(bucketParams, (progress) => {
+            broadcastProgress({
+                progress,
+                clientId,
+                content: {
+                    type: 'trailer',
+                },
+            });
+        });
+
+        if (data.url) {
+            // create video record
+            const videoData = {
+                url: data.url,
+                format: 'video/mp4',
+                name: fileName,
+                size: formatFileSize(fs.statSync(filePath).size),
+                encoding: 'libx264',
+                isTrailer: true,
+            };
+
+            if (type === 'film') {
+                videoData.filmId = resourceId;
+            } else {
+                videoData.seasonId = resourceId;
+            }
+
+            await prisma.video.create({
+                data: videoData,
+            });
+
+            // delete the file from the temp folder
+            fs.unlinkSync(filePath);
+        } else {
+            // unlink the file from the temp folder
+            fs.unlinkSync(filePath);
+            returnError('Error uploading file. Try again!', 500);
+        }
+
+        res.status(200).json({ message: 'Trailer uploaded' });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
 
 // Video Uploads
 // film (type: movie)

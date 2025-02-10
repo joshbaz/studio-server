@@ -1,6 +1,7 @@
 import { env } from '../env.mjs';
 import { Upload } from '@aws-sdk/lib-storage';
-import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, DeleteObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
+import fs from 'fs';
 
 export const s3Client = new S3Client({
     region: 'fra1',
@@ -66,6 +67,75 @@ export const uploadToBucket = async (
         throw new Error(error.message);
     }
 };
+
+/**
+ * Joshua's test upload
+ */
+// export const uploadToBucketTest = async (
+//     { key, bufferPath, isPublic, bucketName, contentType },
+//     onUploadProgress
+// ) => {
+//     try {
+//         const fileStream = fs.createReadStream(bufferPath);
+//         const fileSize = fs.statSync(bufferPath).size;
+//         const chunkSize = 50 * 1024 * 1024; // 5MB
+//         const totalParts = Math.ceil(fileSize / chunkSize);
+
+//         console.log(`Starting upload: ${key} (${fileSize} bytes, ${totalParts} parts)`);
+
+//         const createUpload = new CreateMultipartUploadCommand(
+//             {
+//                 Bucket: bucketName,
+//                 Key: key,
+//                 ContentType: contentType,
+//                 ACL: isPublic ? 'public-read' : 'private',
+//             });
+        
+//         const { UploadId } = await s3Client.send(createUpload);
+//         let partNumber = 1;
+//         let parts = [];
+//         let uploadedSize = 0;
+
+//         for await (const chunk of fileStream) {
+//             const uploadPart = new UploadPartCommand({
+//                 Bucket: bucketName,
+//                 Key: key,
+//                 UploadId,
+//                 PartNumber: partNumber,
+//                 Body: chunk,
+//             });
+            
+//             const { ETag } = await s3Client.send(uploadPart);
+//             parts.push({ ETag, PartNumber: partNumber });
+
+//              // Update progress
+//              uploadedSize += chunk.length;
+//              const progress = Math.floor((uploadedSize / fileSize) * 100);
+//              if (onUploadProgress) onUploadProgress(progress);
+
+//             partNumber++;
+//         }
+
+//         const completeUpload = new CompleteMultipartUploadCommand({
+//             Bucket: bucketName,
+//             Key: key,
+//             UploadId,
+//             MultipartUpload: {
+//                 Parts: parts,
+//             },
+//         });
+
+//         await s3Client.send(completeUpload);
+
+//         return {
+//             url: `${env.DO_SPACESENDPOINT}/${bucketName}/${key}`,
+//             size: fileSize,
+//         };
+//     }
+//     catch (error) {
+//         throw new Error(error.message);
+//     }
+// };
 
 /**
  * @name streamFromBucket

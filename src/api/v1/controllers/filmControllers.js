@@ -875,6 +875,15 @@ export const purchaseFilm = async (req, res, next) => {
                         },
                     });
 
+                    // create a new watchlist entry
+                    await prisma.watchlist.create({
+                        data: {
+                            userId,
+                            type: 'PURCHASED',
+                            [resourceField]: resource,
+                        },
+                    });
+
                     res.status(200).json({
                         message: 'Payment pending approval',
                         orderTrackingId: createdUUIDs,
@@ -965,6 +974,15 @@ export const purchaseFilm = async (req, res, next) => {
                                 [resourceField]: resourceId,
                                 transactionId: transaction.id,
                                 resolutions: resSelector(priceItem.resolution),
+                            },
+                        });
+
+                        // create a new watchlist entry
+                        await prisma.watchlist.create({
+                            data: {
+                                userId,
+                                type: 'PURCHASED',
+                                [resourceField]: resource,
                             },
                         });
 
@@ -1324,6 +1342,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     {
                                         where: { id: existingTransaction.id },
                                         data: dataParams,
+                                        include: { purchase: true },
                                     }
                                 );
 
@@ -1335,11 +1354,10 @@ export const checkPaymentStatus = async (req, res, next) => {
                             break;
                         case 'Transaction has Failed':
                         case 'Transaction Rejected':
-                            await prisma.transaction.update({
+                            const updated = await prisma.transaction.update({
                                 where: { id: existingTransaction.id },
-                                data: {
-                                    status: 'FAILED',
-                                },
+                                data: { status: 'FAILED' },
+                                include: { purchase: true },
                             });
 
                             if (transaction.type === 'PURCHASE') {
@@ -1358,18 +1376,35 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     },
                                 });
                             }
+
+                            await prisma.watchlist.delete({
+                                where: {
+                                    OR: [
+                                        {
+                                            film: updated?.purchase?.filmId,
+                                        },
+                                        {
+                                            seasonId:
+                                                updated.purchase?.seasonId,
+                                        },
+                                    ],
+                                    userId: updated.userId,
+                                    type: 'PURCHASED',
+                                },
+                            });
 
                             res.status(200).json({
                                 status: 'FAILED',
                             });
                             break;
                         case 'Transaction Timeout':
-                            await prisma.transaction.update({
-                                where: { id: existingTransaction.id },
-                                data: {
-                                    status: 'FAILED',
-                                },
-                            });
+                            const transaction = await prisma.transaction.update(
+                                {
+                                    where: { id: existingTransaction.id },
+                                    data: { status: 'FAILED' },
+                                    include: { purchase: true },
+                                }
+                            );
 
                             if (transaction.type === 'PURCHASE') {
                                 // delete the purchase
@@ -1387,6 +1422,23 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     },
                                 });
                             }
+
+                            await prisma.watchlist.delete({
+                                where: {
+                                    OR: [
+                                        {
+                                            film: transaction?.purchase?.filmId,
+                                        },
+                                        {
+                                            seasonId:
+                                                transaction.purchase?.seasonId,
+                                        },
+                                    ],
+                                    userId: transaction.userId,
+                                    type: 'PURCHASED',
+                                },
+                            });
+
                             res.status(200).json({
                                 status: 'TIMEOUT',
                             });
@@ -1563,12 +1615,12 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                         },
                                     };
                                 }
-                                const updated = await prisma.transaction.update(
-                                    {
-                                        where: { id: existingTransaction.id },
-                                        data: dataParams,
-                                    }
-                                );
+
+                                let updated = await prisma.transaction.update({
+                                    where: { id: existingTransaction.id },
+                                    data: dataParams,
+                                    include: { purchase: true },
+                                });
 
                                 res.status(200).json({
                                     status: 'SUCCESSFUL',
@@ -1578,11 +1630,10 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                 break;
                             case 'Transaction has Failed':
                             case 'Transaction Rejected':
-                                await prisma.transaction.update({
+                                let update = await prisma.transaction.update({
                                     where: { id: existingTransaction.id },
-                                    data: {
-                                        status: 'FAILED',
-                                    },
+                                    data: { status: 'FAILED' },
+                                    include: { purchase: true },
                                 });
 
                                 if (transaction.type === 'PURCHASE') {
@@ -1602,16 +1653,31 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                         },
                                     });
                                 }
+
+                                await prisma.watchlist.delete({
+                                    where: {
+                                        OR: [
+                                            {
+                                                film: update?.purchase?.filmId,
+                                            },
+                                            {
+                                                seasonId:
+                                                    update.purchase?.seasonId,
+                                            },
+                                        ],
+                                        type: 'PURCHASED',
+                                        userId: update.userId,
+                                    },
+                                });
                                 res.status(200).json({
                                     status: 'FAILED',
                                 });
                                 break;
                             case 'Transaction Timeout':
-                                await prisma.transaction.update({
+                                updated = await prisma.transaction.update({
                                     where: { id: existingTransaction.id },
-                                    data: {
-                                        status: 'FAILED',
-                                    },
+                                    data: { status: 'FAILED' },
+                                    include: { purchase: true },
                                 });
 
                                 if (transaction.type === 'PURCHASE') {
@@ -1631,6 +1697,19 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                         },
                                     });
                                 }
+                                await prisma.watchlist.delete({
+                                    where: {
+                                        OR: [
+                                            { film: update?.purchase?.filmId },
+                                            {
+                                                seasonId:
+                                                    update.purchase?.seasonId,
+                                            },
+                                        ],
+                                        type: 'PURCHASED',
+                                        userId: update.userId,
+                                    },
+                                });
                                 res.status(200).json({
                                     status: 'TIMEOUT',
                                 });

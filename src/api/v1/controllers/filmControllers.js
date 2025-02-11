@@ -6,6 +6,8 @@ import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '@/env.mjs';
 import { checkPaymentStatus as checkMtnStatus } from '@/services/mtnpayments.js';
+import { addDays } from 'date-fns';
+import { resSelector } from '@/utils/resSelector.js';
 
 /**
  * @name streamVideo
@@ -479,13 +481,6 @@ export const getVideoSource = async (req, res, next) => {
 };
 
 /**
- * @name bookmark - get video source
- * @description function to get video source from the bucket
- * @type {import('express').RequestHandler}
- */
-export const bookmark = async (req, res, next) => {};
-
-/**
  * @name addWatchList - Add to the watchlist
  * @description function to add a film to the watchlist
  * @type {import('express').RequestHandler}
@@ -713,7 +708,11 @@ export const likeRateFilm = async (req, res, next) => {
     }
 };
 
-//get film by tag
+/**
+ * @name getFilmBySearch
+ * @description function to search for a film
+ * @type {import('express').RequestHandler}
+ */
 export const getFilmBySearch = async (req, res, next) => {
     try {
         const query = req.query.q;
@@ -737,32 +736,69 @@ export const getFilmBySearch = async (req, res, next) => {
  */
 export const purchaseFilm = async (req, res, next) => {
     try {
-        const { userId, videoId } = req.params;
-        const body = req.body;
+        const { videoId } = req.params; // resourceId can either be a film or season id
+        const {
+            type,
+            userId,
+            option,
+            resourceId,
+            resolution,
+            resourceType,
+            paymentNumber,
+            paymentMethodId,
+        } = req.data;
 
-        //  console.log("body", body)
+        if (!userId || !body.resourceId || !body?.resourceType) {
+            returnError('Unauthorized purchase', 401);
+        }
 
-        if (!userId || !videoId) returnError('Unauthorized purchase', 401);
+        let resource = null;
 
-        const video = await prisma.video.findUnique({
-            where: { id: videoId },
-            include: {
-                videoPrice: true,
-                film: true,
-            },
-        });
+        if (resourceType === 'film') {
+            resource = await prisma.film.findUnique({
+                where: { id: resourceId },
+                include: { pricing: { include: { priceList: true } } },
+            });
+        }
 
-        if (!video) returnError('The resource can not be found.', 404);
-        if (!body?.option) returnError('Payment method is required', 400);
+        if (resourceType === 'season') {
+            resource = await prisma.season.findUnique({
+                where: { id: resourceId },
+                include: { pricing: { include: { priceList: true } } },
+            });
+        }
+
+        if (!resource) returnError('Could not find film or season', 404);
+
+        // get the pricing for the resolution that was sent
+        const priceItem = resource.pricing.priceList.find(
+            (price) => price.resolution === resolution
+        );
+
+        // const video = await prisma.video.findUnique({
+        //     where: { id: videoId },
+        //     include: {
+        //         videoPrice: true,
+        //         film: true,
+        //     },
+        // });
+
+        // if (!video) returnError('The resource can not be found.', 404);
+        // if (!option) returnError('Payment method is required', 400);
 
         //  const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
         let createdUUIDs = uuidv4(new Date());
-        let amounts = video?.videoPrice.price.toString();
-        const phoneNumbers =
-            body.phoneCode.replace('+', '') + body.paymentNumber;
+        // let amounts = video?.videoPrice.price.toString();
+        let amounts = priceItem.price.toString();
+        // const phoneNumbers =
+        //     body.phoneCode.replace('+', '') + body.paymentNumber;
+        const phoneNumber = paymentNumber.replace('+', '');
+
+        const resourceField = resourceType === 'film' ? 'filmId' : 'seasonId';
 
         // switch by payment type
-        switch (body.option) {
+        // switch (body.option) {
+        switch (option) {
             case 'mtnmomo':
                 try {
                     let TargetEnvs = 'mtnuganda';
@@ -777,7 +813,8 @@ export const purchaseFilm = async (req, res, next) => {
                         externalId: createdUUIDs,
                         payer: {
                             partyIdType: 'MSISDN',
-                            partyId: phoneNumbers,
+                            // partyId: phoneNumbers,
+                            partyId: phoneNumber,
                         },
                         payerMessage: `Purchase Film `,
                         payeeNote: '',
@@ -809,13 +846,6 @@ export const purchaseFilm = async (req, res, next) => {
                         submitOrderRequest.statusText
                     );
 
-                    // const response = await axios.post(URL, {
-                    //     phoneNumber,
-                    //     amount: video?.videoPrice.price.toString(),
-                    //     filmName: video?.film.title,
-                    //     paymentType: 'MTN',
-                    // });
-
                     if (submitOrderRequest.statusText !== 'Accepted') {
                         returnError('Payment Processing failed', 400);
                     }
@@ -825,14 +855,12 @@ export const purchaseFilm = async (req, res, next) => {
                         data: {
                             userId,
                             type: 'PURCHASE',
-                            amount: video?.videoPrice.price.toString(),
-                            currency: video?.videoPrice.currency,
+                            currency: currencys,
                             status: 'PENDING',
                             paymentMethodType: 'mtnmomo',
                             orderTrackingId: createdUUIDs,
-                            paymentMethodId: body.paymentMethodId
-                                ? body.paymentMethodId
-                                : null,
+                            amount: priceItem.price.toString(),
+                            paymentMethodId: paymentMethodId ?? null,
                         },
                     });
 
@@ -840,9 +868,10 @@ export const purchaseFilm = async (req, res, next) => {
                     await prisma.purchase.create({
                         data: {
                             userId,
-                            videoId,
                             status: 'PENDING',
+                            [resourceField]: resource.id,
                             transactionId: transaction.id,
+                            resolutions: resSelector(priceItem.resolution),
                         },
                     });
 
@@ -877,17 +906,17 @@ export const purchaseFilm = async (req, res, next) => {
                         description: 'Purchase for film ',
                         // callback_url: "https://api.nyatimotionpictures.com/api/v1/payment/pesapal/callback/web",
                         callback_url:
-                            body?.type === 'streamWeb'
+                            type === 'streamWeb'
                                 ? 'https://stream.nyatimotionpictures.com/pesapay/success'
                                 : 'https://nyatimotionpictures.com/donate/pesapay/success',
                         cancellation_url:
-                            body?.type === 'streamWeb'
+                            type === 'streamWeb'
                                 ? 'https://stream.nyatimotionpictures.com/pesapay/cancel'
                                 : 'https://nyatimotionpictures.com/donate/pesapay/cancel',
                         notification_id: req.ipn_id,
                         branch: '',
                         billing_address: {
-                            phone_number: phoneNumbers,
+                            phone_number: phoneNumber,
                             email_address: '',
                             country_code: '', //optional
                             first_name: '', //optional
@@ -918,15 +947,13 @@ export const purchaseFilm = async (req, res, next) => {
                             data: {
                                 userId,
                                 type: 'PURCHASE',
-                                amount: video?.videoPrice.price.toString(),
-                                currency: video?.videoPrice.currency,
+                                amount: priceItem.price.toString(),
+                                currency: resource.pricing.currency,
                                 status: 'PENDING',
                                 paymentMethodType: 'PesaPal',
                                 orderTrackingId:
                                     submitOrderRequest.data.order_tracking_id,
-                                paymentMethodId: body.paymentMethodId
-                                    ? body.paymentMethodId
-                                    : null,
+                                paymentMethodId: paymentMethodId ?? null,
                             },
                         });
 
@@ -934,9 +961,10 @@ export const purchaseFilm = async (req, res, next) => {
                         await prisma.purchase.create({
                             data: {
                                 userId,
-                                videoId,
                                 status: 'PENDING',
+                                [resourceField]: resourceId,
                                 transactionId: transaction.id,
+                                resolutions: resSelector(priceItem.resolution),
                             },
                         });
 
@@ -1267,7 +1295,12 @@ export const checkPaymentStatus = async (req, res, next) => {
                                                     .id,
                                             },
                                             data: {
+                                                valid: true,
                                                 status: 'SUCCESS',
+                                                expiresAt: addDays(
+                                                    new Date(),
+                                                    3
+                                                ), // 72hrs
                                             },
                                         },
                                     };
@@ -1506,7 +1539,12 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                                     .id,
                                             },
                                             data: {
+                                                valid: true,
                                                 status: 'SUCCESS',
+                                                expiresAt: addDays(
+                                                    new Date(),
+                                                    3
+                                                ), // 72hrs
                                             },
                                         },
                                     };

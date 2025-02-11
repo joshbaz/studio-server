@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { Status, DurationUnit, Currency } from '@prisma/client';
 import { isValid } from 'date-fns';
-import { type } from 'os';
 
 export const filmSchema = z.object({
     title: z.string({ message: 'Film title is required' }),
@@ -457,4 +456,31 @@ export const likeSchema = z.object({
 
 export const deleteVideoSchema = z.object({
     videoIds: z.array(z.string().nullable()).default([]),
+});
+
+export const purchaseSchema = z.object({
+    userId: z.string({ message: 'User ID is required' }).min(1),
+    resourceId: z.string({ message: 'Resource ID is required' }).min(1),
+    resourceType: z.union([z.literal('season'), z.literal('film')], {
+        message: 'Resource Type must be one of the following:, season or film',
+    }),
+    option: z.union(
+        [z.literal('mtnmomo'), z.literal('visa'), z.literal('airtelmoney')],
+        { message: 'Payment Option should be mtnmomo, visa or airtelmoney' }
+    ),
+    paymentNumber: z
+        .string({ message: 'Payment Number is required' })
+        .min(1)
+        .refine((phoneNumber) => {
+            // phone number regex
+            const regx = /^\+(?:[0-9]{1,3})?[0-9]{7,14}$/;
+            return regx.test(phoneNumber);
+        }),
+    resolution: z.union(
+        [z.literal('SD'), z.literal('HD'), z.literal('FHD'), z.literal('UHD')],
+        { message: 'Resolution should be SD, HD, FHD, UHD' }
+    ),
+
+    type: z.union([z.literal('streamweb')]).nullable(),
+    paymentMethodId: z.string().optional().nullable(),
 });

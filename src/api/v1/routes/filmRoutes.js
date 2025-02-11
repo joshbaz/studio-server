@@ -21,7 +21,11 @@ import { verifyToken } from '../middleware/verifyToken.js';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
 import { generateIPN_ID, generatePesaAuthTk } from '../middleware/pesapalmw.js';
 import { validateData } from '../middleware/validateBody.mjs';
-import { likeSchema, watchlistSchema } from '../validationschemas/index.js';
+import {
+    likeSchema,
+    purchaseSchema,
+    watchlistSchema,
+} from '../validationschemas/index.js';
 
 const router = express.Router();
 
@@ -32,11 +36,12 @@ router.post(
     addWatchList
 );
 router.post(
-    '/purchase/:userId/:videoId',
+    '/purchase',
     // verifyToken,
     generatePesaAuthTk,
     generateIPN_ID,
     generateMTNAuthTk,
+    validateData(purchaseSchema),
     purchaseFilm
 );
 router.post(

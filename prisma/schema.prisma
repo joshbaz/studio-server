@@ -159,10 +159,11 @@ model film {
   rating               rating[]
   Category             Category?      @relation(fields: [categoryId], references: [id])
   categoryId           String?        @db.ObjectId
-  pricing              pricing[]
+  pricing              pricing?
 
-  createdAt DateTime @default(now())
+  createdAt DateTime   @default(now())
   // updatedAt DateTime? @updatedAt 
+  purchase  purchase[]
 
   @@index([title], name: "title_index")
 }
@@ -240,15 +241,17 @@ model season {
   film             film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId           String?   @db.ObjectId
   watched          watched[]
-  pricing          pricing[]
+  pricing          pricing?
 
   Category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId String?   @db.ObjectId
 
-  createdAt DateTime    @default(now())
-  updatedAt DateTime?   @updatedAt
   likes     likes[]
   watchlist watchlist[]
+  purchase  purchase[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
 }
 
 model episode {
@@ -286,38 +289,24 @@ model episode {
 }
 
 model video {
-  id         String      @id @default(auto()) @map("_id") @db.ObjectId
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
   url        String
   format     String
-  name       String      @unique
+  name       String   @unique
   fps        String?
-  resolution String?     @default("HD")
+  resolution String?  @default("HD")
   bitrate    String?
   size       String?
   codec      String?
   encoding   String?
-  duration   Int?        @default(0)
-  isTrailer  Boolean     @default(false)
-  film       film?       @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId     String?     @db.ObjectId
-  episode    episode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
-  episodeId  String?     @db.ObjectId
-  videoPrice videoPrice?
-  purchase   purchase[]
-  season     season?     @relation(fields: [seasonId], references: [id])
-  seasonId   String?     @db.ObjectId
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-}
-
-// video prices
-model videoPrice {
-  id       String  @id @default(auto()) @map("_id") @db.ObjectId
-  video    video?  @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  videoId  String? @unique @db.ObjectId
-  price    Float
-  currency String
+  duration   Int?     @default(0)
+  isTrailer  Boolean  @default(false)
+  film       film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId     String?  @db.ObjectId
+  episode    episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId  String?  @db.ObjectId
+  season     season?  @relation(fields: [seasonId], references: [id])
+  seasonId   String?  @db.ObjectId
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -329,9 +318,9 @@ model pricing {
   priceList price[]
 
   film     film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId   String? @db.ObjectId
+  filmId   String? @unique @db.ObjectId
   season   season? @relation(fields: [seasonId], references: [id])
-  seasonId String? @db.ObjectId
+  seasonId String? @unique @db.ObjectId
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -365,23 +354,28 @@ model donation {
 }
 
 // Table for film purchases by users
-// TODO: Think about how this will work with series / episodes
 model purchase {
-  id     String  @id @default(auto()) @map("_id") @db.ObjectId
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  status      String   @default("PENDING")
+  expiresAt   DateTime
+  valid       Boolean  @default(false)
+  resolutions String[]
+
   user   user?   @relation(fields: [userId], references: [id])
   userId String? @db.ObjectId
 
-  video         video       @relation(fields: [videoId], references: [id])
-  videoId       String      @db.ObjectId
   transaction   transaction @relation(fields: [transactionId], references: [id])
   transactionId String      @unique @db.ObjectId
 
-  expiresAt DateTime? // Date when the purchase expires if it's a rental
-  status    String    @default("PENDING")
+  film   film?   @relation(fields: [filmId], references: [id])
+  filmId String? @db.ObjectId
+
+  season   season? @relation(fields: [seasonId], references: [id])
+  seasonId String? @db.ObjectId
 
   createdAt DateTime @default(now())
 
-  @@index([userId, videoId], name: "purchase_index")
+  @@index([userId, status], name: "purchase_idx")
 }
 
 enum TransactionType {

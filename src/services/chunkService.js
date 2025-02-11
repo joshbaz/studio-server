@@ -48,7 +48,7 @@ class ChunkService {
 
     async saveChunk(tempPath, fileName, start) {
         // create a directory if it doesn't exist and a folder for the file using the filename
-        const { filename } = this.formatFileNaxme(fileName);
+        const { filename } = this.formatFileName(fileName);
         const fileDir = path.join(this.uploadDir, filename);
 
         if (!fs.existsSync(fileDir)) {

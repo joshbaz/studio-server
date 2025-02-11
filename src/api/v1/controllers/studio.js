@@ -1259,8 +1259,6 @@ export const uploadTrailer = async (req, res, next) => {
     try {
         const { fileName, clientId, resourceId, type } = req.body;
 
-        console.log('body', req.body);
-
         if (!resourceId) {
             returnError('Resource ID is required', 400);
         }
@@ -1291,11 +1289,11 @@ export const uploadTrailer = async (req, res, next) => {
             returnError('Film or episode was not found', 404);
         }
 
-        const formattedFilename = chunkService.formatFileName(fileName);
+        const { filename } = chunkService.formatFileName(fileName);
 
         // check if we have a video with the same name in the bucket
         const videoExists = await prisma.video.findFirst({
-            where: { name: formattedFilename },
+            where: { name: fileName },
         });
 
         if (videoExists) {
@@ -1308,7 +1306,7 @@ export const uploadTrailer = async (req, res, next) => {
                 type === 'film'
                     ? resourceId
                     : `${resource.filmId}-${resource.id}`,
-            key: formattedFilename,
+            key: filename,
             buffer: fs.createReadStream(filePath),
             contentType: 'video/mp4',
             isPublic: true,
@@ -1329,7 +1327,7 @@ export const uploadTrailer = async (req, res, next) => {
             const videoData = {
                 url: data.url,
                 format: 'video/mp4',
-                name: formattedFilename,
+                name: filename,
                 size: formatFileSize(fs.statSync(filePath).size),
                 encoding: 'libx264',
                 isTrailer: true,
@@ -1346,10 +1344,10 @@ export const uploadTrailer = async (req, res, next) => {
             });
 
             // delete the file from the temp folder
-            fs.unlinkSync(filePath);
+            await fs.promises.rm(filePath);
         } else {
             // unlink the file from the temp folder
-            fs.unlinkSync(filePath);
+            await fs.promises.rm(filePath);
             returnError('Error uploading file. Try again!', 500);
         }
 

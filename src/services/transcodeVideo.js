@@ -8,7 +8,7 @@ import { formatBitrate } from '@/utils/formatBitrate.js';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 
-const RESOLUTIONS = {
+let RESOLUTIONS = {
     SD: 480,
     HD: 720,
     FHD: 1080,
@@ -66,23 +66,59 @@ function formatFileSize(size) {
 }
 
 /**
- * Transcode a video to multiple resolutions
- * @param {string} filePath - Path to the video file
- * @param {string} fileName - Name of the video file
- * @param {string} outputDir - Directory to save the transcoded videos
- * @param {string} clientId - Client ID to emit progress updates
- * @param {string} bucketName - Bucket name to upload the transcoded videos
- * @returns {Promise<VideoDetails[]>}
+ * @typedef{object} transcodeParams
+ * @property {string} type - Type of the video. Either "film" or "episode"
+ * @property {string} filePath - Path to the video file
+ * @property {string} fileName - Name of the video file
+ * @property {string} outputDir - Directory to save the transcoded videos
+ * @property {string} clientId - Client ID to emit progress updates
+ * @property {string} bucketName - Bucket name to upload the transcoded videos
+ * @property {({["SD" | "HD" | "FHD" | "UHD"]: number })=> object} onPreTranscode - Callback function that takes an object of resolutions as input and returns an updated object of resolutions. This can be used to modify the resolutions before transcoding starts.
+ * @property {(videoData: VideoDetails)=> void} onUploadComplete - Callback function to be called when the transcoded video has been uploaded to S3.
+ * @returns {Promise<void>}
  */
 
-export async function transcodeVideo(
+/**
+ * @name transcodeVideo
+ * @description Function to transcode a video into multiple resolutions using ffmpeg and upload them to DigitalOcean spaces
+ * @example
+ * ```javascript
+ * import { transcodeVideo } from "@/services/transcodeVideo";
+ *
+ * const filePath = "/path/to/video.mp4";
+ * const fileName = "my-video.mp4";
+ * const outputDir = "/path/to/output/directory/";
+ * const clientId = "client-id-123";
+ * const bucketName = "my-bucket-name";
+ *
+ * transcodeVideo({
+ *   type: "film",
+ *   filePath,
+ *   fileName,
+ *   outputDir,
+ *   clientId,
+ *   bucketName,
+ * }).then(() => {
+ *   console.log("All files have been transcoded.");
+ * });
+ * ```
+ * @param {transcodeParams} params
+ */
+
+export async function transcodeVideo({
+    type,
     filePath,
     fileName,
     outputDir,
     clientId,
     bucketName,
-    type
-) {
+    onPreTranscode,
+    onUploadComplete,
+}) {
+    if (onPreTranscode) {
+        RESOLUTIONS = await onPreTranscode(RESOLUTIONS);
+    }
+
     const results = [];
 
     try {
@@ -108,6 +144,11 @@ export async function transcodeVideo(
                     const command = Ffmpeg(filePath)
                         .videoCodec('libx264')
                         .size(`?x${height}`)
+                        .outputOptions([
+                            '-preset ultrafast',
+                            '-movflags faststart',
+                        ])
+                        .audioCodec('copy')
                         .format('mp4')
                         .output(outputPath)
                         .on('start', () => console.log('Transcoding started'))
@@ -118,19 +159,15 @@ export async function transcodeVideo(
                                 customProgress,
                             });
                         })
-                        .on('error', (error, stdout, stderr) => {
+                        .on('error', (error) => {
                             console.log(
                                 `Transcoding error for ${label}`,
                                 error
                             );
-                            console.error('FFmpeg error:', error);
-                            console.error('FFmpeg stdout:', stdout);
-                            console.error('FFmpeg stderr:', stderr);
+
                             reject(error);
                         })
                         .on('end', async () => {
-                            console.log(`${label} Transcoding ended`);
-
                             // create a readable stream from the transcoded file
                             const ffstream = fs.createReadStream(outputPath);
 
@@ -151,23 +188,13 @@ export async function transcodeVideo(
                                 });
                             })
                                 .then(async (data) => {
-                                    console.log(
-                                        `${label} Uploaded to Spaces:`,
-                                        data.url
-                                    );
-
                                     // ffprobe the transcoded stream
                                     const finalMetadata = await new Promise(
                                         (resolve, reject) => {
                                             Ffmpeg(outputPath).ffprobe(
                                                 (err, data) => {
-                                                    if (err) {
-                                                        console.log(
-                                                            'error',
-                                                            err
-                                                        );
-                                                        reject(err);
-                                                    } else resolve(data.format);
+                                                    if (err) reject(err);
+                                                    else resolve(data.format);
                                                 }
                                             );
                                         }
@@ -191,17 +218,16 @@ export async function transcodeVideo(
                                         ),
                                     };
 
+                                    // callback function to handle the completion
+                                    if (onUploadComplete) {
+                                        onUploadComplete(videoData);
+                                    }
+
                                     // remove the local copy of the video after uploading it to s3
-                                    await fs.promises.unlink(outputPath);
-                                    resolve(videoData);
+                                    await fs.promises.rm(outputPath);
+                                    resolve();
                                 })
-                                .catch((uploadError) => {
-                                    console.log(
-                                        `Error uploading ${label}`,
-                                        uploadError
-                                    );
-                                    reject(uploadError);
-                                });
+                                .catch((uploadError) => reject(uploadError));
                         });
 
                     command.run();
@@ -215,11 +241,11 @@ export async function transcodeVideo(
         }
 
         // remove the original file after transcoding
-        // fs.unlinkSync(filePath);
+        await fs.promises.rm(filePath);
         // Clean up the directory containing the original file
         return Promise.all(results);
     } catch (initialFfprobeError) {
-        console.log('initial ffprobe error', initialFfprobeError);
+        console.error('initial ffprobe error', initialFfprobeError);
         throw initialFfprobeError;
     }
 }

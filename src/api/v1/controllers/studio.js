@@ -5,7 +5,10 @@ import { deleteFromBucket, uploadToBucket } from '@/services/s3.js';
 import ChunkService from '@/services/chunkService.js';
 import { UPLOAD_DIR } from '@/services/multer.js';
 import { io } from '@/utils/sockets.js';
-import { transcodeOneAtATimeOld, transcodeVideo } from '@/services/transcodeVideo.js';
+import {
+    transcodeOneAtATimeOld,
+    transcodeVideo,
+} from '@/services/transcodeVideo.js';
 import fsExtra from 'fs-extra';
 import path from 'path';
 
@@ -774,8 +777,6 @@ export const checkingChunks = async (req, res, next) => {
     try {
         const { fileName, start } = req.query;
 
-    
-
         if (!fileName || !start) {
             return res
                 .status(400)
@@ -839,23 +840,27 @@ export const combiningChunks = async (req, res, next) => {
         // Close the finalStream properly
         finalStream.end();
 
-        finalStream.on("finish", async () => {
-            console.log("File merge complete:", filePath);
-      
+        finalStream.on('finish', async () => {
+            console.log('File merge complete:', filePath);
+
             try {
-              await fsExtra.promises.access(filePath, fs.constants.R_OK);
-              res.status(200).json({ success: true, message: "Chunks combined successfully!" });
+                await fsExtra.promises.access(filePath, fs.constants.R_OK);
+                res.status(200).json({
+                    success: true,
+                    message: 'Chunks combined successfully!',
+                });
             } catch (err) {
-              console.error("Error accessing merged file:", err);
-              res.status(500).json({ error: "Merged file is not accessible" });
+                console.error('Error accessing merged file:', err);
+                res.status(500).json({
+                    error: 'Merged file is not accessible',
+                });
             }
-          });
+        });
 
-          finalStream.on("error", (err) => {
-            console.error("Error writing final file:", err);
-            res.status(500).json({ error: "Error merging chunks" });
-          });
-
+        finalStream.on('error', (err) => {
+            console.error('Error writing final file:', err);
+            res.status(500).json({ error: 'Error merging chunks' });
+        });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -874,7 +879,7 @@ export const combiningChunks = async (req, res, next) => {
 export const uploadingFilm = async (req, res, next) => {
     try {
         const { clientId, fileName, type, resourceId } = req.body;
-      
+
         if (!clientId) returnError('Client ID is required', 400);
         if (!fileName) returnError('File name is required', 400);
         if (!resourceId) {
@@ -903,13 +908,10 @@ export const uploadingFilm = async (req, res, next) => {
         if (!resource.id) {
             // if resource is not found clear the file from the temp folder
             fs.unlinkSync(filePath);
-            returnError(
-                "The resource you were looking for doesn't exist",
-                404
-            );
+            returnError("The resource you were looking for doesn't exist", 404);
         }
 
-          const transcoded = await transcodeOneAtATimeOld(
+        const transcoded = await transcodeOneAtATimeOld(
             filePath,
             fileName,
             UPLOAD_DIR,
@@ -1054,7 +1056,6 @@ export const uploadingTrailer = async (req, res, next) => {
     }
 };
 
-
 // Video Uploads
 // film (type: movie)
 /**
@@ -1156,30 +1157,88 @@ export const uploadFilm = async (req, res, next) => {
                 ? resourceId
                 : `${resource.season?.filmId}-${resource.seasonId}`;
 
-        // transcode the video ie generate multiple resolutions of the video
-        const transcoded = await transcodeVideo(
-            filePath,
-            fileName,
-            UPLOAD_DIR,
-            clientId,
-            bucketName,
-            type
-        );
+        const onPreTranscode = async (resolutions) => {
+            try {
+                let videos = [];
 
-        for (const result of transcoded) {
-            // save the details of the video
+                if (type === 'film') {
+                    videos = await prisma.video.findMany({
+                        where: { filmId: resourceId },
+                        select: { id: true, resolution: true },
+                    });
+                }
+
+                if (type === 'season') {
+                    videos = await prisma.video.findMany({
+                        where: { seasonId: resourceId },
+                        select: { id: true, resolution: true },
+                    });
+                }
+
+                console.log('Videos', JSON.stringify(videos, null, 3));
+
+                // if no videos are found, use the default resolutions
+                if (!videos.length > 0) return resolutions;
+
+                const notInVideos = {};
+                for (const [resolution, ht] of Object.entries(resolutions)) {
+                    const exists = videos.some(
+                        (vid) => vid.resolution === resolution
+                    );
+                    if (!exists) {
+                        notInVideos[resolution] = ht;
+                    }
+                }
+                return notInVideos;
+            } catch (error) {
+                console.log('onPreTranscode', error);
+                throw error;
+            }
+        };
+
+        const onUploadComplete = async (data) => {
+            let result = { ...data };
+
             if (type === 'film') {
                 result.filmId = resourceId;
             }
-            if (type === 'episode') {
-                result.episodeId = resourceId;
+            if (type === 'season') {
+                result.seasonId = resourceId;
             }
 
-            // add the video to the database
             await prisma.video.create({
                 data: result,
             });
-        }
+
+            console.log('Uploaded video:', JSON.stringify(result, null, 3));
+        };
+
+        // transcode the video ie generate multiple resolutions of the video
+        await transcodeVideo({
+            type,
+            filePath,
+            fileName,
+            clientId,
+            bucketName,
+            onPreTranscode,
+            onUploadComplete,
+            outputDir: UPLOAD_DIR,
+        });
+
+        // for (const result of transcoded) {
+        //     // save the details of the video
+        //     if (type === 'film') {
+        //         result.filmId = resourceId;
+        //     }
+        //     if (type === 'episode') {
+        //         result.episodeId = resourceId;
+        //     }
+
+        //     // add the video to the database
+        //     await prisma.video.create({
+        //         data: result,
+        //     });
+        // }
 
         res.status(200).json({ message: 'Upload complete' });
     } catch (error) {

@@ -1163,14 +1163,14 @@ export const uploadFilm = async (req, res, next) => {
 
                 if (type === 'film') {
                     videos = await prisma.video.findMany({
-                        where: { filmId: resourceId },
+                        where: { filmId: resourceId, isTrailer: false },
                         select: { id: true, resolution: true },
                     });
                 }
 
                 if (type === 'season') {
                     videos = await prisma.video.findMany({
-                        where: { seasonId: resourceId },
+                        where: { seasonId: resourceId, isTrailer: false },
                         select: { id: true, resolution: true },
                     });
                 }

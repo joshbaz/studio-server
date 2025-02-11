@@ -191,13 +191,8 @@ export const fetchFilm = async (req, res, next) => {
                 pricing: {
                     include: { priceList: true },
                 },
-                video: {
-                    include: {
-                        purchase: {
-                            where: { userId: req.userId },
-                        },
-                    },
-                },
+                purchase: true,
+                video: true,
                 season: {
                     include: {
                         likes: { where: { userId: req.userId } },
@@ -225,22 +220,15 @@ export const fetchFilm = async (req, res, next) => {
             },
         });
 
-        if (!film) {
-            returnError('Film not found', 404);
+        // confirm if the film has a purchase and it has expired
+        if (film.purchase && film.purchase.expiresAt < new Date()) {
+            await prisma.purchase.update({
+                where: { id: film.purchase.id, userId: req.userId },
+                data: { valid: false },
+            });
         }
 
-        // check if the user has purchased a video in the film
-        const videoPurchased = await prisma.purchase.findFirst({
-            where: {
-                status: 'SUCCESS',
-                userId: req.userId,
-                video: {
-                    filmId,
-                },
-            },
-        });
-
-        film.videoPurchased = videoPurchased ? true : false;
+        if (!film) returnError('Film not found', 404);
 
         res.status(200).json({ film });
     } catch (error) {
@@ -269,6 +257,7 @@ export const fetchSeason = async (req, res, next) => {
                 film: true,
                 posters: true,
                 trailers: true,
+                purchase: { where: { userId } },
                 pricing: {
                     include: { priceList: true },
                 },
@@ -282,6 +271,14 @@ export const fetchSeason = async (req, res, next) => {
                 },
             },
         });
+
+        // confirm if the season has a purchase and it has expired
+        if (season.purchase && season.purchase?.expiresAt < new Date()) {
+            await prisma.purchase.update({
+                where: { id: season.purchase.id, userId },
+                data: { valid: false },
+            });
+        }
 
         res.status(200).json({ season });
     } catch (error) {

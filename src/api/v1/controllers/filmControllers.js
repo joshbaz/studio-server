@@ -1267,16 +1267,9 @@ export const checkPaymentStatus = async (req, res, next) => {
 
         if (!existingTransaction) returnError('Transaction not found', 404);
 
-        // const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
-
         switch (existingTransaction.paymentMethodType) {
             case 'mtnmomo':
                 try {
-                    // const URL = `${PAYMENTS_API}/mtn/app/checkstatus/${orderTrackingId}`;
-                    // const response = await axios.get(URL, {
-                    //     headers: { 'Content-Type': 'application/json' },
-                    // });
-
                     const { status, data } = await checkMtnStatus({
                         trackingId: orderTrackingId,
                         token: req.mtn_access_token,
@@ -1450,9 +1443,8 @@ export const checkPaymentStatus = async (req, res, next) => {
                 } catch (error) {
                     throw error;
                 }
-            case 'airtel':
-                break;
-            case existingTransaction.paymentMethodType.includes('pesapal'):
+            default:
+                returnError('Invalid payment type', 400);
                 break;
         }
     } catch (error) {
@@ -1470,7 +1462,6 @@ export const checkPaymentStatus = async (req, res, next) => {
  */
 export const checkPesapalPaymentStatus = async (req, res, next) => {
     try {
-        console.log('checkPesapalPaymentStatus');
         const { OrderTrackingId } = req.query;
 
         let orderTrackingId = OrderTrackingId;
@@ -1491,10 +1482,10 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
 
         if (!existingTransaction) returnError('Transaction not found', 404);
 
-        // const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
-
         switch (existingTransaction.paymentMethodType) {
-            case existingTransaction.paymentMethodType?.includes('pesapal'):
+            case existingTransaction.paymentMethodType
+                .toLocaleLowerCase()
+                ?.includes('pesapal'):
                 try {
                     let PESA_URL = 'https://pay.pesapal.com/v3';
                     let PesaRequestLink = `${PESA_URL}/api/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`;
@@ -1719,7 +1710,6 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                 } catch (error) {
                     throw error;
                 }
-
             default:
                 returnError('Invalid payment type', 400);
                 break;

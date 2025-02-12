@@ -106,31 +106,20 @@ export const getFilm = async (req, res, next) => {
             },
             include: {
                 posters: true,
-                video: {
-                    include: {
-                        purchase: {
-                            include: {
-                                transaction: true,
-                            },
-                        },
-                        videoPrice: true,
-                    },
-                },
+                video: true,
                 views: true,
                 pricing: {
                     include: { priceList: true },
                 },
+                purchase: { include: { transaction: true } },
                 season: {
                     include: {
+                        purchase: true,
                         trailers: true,
                         posters: true,
                         episodes: {
                             include: {
-                                video: {
-                                    include: {
-                                        videoPrice: true,
-                                    },
-                                },
+                                video: true,
                                 posters: true,
                             },
                         },
@@ -151,7 +140,6 @@ export const getFilm = async (req, res, next) => {
         // get the total donation amount for the film
         let totalDonation = 0;
 
-        console.log(film?.donation);
         if (film?.donation.length > 0) {
             totalDonation = film.donation.reduce((acc, donation) => {
                 if (donation.transaction.status === 'SUCCESS') {
@@ -162,25 +150,42 @@ export const getFilm = async (req, res, next) => {
         }
 
         let purchaseAmount = {};
-        if (film?.access === 'rent') {
-            // get the total purchase per video resolution
-            purchaseAmount = film.video.reduce((acc, video) => {
-                if (video.purchase.length > 0) {
-                    for (let purchase of video.purchase) {
-                        if (purchase.transaction.status === 'SUCCESS') {
-                            if (acc[video.resolution]) {
-                                acc[video.resolution] +=
-                                    purchase.transaction.amount;
-                            } else {
-                                acc[video.resolution] =
-                                    purchase.transaction.amount;
-                            }
-                        }
-                    }
-                }
-                return acc;
-            }, {});
-        }
+        // if (film?.access === 'rent') {
+        //     // get the total purchase per video resolution
+        //     purchaseAmount = film.purchase.reduce((acc, purchase) => {
+        //         if (purchase.status === 'SUCCESS') {
+        //             if (acc[purchase.resolutions]) {
+        //                 acc[purchase.video.resolution] +=
+        //                     purchase.transaction.amount;
+        //             } else {
+        //                 acc[purchase.video.resolution] =
+        //                     purchase.transaction.amount;
+        //             }
+        //         } else {
+        //             if (acc[purchase.video.resolution]) {
+        //                 acc[purchase.video.resolution] -=
+        //                     purchase.transaction.amount;
+        //             } else {
+        //                 acc[purchase.video.resolution] =
+        //                     -purchase.transaction.amount;
+        //             }
+        //         }
+        //         // if (video.purchase.length > 0) {
+        //         //     for (let purchase of video.purchase) {
+        //         //         if (purchase.transaction.status === 'SUCCESS') {
+        //         //             if (acc[video.resolution]) {
+        //         //                 acc[video.resolution] +=
+        //         //                     purchase.transaction.amount;
+        //         //             } else {
+        //         //                 acc[video.resolution] =
+        //         //                     purchase.transaction.amount;
+        //         //             }
+        //         //         }
+        //         //     }
+        //         // }
+        //         return acc;
+        //     }, {});
+        // }
 
         return res.status(200).json({ film, totalDonation, purchaseAmount });
     } catch (error) {

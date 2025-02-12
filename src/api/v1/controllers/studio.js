@@ -1153,7 +1153,7 @@ export const uploadFilm = async (req, res, next) => {
 
         if (!resource) {
             // if resource is not found clear the file from the temp folder
-            fs.unlinkSync(filePath);
+            await fs.promises.rm(filePath);
             returnError("The resource you were looking for doesn't exist", 404);
         }
 
@@ -1173,14 +1173,12 @@ export const uploadFilm = async (req, res, next) => {
                     });
                 }
 
-                if (type === 'season') {
+                if (type === 'episode') {
                     videos = await prisma.video.findMany({
-                        where: { seasonId: resourceId, isTrailer: false },
+                        where: { episodeId: resourceId, isTrailer: false },
                         select: { id: true, resolution: true },
                     });
                 }
-
-                console.log('Videos', JSON.stringify(videos, null, 3));
 
                 // if no videos are found, use the default resolutions
                 if (!videos.length > 0) return resolutions;
@@ -1196,7 +1194,6 @@ export const uploadFilm = async (req, res, next) => {
                 }
                 return notInVideos;
             } catch (error) {
-                console.log('onPreTranscode', error);
                 throw error;
             }
         };
@@ -1207,15 +1204,13 @@ export const uploadFilm = async (req, res, next) => {
             if (type === 'film') {
                 result.filmId = resourceId;
             }
-            if (type === 'season') {
-                result.seasonId = resourceId;
+            if (type === 'episode') {
+                result.episodeId = resourceId;
             }
 
             await prisma.video.create({
                 data: result,
             });
-
-            console.log('Uploaded video:', JSON.stringify(result, null, 3));
         };
 
         // transcode the video ie generate multiple resolutions of the video
@@ -1229,21 +1224,6 @@ export const uploadFilm = async (req, res, next) => {
             onUploadComplete,
             outputDir: UPLOAD_DIR,
         });
-
-        // for (const result of transcoded) {
-        //     // save the details of the video
-        //     if (type === 'film') {
-        //         result.filmId = resourceId;
-        //     }
-        //     if (type === 'episode') {
-        //         result.episodeId = resourceId;
-        //     }
-
-        //     // add the video to the database
-        //     await prisma.video.create({
-        //         data: result,
-        //     });
-        // }
 
         res.status(200).json({ message: 'Upload complete' });
     } catch (error) {
@@ -1341,7 +1321,7 @@ export const uploadTrailer = async (req, res, next) => {
             if (type === 'film') {
                 videoData.filmId = resourceId;
             } else {
-                videoData.seasonId = resourceId;
+                videoData.episodeId = resourceId;
             }
 
             await prisma.video.create({

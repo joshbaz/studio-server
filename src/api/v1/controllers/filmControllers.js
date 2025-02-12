@@ -224,9 +224,6 @@ export const fetchFilm = async (req, res, next) => {
         if (!film) returnError('Film not found', 404);
 
         const validPurchase = film?.purchase[0];
-        const isExpired = isPast(validPurchase?.expiresAt);
-
-        console.log('validPurchase', validPurchase, isExpired);
 
         // confirm if the film has a purchase and it has expired
         if (validPurchase && validPurchase.expiresAt < new Date()) {

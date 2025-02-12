@@ -1469,6 +1469,7 @@ export const checkPaymentStatus = async (req, res, next) => {
  */
 export const checkPesapalPaymentStatus = async (req, res, next) => {
     try {
+        console.log('checkPesapalPaymentStatus');
         const { OrderTrackingId } = req.query;
 
         let orderTrackingId = OrderTrackingId;
@@ -1492,8 +1493,7 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
         // const PAYMENTS_API = env.NYATI_PAYMENTS_API_URL;
 
         switch (existingTransaction.paymentMethodType) {
-            case 'Pesapal' ||
-                existingTransaction.paymentMethodType?.includes('pesapal'):
+            case existingTransaction.paymentMethodType?.includes('pesapal'):
                 try {
                     let PESA_URL = 'https://pay.pesapal.com/v3';
                     let PesaRequestLink = `${PESA_URL}/api/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`;

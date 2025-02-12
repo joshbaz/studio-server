@@ -1401,10 +1401,8 @@ export const getPurchaseHistory = async (req, res, next) => {
     try {
         const transactions = await prisma.transaction.findMany({
             where: {
-                status: {
-                    in: ['SUCCESS', 'PENDING'],
-                },
                 type: 'PURCHASE',
+                status: { in: ['SUCCESS', 'PENDING'] },
             },
             include: {
                 user: {
@@ -1419,7 +1417,7 @@ export const getPurchaseHistory = async (req, res, next) => {
         });
 
         const totalAmount = transactions.reduce((acc, transaction) => {
-            acc += transaction.amount;
+            acc += parseFloat(transaction.amount);
             return acc;
         }, 0);
 

@@ -1485,9 +1485,7 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
         console.log('existingTransaction', existingTransaction);
 
         switch (existingTransaction.paymentMethodType) {
-            case existingTransaction.paymentMethodType
-                .toLowerCase()
-                ?.includes('pesapal'):
+            case 'PesaPal':
                 try {
                     let PESA_URL = 'https://pay.pesapal.com/v3';
                     let PesaRequestLink = `${PESA_URL}/api/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`;

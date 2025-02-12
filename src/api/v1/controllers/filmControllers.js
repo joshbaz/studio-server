@@ -1313,6 +1313,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                             data: {
                                                 valid: true,
                                                 status: 'SUCCESS',
+                                                expiredAt: add(new Date(), 3),
                                             },
                                         },
                                     };
@@ -1587,6 +1588,7 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                             data: {
                                                 valid: true,
                                                 status: 'SUCCESS',
+                                                expiredAt: add(new Date(), 3), // set expiry date for purchased to start from now + 3 days
                                             },
                                         },
                                     };

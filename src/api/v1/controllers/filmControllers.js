@@ -231,7 +231,7 @@ export const fetchFilm = async (req, res, next) => {
         // confirm if the film has a purchase and it has expired
         if (validPurchase && validPurchase.expiresAt < new Date()) {
             await prisma.purchase.update({
-                where: { id: film.purchase.id, userId: req.userId },
+                where: { id: validPurchase.id, userId: req.userId },
                 data: { valid: false },
             });
         }

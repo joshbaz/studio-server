@@ -733,7 +733,6 @@ export const getFilmBySearch = async (req, res, next) => {
  */
 export const purchaseFilm = async (req, res, next) => {
     try {
-        const { videoId } = req.params; // resourceId can either be a film or season id
         const {
             type,
             userId,

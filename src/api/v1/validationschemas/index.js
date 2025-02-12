@@ -481,6 +481,6 @@ export const purchaseSchema = z.object({
         { message: 'Resolution should be SD, HD, FHD, UHD' }
     ),
 
-    type: z.union([z.literal('streamweb')]).nullable(),
+    type: z.union([z.literal('streamWeb')]).nullable(),
     paymentMethodId: z.string().optional().nullable(),
 });

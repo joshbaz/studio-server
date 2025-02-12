@@ -6,7 +6,7 @@ import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '@/env.mjs';
 import { checkPaymentStatus as checkMtnStatus } from '@/services/mtnpayments.js';
-import { addDays } from 'date-fns';
+import { addDays, isPast } from 'date-fns';
 import { resSelector } from '@/utils/resSelector.js';
 
 /**
@@ -191,7 +191,7 @@ export const fetchFilm = async (req, res, next) => {
                 pricing: {
                     include: { priceList: true },
                 },
-                purchase: true,
+                purchase: { where: { userId: req.userId, valid: true } },
                 video: true,
                 season: {
                     include: {
@@ -220,15 +220,21 @@ export const fetchFilm = async (req, res, next) => {
             },
         });
 
+        // check if
+        if (!film) returnError('Film not found', 404);
+
+        const validPurchase = film?.purchase[0];
+        const isExpired = isPast(validPurchase?.expiresAt);
+
+        console.log('validPurchase', validPurchase, isExpired);
+
         // confirm if the film has a purchase and it has expired
-        if (film.purchase && film.purchase.expiresAt < new Date()) {
+        if (validPurchase && validPurchase.expiresAt < new Date()) {
             await prisma.purchase.update({
                 where: { id: film.purchase.id, userId: req.userId },
                 data: { valid: false },
             });
         }
-
-        if (!film) returnError('Film not found', 404);
 
         res.status(200).json({ film });
     } catch (error) {

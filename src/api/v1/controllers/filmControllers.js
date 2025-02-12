@@ -1484,7 +1484,7 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
 
         switch (existingTransaction.paymentMethodType) {
             case existingTransaction.paymentMethodType
-                .toLocaleLowerCase()
+                .toLowerCase()
                 ?.includes('pesapal'):
                 try {
                     let PESA_URL = 'https://pay.pesapal.com/v3';

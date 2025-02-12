@@ -969,6 +969,7 @@ export const purchaseFilm = async (req, res, next) => {
                                 status: 'PENDING',
                                 [resourceField]: resourceId,
                                 transactionId: transaction.id,
+                                expiresAt: addDays(new Date(), 3), // 72hrs
                                 resolutions: resSelector(priceItem.resolution),
                             },
                         });
@@ -1311,10 +1312,6 @@ export const checkPaymentStatus = async (req, res, next) => {
                                             data: {
                                                 valid: true,
                                                 status: 'SUCCESS',
-                                                expiresAt: addDays(
-                                                    new Date(),
-                                                    3
-                                                ), // 72hrs
                                             },
                                         },
                                     };
@@ -1589,10 +1586,6 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                                             data: {
                                                 valid: true,
                                                 status: 'SUCCESS',
-                                                expiresAt: addDays(
-                                                    new Date(),
-                                                    3
-                                                ), // 72hrs
                                             },
                                         },
                                     };

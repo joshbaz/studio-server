@@ -1482,6 +1482,8 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
 
         if (!existingTransaction) returnError('Transaction not found', 404);
 
+        console.log('existingTransaction', existingTransaction);
+
         switch (existingTransaction.paymentMethodType) {
             case existingTransaction.paymentMethodType
                 .toLowerCase()

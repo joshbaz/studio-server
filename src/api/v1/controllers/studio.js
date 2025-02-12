@@ -613,7 +613,7 @@ export const deleteEpisode = async (req, res, next) => {
             include: {
                 video: true,
                 season: { select: { id: true, filmId: true } },
-                poster: true,
+                posters: true,
             },
         });
 
@@ -631,8 +631,8 @@ export const deleteEpisode = async (req, res, next) => {
         }
 
         // delete posters
-        if (episode.poster.length > 0) {
-            for (let poster of episode.poster) {
+        if (episode.posters.length > 0) {
+            for (let poster of episode.posters) {
                 await deleteFromBucket({
                     bucketName: `${episode.season.filmId}-${episode.seasonId}`,
                     key: poster.name,

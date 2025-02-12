@@ -744,7 +744,7 @@ export const purchaseFilm = async (req, res, next) => {
             paymentMethodId,
         } = req.data;
 
-        if (!userId || !body.resourceId || !body?.resourceType) {
+        if (!userId || !resourceId || !resourceType) {
             returnError('Unauthorized purchase', 401);
         }
 

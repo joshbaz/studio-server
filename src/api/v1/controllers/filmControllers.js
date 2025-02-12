@@ -1501,9 +1501,14 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
                     });
 
                     if (!submitStatusRequest.data) {
-                        // console.log("error", submitStatusRequest.data)
+                        console.log('error', submitStatusRequest.data);
                         returnError('Check Payment Failed', 500);
                     }
+
+                    console.log(
+                        'submitStatusRequest',
+                        submitStatusRequest.data
+                    );
 
                     const {
                         payment_method,

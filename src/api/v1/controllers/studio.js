@@ -241,22 +241,33 @@ export const uploadPoster = async (req, res, next) => {
         if (type === 'film') {
             resource = await prisma.film.findUnique({
                 where: { id: resourceId },
+                include: { posters: true },
             });
         }
 
         if (type === 'season') {
             resource = await prisma.season.findUnique({
                 where: { id: resourceId },
+                include: { posters: true },
             });
         }
 
         if (type === 'episode') {
             resource = await prisma.episode.findUnique({
                 where: { id: resourceId },
+                include: { posters: true },
             });
         }
 
         if (!resource) returnError('Film, season or episode not found', 404);
+
+        const hasSameName = resource.posters.some(
+            (poster) => poster.name === poster.originalname
+        );
+
+        if (hasSameName) {
+            returnError('You cannot have two images with same name', 409);
+        }
 
         // get the file from the request
         const poster = req.file;
@@ -265,11 +276,9 @@ export const uploadPoster = async (req, res, next) => {
         const bucketName =
             type === 'film' ? resourceId : `${resource.filmId}-${resourceId}`;
 
-        const uniqueFileName = `${Date.now()}-${poster.originalname}`;
-
         const bucketParams = {
             bucketName,
-            key: uniqueFileName,
+            key: poster.originalname,
             buffer: poster.buffer,
             contentType: poster.mimetype,
             isPublic: true,
@@ -285,11 +294,9 @@ export const uploadPoster = async (req, res, next) => {
 
         if (!data.url) returnError('Error uploading file. Try again!', 500);
 
-        console.log(data);
-
         const posterData = {
             url: data.url,
-            name: data.key,
+            name: poster.originalname,
             type: poster.mimetype,
             isCover: isCover === 'true' ? true : false,
             isBackdrop: isBackdrop === 'true' ? true : false,

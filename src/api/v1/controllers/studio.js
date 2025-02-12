@@ -1413,6 +1413,9 @@ export const getPurchaseHistory = async (req, res, next) => {
                         email: true,
                     },
                 },
+                purchase: {
+                    include: { film: true, season: true },
+                },
             },
         });
 

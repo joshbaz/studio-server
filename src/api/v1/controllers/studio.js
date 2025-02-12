@@ -234,8 +234,6 @@ export const uploadPoster = async (req, res, next) => {
         const { resourceId } = req.params;
         const { isCover, isBackdrop, type } = req.body;
 
-        console.log('type', type);
-
         if (!resourceId) returnError('FilmID is required', 400);
 
         let resource = null;
@@ -267,9 +265,11 @@ export const uploadPoster = async (req, res, next) => {
         const bucketName =
             type === 'film' ? resourceId : `${resource.filmId}-${resourceId}`;
 
+        const uniqueFileName = `${Date.now()}-${poster.originalname}`;
+
         const bucketParams = {
             bucketName,
-            key: poster.originalname,
+            key: uniqueFileName,
             buffer: poster.buffer,
             contentType: poster.mimetype,
             isPublic: true,
@@ -285,9 +285,11 @@ export const uploadPoster = async (req, res, next) => {
 
         if (!data.url) returnError('Error uploading file. Try again!', 500);
 
+        console.log(data);
+
         const posterData = {
             url: data.url,
-            name: poster.originalname,
+            name: data.key,
             type: poster.mimetype,
             isCover: isCover === 'true' ? true : false,
             isBackdrop: isBackdrop === 'true' ? true : false,
@@ -300,8 +302,6 @@ export const uploadPoster = async (req, res, next) => {
         } else {
             posterData.episodeId = resourceId;
         }
-
-        console.log(posterData);
 
         await prisma.poster.create({ data: posterData });
         res.status(200).json({ message: 'Upload complete' });
@@ -606,17 +606,13 @@ export const deleteEpisode = async (req, res, next) => {
     try {
         const { episodeId } = req.params;
 
+        if (!episodeId) returnError('Episode ID is required selected', 400);
+
         const episode = await prisma.episode.findUnique({
-            where: {
-                id: episodeId,
-            },
+            where: { id: episodeId },
             include: {
                 video: true,
-                season: {
-                    include: {
-                        film: true,
-                    },
-                },
+                season: { select: { id: true, filmId: true } },
                 poster: true,
             },
         });
@@ -628,7 +624,7 @@ export const deleteEpisode = async (req, res, next) => {
         if (episode.video.length > 0) {
             for (let video of episode.video) {
                 await deleteFromBucket({
-                    bucketName: `${episode?.season.filmId}-${episode.seasonId}`,
+                    bucketName: `${episode.season?.filmId}-${episode.seasonId}`,
                     key: video.name,
                 });
             }
@@ -648,10 +644,7 @@ export const deleteEpisode = async (req, res, next) => {
             where: { id: episodeId },
         });
 
-        res.status(200).json({
-            episode,
-            message: 'Episode deleted',
-        });
+        res.status(200).json({ message: 'Episode deleted' });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

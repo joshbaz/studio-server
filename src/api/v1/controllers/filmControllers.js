@@ -877,7 +877,7 @@ export const purchaseFilm = async (req, res, next) => {
                         data: {
                             userId,
                             type: 'PURCHASED',
-                            [resourceField]: resource,
+                            [resourceField]: resourceId,
                         },
                     });
 
@@ -980,7 +980,7 @@ export const purchaseFilm = async (req, res, next) => {
                             data: {
                                 userId,
                                 type: 'PURCHASED',
-                                [resourceField]: resource,
+                                [resourceField]: resourceId,
                             },
                         });
 

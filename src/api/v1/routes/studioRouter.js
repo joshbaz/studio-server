@@ -83,7 +83,12 @@ router.get('/check-upload-chunk', verifyToken, checkUploadChunk);
 
 // JOSHUA'S ROUTES for video testing
 router.get('/check-upload-chunks', verifyToken, checkingChunks);
-router.post('/upload-chunks', verifyToken,upload.single('chunk'), uploadingChunks);
+router.post(
+    '/upload-chunks',
+    verifyToken,
+    upload.single('chunk'),
+    uploadingChunks
+);
 router.post('/combine-chunks', verifyToken, combiningChunks);
 router.post('/complete-uploads', verifyToken, uploadingFilm);
 router.post('/trailer-uploads', verifyToken, uploadingTrailer);
@@ -94,7 +99,7 @@ router.post('/upload-chunk', verifyToken, upload.single('chunk'), uploadChunk);
 router.post('/complete-upload', verifyToken, uploadFilm);
 router.post('/trailer-upload', verifyToken, uploadTrailer); // requires resourseId { filmId or seasonId }, clientID (for socket.io), and fileName
 router.post(
-    '/posterupload/:filmId',
+    '/posterupload/:resourceId',
     verifyToken,
     checkPoster.single('poster'),
     uploadPoster

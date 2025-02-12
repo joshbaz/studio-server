@@ -231,33 +231,44 @@ export const createFilm = async (req, res, next) => {
  */
 export const uploadPoster = async (req, res, next) => {
     try {
-        const { filmId } = req.params;
+        const { resourceId } = req.params;
         const { isCover, isBackdrop, type } = req.body;
 
-        if (!filmId) returnError('FilmID is required', 400);
+        console.log('type', type);
 
-        const film =
-            type === 'season'
-                ? await prisma.season.findUnique({
-                      where: { id: filmId },
-                      include: {
-                          posters: true,
-                      },
-                  })
-                : await prisma.film.findUnique({
-                      where: { id: filmId },
-                      include: {
-                          posters: true,
-                      },
-                  });
+        if (!resourceId) returnError('FilmID is required', 400);
 
-        if (!film) returnError('Film not found', 404);
+        let resource = null;
+
+        if (type === 'film') {
+            resource = await prisma.film.findUnique({
+                where: { id: resourceId },
+            });
+        }
+
+        if (type === 'season') {
+            resource = await prisma.season.findUnique({
+                where: { id: resourceId },
+            });
+        }
+
+        if (type === 'episode') {
+            resource = await prisma.episode.findUnique({
+                where: { id: resourceId },
+            });
+        }
+
+        if (!resource) returnError('Film, season or episode not found', 404);
 
         // get the file from the request
         const poster = req.file;
         if (!poster) returnError('No file uploaded', 400);
+
+        const bucketName =
+            type === 'film' ? resourceId : `${resource.filmId}-${resourceId}`;
+
         const bucketParams = {
-            bucketName: filmId,
+            bucketName,
             key: poster.originalname,
             buffer: poster.buffer,
             contentType: poster.mimetype,
@@ -267,34 +278,32 @@ export const uploadPoster = async (req, res, next) => {
         const data = await uploadToBucket(bucketParams, (progress) => {
             broadcastProgress({
                 progress,
-                clientId: filmId,
+                clientId: resourceId,
                 content: { type: 'poster' },
             });
         });
 
         if (!data.url) returnError('Error uploading file. Try again!', 500);
 
-        const posterData =
-            type === 'season'
-                ? {
-                      url: data.url,
-                      name: poster.originalname,
-                      type: poster.mimetype,
-                      isCover: isCover === 'true' ? true : false,
-                      isBackdrop: isBackdrop === 'true' ? true : false,
-                      seasonId: filmId,
-                  }
-                : {
-                      url: data.url,
-                      name: poster.originalname,
-                      type: poster.mimetype,
-                      isCover: isCover === 'true' ? true : false,
-                      isBackdrop: isBackdrop === 'true' ? true : false,
-                      filmId,
-                  };
+        const posterData = {
+            url: data.url,
+            name: poster.originalname,
+            type: poster.mimetype,
+            isCover: isCover === 'true' ? true : false,
+            isBackdrop: isBackdrop === 'true' ? true : false,
+        };
+
+        if (type === 'film') {
+            posterData.filmId = resourceId;
+        } else if (type === 'season') {
+            posterData.seasonId = resourceId;
+        } else {
+            posterData.episodeId = resourceId;
+        }
+
+        console.log(posterData);
 
         await prisma.poster.create({ data: posterData });
-
         res.status(200).json({ message: 'Upload complete' });
     } catch (error) {
         if (!error.statusCode) {
@@ -1270,7 +1279,7 @@ export const uploadTrailer = async (req, res, next) => {
 
         if (!resource) {
             // if resource is not found clear the file from the temp folder
-            fs.unlinkSync(filePath);
+            await fs.promises.unlink(filePath);
             returnError('Film or episode was not found', 404);
         }
 
@@ -1282,7 +1291,7 @@ export const uploadTrailer = async (req, res, next) => {
         });
 
         if (videoExists) {
-            fs.unlinkSync(filePath);
+            await fs.promises.rm(filePath);
             returnError('A video with the same name already exists', 400);
         }
 
@@ -1321,7 +1330,7 @@ export const uploadTrailer = async (req, res, next) => {
             if (type === 'film') {
                 videoData.filmId = resourceId;
             } else {
-                videoData.episodeId = resourceId;
+                videoData.seasonId = resourceId;
             }
 
             await prisma.video.create({

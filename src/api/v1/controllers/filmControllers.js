@@ -867,6 +867,7 @@ export const purchaseFilm = async (req, res, next) => {
                             status: 'PENDING',
                             [resourceField]: resource.id,
                             transactionId: transaction.id,
+                            expiresAt: addDays(new Date(), 3), // 72hrs
                             resolutions: resSelector(priceItem.resolution),
                         },
                     });

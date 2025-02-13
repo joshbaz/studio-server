@@ -146,11 +146,10 @@ export async function transcodeVideo({
                         .size(`?x${height}`)
                         .outputOptions([
                             '-preset ultrafast',
-                            '-movflags faststart',
+                           '-movflags faststart',
+                            '-c:s copy',
                         ])
                         .audioCodec('copy')
-                        .outputOptions('-map 0') // Ensures all streams (video, audio, subtitles) are included
-                        .outputOptions('-c:s webvtt') // Convert subtitles to WebVTT
                         .format('mp4')
                         .output(outputPath)
                         .on('start', () => console.log('Transcoding started'))

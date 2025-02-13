@@ -1912,8 +1912,8 @@ export const createPricing = async (req, res, next) => {
 
         await prisma.pricing.create({
             data: {
-                [resourceField]: resourceId,
                 currency,
+                [resourceField]: resourceId,
                 priceList: { create: [...priceList] },
             },
         });

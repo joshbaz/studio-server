@@ -387,7 +387,9 @@ export const pricingSchema = z.object({
     type: z.union([z.literal('movie'), z.literal('season')], {
         message: 'Type movie or season is required',
     }),
-    resourceId: z.string({ message: 'Either filmId or seasonId is required' }),
+    resourceId: z
+        .string({ message: 'Either filmId or seasonId is required' })
+        .min(1),
     currency: z
         .string({ message: 'Currency is required' })
         .default('UGX')

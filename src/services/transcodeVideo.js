@@ -147,7 +147,7 @@ export async function transcodeVideo({
                         .outputOptions([
                             '-preset ultrafast',
                            '-movflags faststart',
-                            '-c:s copy',
+                            '-c:s mov_text',
                         ])
                         .audioCodec('copy')
                         .format('mp4')

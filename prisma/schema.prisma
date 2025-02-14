@@ -317,9 +317,10 @@ model pricing {
   currency  String
   priceList price[]
 
-  film     film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId   String? @unique @db.ObjectId
-  season   season? @relation(fields: [seasonId], references: [id])
+  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId String? @unique @db.ObjectId
+
+  season   season? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   seasonId String? @unique @db.ObjectId
 
   createdAt DateTime  @default(now())

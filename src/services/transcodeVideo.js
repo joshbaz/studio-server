@@ -7,6 +7,7 @@ import fs from 'fs';
 import { formatBitrate } from '@/utils/formatBitrate.js';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
+import { spawn } from 'child_process';
 
 let RESOLUTIONS = {
     SD: 480,
@@ -146,7 +147,7 @@ export async function transcodeVideo({
                         .size(`?x${height}`)
                         .outputOptions([
                             '-preset ultrafast',
-                           '-movflags faststart',
+                        //    '-movflags faststart',
                             '-c:s copy',
                         ])
                         .audioCodec('copy')
@@ -250,6 +251,321 @@ export async function transcodeVideo({
         throw initialFfprobeError;
     }
 }
+
+/**
+ * 
+ * @param {spilts video in segments} param0 
+ */
+const splitVideoIntoSegments = async (filePath, segmentFolder, clientId, filename) => {
+    return new Promise((resolve, reject) => {
+        if (!fs.existsSync(segmentFolder)) {
+            fs.mkdirSync(segmentFolder, { recursive: true });
+        }
+
+        const segmentListPath = path.join(segmentFolder, `${filename}_segments.txt`);
+
+        Ffmpeg(filePath)
+            .outputOptions([
+              '-c:v copy', // Copy video without re-encoding
+                '-c:a aac', // Encode audio as AAC for compatibility
+                '-map 0:v:0', // Ensure video is included
+                '-map 0:a:0?', // Include first audio track (if available)
+                '-segment_time 60',
+                '-f segment',
+                '-g 48',
+                '-sc_threshold 0',
+                '-segment_format mpegts',
+                '-segment_time_metadata 1',
+            ])
+            .addOption('-segment_list', segmentListPath) // ✅ Fix segment_list
+            .output(path.join(segmentFolder, `${filename}_segment_%03d.ts`))
+            .on('end', () => resolve())
+            .on('progress', (progress) => {
+                console.log(`Splitting progress: ${progress.percent}%`);
+                io.to(clientId).emit('SplittingProgress', { progress: Math.round(progress.percent), stage: 'splitting' });
+            })
+            .on('error', reject)
+            .run();
+    });
+};
+
+//transcode each segment
+const transcodeSegment = async (inputPath, outputPath, height, clientId, label, indexNum) => {
+    return new Promise((resolve, reject) => {
+        Ffmpeg(inputPath)
+             .videoCodec('libx264')
+            .audioCodec('copy')
+            .outputOptions([
+                '-preset ultrafast', // Prioritize speed over compression
+                '-crf 23', // Maintain a balance of quality and size
+                `-vf scale='trunc(oh*a/2)*2:${height}'`, // Maintain aspect ratio
+            ])
+            .output(outputPath)
+            .on('end', () => resolve(outputPath))
+            .on('progress', (progress) => {
+                let progressPercent = Math.round(progress.percent);
+                if (isNaN(progressPercent) || progressPercent < 0 || progressPercent > 100) {
+                    progressPercent = 0;
+                }
+
+                console.log(
+                    `Transcoding segment ${label} progress: ${progress.percent}%`
+                );
+                io.to(clientId).emit('transcodingProgress', {
+                    progress: progressPercent,
+                    segmentLength: indexNum,
+                    stage: `transcoding--${label}`,
+                    resolution: label,
+                });
+            })
+            .on('error', reject)
+            .run();
+
+    });
+};
+
+
+//merge segments into final video
+const mergeSegments = async (segmentFolder, finalOutputPath, clientId, label, filename) => {
+    return new Promise((resolve, reject) => {
+        const segmentFileList = path.join(
+            segmentFolder,
+            `${filename}_segments.txt`
+        );
+        const transcodedSegments = fs
+            .readdirSync(segmentFolder)
+            .filter(
+                (file) =>
+                    file.startsWith(`${label}_${filename}_segment_`) &&
+                    file.endsWith('.ts')
+            )
+            .map((file) => `file '${path.join(segmentFolder, file)}'`)
+            .join('\n');
+
+        fs.writeFileSync(segmentFileList, transcodedSegments);
+
+        Ffmpeg()
+            .input(segmentFileList)
+            .inputOptions(['-f concat', '-safe 0'])
+            .outputOptions(['-c copy'])
+            .output(finalOutputPath)
+            .on('progress', (progress) => {
+                console.log(
+                    `Merging segments ${label} progress: ${progress.percent}%`
+                );
+                io.to(clientId).emit('MergeProgress', {
+                    progress: Math.round(progress.percent),
+                    stage: `merging-${label}`,
+                    resolution: label,
+                });
+            })
+            .on('end', resolve)
+            .on('error', reject)
+            .run();
+    });
+};
+
+const onPreTranscode2 = async (resolutions, type, resourceId) => {
+    try {
+        let videos = [];
+
+        console.log('resolutions', 'checking jobs');
+
+        if (type === 'film') {
+            videos = await prisma.video.findMany({
+                where: { filmId: resourceId, isTrailer: false },
+                select: { id: true, resolution: true },
+            });
+            
+        }
+
+        if (type === 'episode') {
+            videos = await prisma.video.findMany({
+                where: { episodeId: resourceId, isTrailer: false },
+                select: { id: true, resolution: true },
+            });
+        }
+        console.log('resolutions', videos);
+
+        // if no videos are found, use the default resolutions
+        if (!videos.length > 0) return resolutions;
+
+        const notInVideos = {};
+        for (const [resolution, ht] of Object.entries(resolutions)) {
+            const exists = videos.some(
+                (vid) => vid.resolution === resolution
+            );
+            if (!exists) {
+                notInVideos[resolution] = ht;
+            }
+        }
+        return notInVideos;
+    } catch (error) {
+        throw error;
+    }
+};
+
+const onUploadComplete2 = async (data, resourceId, type) => {
+    let result = { ...data };
+
+    if (type === 'film') {
+        result.filmId = resourceId;
+    }
+    if (type === 'episode') {
+        result.episodeId = resourceId;
+    }
+
+    await prisma.video.create({
+        data: result,
+    });
+};
+
+
+export async function transcodeVideo2({
+    type,
+    filePath,
+    resourceId,
+    resource,
+    fileName,
+    filename,
+    outputDir,
+    clientId,
+    bucketName,
+}) {
+    
+    if (onPreTranscode2) {
+        RESOLUTIONS = await onPreTranscode2(RESOLUTIONS, type, resourceId);
+    }
+
+    const initialMetadata = await new Promise((resolve, reject) => {
+        Ffmpeg(filePath).ffprobe((err, data) => {
+            if (err) reject(err);
+            else resolve(data.format);
+        });
+    });
+
+    const segmentFolder = path.join(outputDir, `segments_${filename}`);
+    fs.mkdirSync(segmentFolder, { recursive: true });
+
+     // Step 1: Split the original video into segments
+    await splitVideoIntoSegments(filePath, segmentFolder, clientId, filename); // Split the video into segments
+    console.log('Segments created');
+
+    // const transcodedSegments = {};
+
+    // Step 2: Process each resolution sequentially
+    for (const [label, height] of Object.entries(RESOLUTIONS)) {
+        console.log(`🚀 Starting transcoding for ${label}`);
+
+        const segmentFiles = fs
+            .readdirSync(segmentFolder)
+            .filter((file) => file.startsWith(`${filename}_segment_`) && file.endsWith('.ts'));
+
+            console.log('segmentFiles',segmentFiles?.length, segmentFiles);
+        for (const segment of segmentFiles) {
+            console.log('segment', segmentFiles?.indexOf(segment));
+            let indexNum = `${segmentFiles?.indexOf(segment) + 1}/${segmentFiles?.length}`;
+            const inputPath = path.join(segmentFolder, segment);
+            const outputPath = path.join(segmentFolder, `${label}_${segment}`);
+
+            await transcodeSegment(inputPath, outputPath, height, clientId, label,indexNum); // transcode each segment
+            // transcodedSegments[label].push(outputPath);
+        }
+
+         // Step 3: Merge the transcoded segments into a single file
+         const mergedFilePath = path.join(outputDir, `${label}_${filename}.mp4`);
+         await mergeSegments(segmentFolder, mergedFilePath,clientId, label, filename);
+
+          // Step 4: Upload the merged video to DigitalOcean Spaces
+          const ffstream = fs.createReadStream(mergedFilePath);
+          const name = `${label}_${filename}.mp4`;
+          const bucketParams = {
+            bucketName,
+            key: name,
+            buffer: ffstream,
+            contentType: 'video/mp4',
+            isPublic: true,
+        };
+
+        await  uploadToBucket(bucketParams, (progress) => {
+            io.to(clientId).emit('uploadProgress', {
+                progress,
+                content: {
+                    type,
+                    resolution: label,
+                },
+            });
+        }).then(async (data) => {
+            // ffprobe the transcoded stream
+            const finalMetadata = await new Promise(
+                (resolve, reject) => {
+                    Ffmpeg(mergedFilePath).ffprobe(
+                        (err, data) => {
+                            if (err) reject(err);
+                            else resolve(data.format);
+                        }
+                    );
+                }
+            );
+
+            metadata = {
+                ...initialMetadata,
+                ...finalMetadata,
+            };
+
+            const videoData = {
+                resolution: label,
+                name: bucketParams.key,
+                format: 'video/mp4',
+                url: data.url,
+                encoding: 'libx264',
+                size: metadata.size.toString(),
+                duration: metadata.duration,
+                bitrate: formatBitrate(
+                    metadata.bit_rate ?? 0
+                ),
+            };
+
+            console.log('videoData',videoData);
+             // callback function to handle the completion
+             if (onUploadComplete2) {
+               await onUploadComplete2(videoData, resourceId, type);
+            }
+
+            // remove the local copy of the video after uploading it to s3
+            await fs.promises.rm(mergedFilePath);
+            
+        })
+        .catch((uploadError) => 
+       console.log('upload error',uploadError)
+        );
+
+        console.log(`🧹 Cleaning up segments for ${label}`);
+        segmentFiles.forEach((segment) => {
+            const transcodedSegment = path.join(
+                segmentFolder,
+                `${label}_${segment}`
+            );
+            if (fs.existsSync(transcodedSegment)) {
+                fs.unlinkSync(transcodedSegment);
+            }
+        });
+
+        console.log(`✅ Finished processing ${label}`);
+    }
+
+    // Remove the segment folder completely after all resolutions are processed
+    fs.rmSync(segmentFolder, { recursive: true, force: true });
+    console.log("🧹 All temporary segment files deleted");
+
+     // Remove the original video file
+     fs.unlinkSync(filePath);
+     console.log("🗑️ Original video deleted");
+
+    console.log('All transcoded videos uploaded successfully.');
+}
+
+
 
 export async function transcodeOneAtATimeOld(
     filePath,

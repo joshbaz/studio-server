@@ -38,6 +38,7 @@ import {
     combiningChunks,
     uploadingFilm,
     uploadingTrailer,
+    uploadFilm2,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -96,7 +97,7 @@ router.post('/trailer-uploads', verifyToken, uploadingTrailer);
 // POST Routes
 router.post('/newfilm', verifyToken, validateData(filmSchema), createFilm);
 router.post('/upload-chunk', verifyToken, upload.single('chunk'), uploadChunk);
-router.post('/complete-upload', verifyToken, uploadFilm);
+router.post('/complete-upload', verifyToken, uploadFilm2);
 router.post('/trailer-upload', verifyToken, uploadTrailer); // requires resourseId { filmId or seasonId }, clientID (for socket.io), and fileName
 router.post(
     '/posterupload/:resourceId',

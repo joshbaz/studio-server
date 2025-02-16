@@ -11,6 +11,7 @@ import {
 } from '@/services/transcodeVideo.js';
 import fsExtra from 'fs-extra';
 import path from 'path';
+import { videoQueue } from '@/services/queueWorkers.js';
 
 const chunkService = new ChunkService();
 
@@ -781,6 +782,8 @@ export const uploadingChunks = async (req, res, next) => {
     }
 };
 
+
+
 /**
  *
  * @name checkingChunks
@@ -1222,6 +1225,10 @@ export const uploadFilm = async (req, res, next) => {
             });
         };
 
+        const { filename } = new ChunkService().formatFileName(
+            fileName
+        );
+
         // transcode the video ie generate multiple resolutions of the video
         await transcodeVideo({
             type,
@@ -1243,6 +1250,129 @@ export const uploadFilm = async (req, res, next) => {
         next(error);
     }
 };
+
+export const uploadFilm2 = async (req, res, next) => {
+    try {
+        const { clientId, fileName, type, resourceId } = req.body; // type: film or episode / resourceId: filmId or episodeId / if type is episode, seasonId is required
+        
+
+        if (!clientId) returnError('Client ID is required', 400);
+        if (!fileName) returnError('File name is required', 400);
+        if (!resourceId) {
+            returnError('Either Film ID or EpisodeID is required', 400);
+        }
+
+         // combine the chunks
+         const filePath = await chunkService.combineChunks(fileName);
+
+
+         let resource = null;
+
+         if (type === 'film') {
+             resource = await prisma.film.findUnique({
+                 where: { id: resourceId },
+             });
+         }
+ 
+         if (type === 'episode') {
+             resource = await prisma.episode.findUnique({
+                 where: { id: resourceId },
+                 include: { season: { select: { id: true, filmId: true } } },
+             });
+         }
+ 
+         if (!resource) {
+             // if resource is not found clear the file from the temp folder
+             await fs.promises.rm(filePath);
+             returnError("The resource you were looking for doesn't exist", 404);
+         }
+ 
+         const bucketName =
+             type === 'film'
+                 ? resourceId
+                 : `${resource.season?.filmId}-${resource.seasonId}`;
+
+                //  const onPreTranscode = async (resolutions, type, resourceId) => {
+                //     try {
+                //         let videos = [];
+
+                //         console.log('resolutions', 'checking jobs');
+        
+                //         if (type === 'film') {
+                //             videos = await prisma.video.findMany({
+                //                 where: { filmId: resourceId, isTrailer: false },
+                //                 select: { id: true, resolution: true },
+                //             });
+                            
+                //         }
+        
+                //         if (type === 'episode') {
+                //             videos = await prisma.video.findMany({
+                //                 where: { episodeId: resourceId, isTrailer: false },
+                //                 select: { id: true, resolution: true },
+                //             });
+                //         }
+                //         console.log('resolutions', videos);
+        
+                //         // if no videos are found, use the default resolutions
+                //         if (!videos.length > 0) return resolutions;
+        
+                //         const notInVideos = {};
+                //         for (const [resolution, ht] of Object.entries(resolutions)) {
+                //             const exists = videos.some(
+                //                 (vid) => vid.resolution === resolution
+                //             );
+                //             if (!exists) {
+                //                 notInVideos[resolution] = ht;
+                //             }
+                //         }
+                //         return notInVideos;
+                //     } catch (error) {
+                //         throw error;
+                //     }
+                // };
+        
+                // const onUploadComplete = async (data, resourceId, type) => {
+                //     let result = { ...data };
+        
+                //     if (type === 'film') {
+                //         result.filmId = resourceId;
+                //     }
+                //     if (type === 'episode') {
+                //         result.episodeId = resourceId;
+                //     }
+        
+                //     await prisma.video.create({
+                //         data: result,
+                //     });
+                // };
+
+                const { filename } = new ChunkService().formatFileName(
+                    fileName
+                );
+
+                await videoQueue.add('transcode-video', {
+                    type,
+                    filePath,
+                    resourceId,
+                    resource,
+                    fileName,
+                    filename,
+                    clientId,
+                    bucketName,
+                    outputDir: UPLOAD_DIR,
+                })
+
+                res.status(200).json({message: "video upload received. Processing in the background will start shortly.", jobQueued: true});
+
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+
+        next(error);
+    }
+}
 
 /**
  * @name uploadTrailer

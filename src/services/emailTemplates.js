@@ -1,5 +1,5 @@
 export const renderOTPTemplate = (otp) => {
-   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+    return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
             <html dir="ltr" lang="en">
             <head>
                 <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
@@ -38,7 +38,7 @@ export const renderOTPTemplate = (otp) => {
  * @returns {string} HTML template for the verification email
  */
 export const renderVerificationTemplate = (code) => {
-   return `
+    return `
   <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
   <html dir="ltr" lang="en">
     <head>
@@ -112,7 +112,7 @@ export const renderVerificationTemplate = (code) => {
  * @returns {string} HTML template for the verification email
  */
 export const renderConfirmationTemplate = (user) => {
-   return `
+    return `
   <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
   <html dir="ltr" lang="en">
     <head>
@@ -185,7 +185,7 @@ export const renderConfirmationTemplate = (user) => {
 };
 
 export const renderSubscriptionTemplate = (subType, user) => {
-   return `
+    return `
    <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html dir="ltr" lang="en">
 
@@ -219,4 +219,81 @@ export const renderSubscriptionTemplate = (subType, user) => {
   </body>
 </html>
     `;
+};
+
+/**
+ * @name renderConfirmPassChange
+ * @description Renders the HTML template for the verification email
+ * @param {string | number} code
+ * @returns {string} HTML template for the verification email
+ */
+export const renderConfirmPassChange = (user) => {
+    return `
+  <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+  <html dir="ltr" lang="en">
+    <head>
+      <link rel="preload" as="image" href="https://ik.imagekit.io/alero/Nyati_Films/website-metadata/Universal+Home/Logos/Logo1.svg" />
+      <meta content="text/html; charset=UTF-8" http-equiv="Content-Type" />
+      <meta name="x-apple-disable-message-reformatting" />
+      <style>
+        img {
+              max-width: 150px; /* Set a maximum width for the logo */
+              margin-bottom: 15px; /* Add some space below the logo */
+          }
+      </style>
+    </head>
+    <div style="display:none;overflow:hidden;line-height:1px;opacity:0;max-height:0;max-width:0">Nyati Verification Code</div>
+
+    <body style="background-color:#fff;color:#212121">
+      <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="width:100%;height:100%;min-height:600px;padding:20px;margin:0 auto;background-color:#eee">
+        <tbody>
+          <tr style="width:100%">
+            <td>
+              <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="background-color:#fff;max-width:40em;margin:0 auto;">
+                <tbody>
+                  <tr>
+                    <td>
+                      <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="background-color:#141118;display:flex;padding:20px 0;align-items:center;justify-content:center">
+                        <tbody>
+                          <tr>
+                            <td> <img src="https://ik.imagekit.io/nyatimot/Pages/Universal+Home/Logos/Logo1.svg" alt="Nyati Motion Pictures Logo"></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="padding:25px 35px">
+                        <tbody>
+                          <tr>
+                            <td>
+                              <h1 style="color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;font-size:28px;font-weight:semibold;margin-bottom:10px;text-align:center">Account Confirmation</h1>
+                              <p style="font-size:14px;line-height:24px;margin:0;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;margin-bottom:14px;text-align:center">Hi ${
+                                  user.firstname ?? 'Nyatiflix User'
+                              },</p>
+                              <table align="center" width="100%" border="0" cellPadding="0" cellSpacing="0" role="presentation" style="display:flex;align-items:center;justify-content:center">
+                                <tbody>
+                                  <tr>
+                                    <td>
+                                      <p style="font-size:14px;line-height:24px;margin:0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">We are glad that you decided to change your password.</p>
+                                      <p style="font-size:14px;line-height:24px;margin:0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">Your password has been changed successfully 🎉🎉</p>
+                                      <p style="font-size:14px;line-height:24px;margin:0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">If you have any questions or need help getting started, feel free to reach out to our support team.</p>
+                                      <p style="font-size:14px;line-height:24px;margin:10px 0px;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;text-align:center">This is an automated message, please do not reply.</p>
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </td>
+                  </tr>
+                </tbody>
+                </table>
+                <p style="width:100%;font-size:12px;line-height:24px;margin:24px 0;color:#333;font-family:-apple-system, BlinkMacSystemFont, &#x27;Segoe UI&#x27;, &#x27;Roboto&#x27;, &#x27;Oxygen&#x27;, &#x27;Ubuntu&#x27;, &#x27;Cantarell&#x27;, &#x27;Fira Sans&#x27;, &#x27;Droid Sans&#x27;, &#x27;Helvetica Neue&#x27;, sans-serif;padding:0;text-align:center;"> <a href="https://staging.nyatimotionpictures.com/" style="text-decoration:none;font-size:14px;color:#333;" target="_blank" rel="noopener noreferrer"> © 2024 by Nyati Motion Pictures</a></p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </body>
+  </html>
+`;
 };

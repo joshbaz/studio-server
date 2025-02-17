@@ -1,6 +1,33 @@
 import { z } from 'zod';
 import { Status, DurationUnit, Currency } from '@prisma/client';
 import { isValid } from 'date-fns';
+import { type } from 'os';
+
+export const loginUserSchema = z.object({
+    email: z
+        .string({ message: 'Email is required' })
+        .email({ message: 'Invalid Email' }),
+
+    password: z.string({ message: 'Password is required' }).min(6, {
+        message: 'Password length should be at least 6 characters long',
+    }),
+    staySigned: z.boolean().optional().default(false),
+});
+
+export const registerUserSchema = z.object({
+    email: z
+        .string({ message: 'Email is required' })
+        .email({ message: 'Invalid Email' }),
+    password: z.string({ message: 'Password is required' }).min(6, {
+        message: 'Password length should be at least 6 characters long',
+    }),
+    firstName: z.string({ message: 'First Name is required' }).min(1),
+    lastName: z.string({ message: 'Last Name is required' }).min(1),
+    username: z.string().optional(),
+    role: z.union([z.literal('user'), z.literal('admin')]),
+    isEmail: z.boolean().default(true),
+    phoneNumber: z.string().optional(),
+});
 
 export const filmSchema = z.object({
     title: z.string({ message: 'Film title is required' }),
@@ -485,4 +512,36 @@ export const purchaseSchema = z.object({
 
     type: z.union([z.literal('streamWeb')]).nullable(),
     paymentMethodId: z.string().optional().nullable(),
+});
+
+export const otpSchema = z.object({
+    contact: z.union(
+        [
+            z.string().email({ message: 'Invalid email address' }),
+            z.string().refine(
+                (value) => {
+                    // phone number regex
+                    const regx = /^\+(?:[0-9]{1,3})?[0-9]{7,14}$/;
+                    return regx.test(value);
+                },
+                { message: 'Invalid phone number' }
+            ),
+        ],
+        { message: 'Contact should either be an email or a phone number' }
+    ),
+    isEmail: z.boolean({ message: 'Is email is required' }).default(true),
+    type: z
+        .union([z.literal('forgotpassword'), z.literal('auth')])
+        .default('auth'),
+});
+
+export const verifyOtpSchema = otpSchema.extend({
+    otp: z.string({ message: 'OTP is required' }).min(4).max(6),
+    type: z
+        .union([z.literal('forgotpassword'), z.literal('auth')])
+        .default('auth'),
+});
+
+export const forgotPasswordSchema = z.object({
+    newPassword: z.string({ message: 'New password is required' }).min(6),
 });

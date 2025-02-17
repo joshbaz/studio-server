@@ -9,6 +9,7 @@ import { generate as generateOtp } from 'otp-generator';
 import {
     renderVerificationTemplate,
     renderConfirmationTemplate,
+    renderConfirmPassChange,
 } from '@/services/emailTemplates.js';
 import { returnError } from '@/utils/returnError.js';
 
@@ -28,7 +29,7 @@ export const createUser = async (req, res, next) => {
             role,
             isEmail,
             phoneNumber,
-        } = req.body;
+        } = req.data;
 
         if (!isEmail) {
             // check user using phone number
@@ -38,11 +39,7 @@ export const createUser = async (req, res, next) => {
                 },
             });
 
-            if (user) {
-                return res
-                    .status(400)
-                    .json({ message: 'Something went wrong, try again' });
-            }
+            if (user) returnError('Something went wrong', 400);
         } else {
             const user = await prisma.user.findFirst({
                 where: {
@@ -56,11 +53,7 @@ export const createUser = async (req, res, next) => {
                 },
             });
 
-            if (user) {
-                return res
-                    .status(400)
-                    .json({ message: 'Something went wrong' });
-            }
+            if (user) returnError('Something went wrong', 400);
         }
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -94,7 +87,7 @@ export const createUser = async (req, res, next) => {
  */
 export const loginUser = async (req, res, next) => {
     try {
-        const { email, password, staySigned } = req.body;
+        const { email, password, staySigned } = req.data;
 
         const existingUser = await prisma.user.findFirst({
             where: {
@@ -348,12 +341,10 @@ export const deleteUser = async (req, res, next) => {
  */
 export const sendOTP = async (req, res, next) => {
     try {
-        const { contact, isEmail } = req.body;
+        const { contact, isEmail, type } = req.data; // otp type could be auth or forgotpassword
+
         if (!contact) {
-            return res.status(400).json({
-                message:
-                    'An issue occured while requesting and OTP, check your details and try again',
-            });
+            returnError('Contact not passed', 400);
         }
 
         // verify that the user exists
@@ -369,10 +360,7 @@ export const sendOTP = async (req, res, next) => {
         });
 
         if (!user) {
-            return res.status(404).json({
-                message:
-                    'An issue occured while requesting and OTP, check your details and try again',
-            });
+            returnError('User not found', 404);
         }
 
         // generate an OTP and save it to the database
@@ -384,9 +372,7 @@ export const sendOTP = async (req, res, next) => {
         });
 
         if (!otp) {
-            return res.status(500).json({
-                message: 'Something went wrong while generating your code',
-            });
+            returnError('Something went wrong while generating your code', 400);
         }
 
         // check if if there are other OTPs for the same user and delete them
@@ -409,7 +395,10 @@ export const sendOTP = async (req, res, next) => {
             response = await sendMail({
                 from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
                 to: contact,
-                subject: 'Your Nyati Motion Pictures OTP login Code',
+                subject:
+                    type === 'auth'
+                        ? 'Your Nyati Motion Pictures OTP login Code'
+                        : 'Your Nyati Motion Pictures OTP Password Reset Code',
                 html: renderVerificationTemplate(otp),
             });
         } else {
@@ -423,7 +412,10 @@ export const sendOTP = async (req, res, next) => {
             // Send SMS with Twilio
             response = await sendSMS({
                 to: contact,
-                message: `Your Nyati OTP login Code is ${otp}`,
+                message:
+                    type === 'auth'
+                        ? `Your Nyati OTP login Code is ${otp}`
+                        : `Your Nyati OTP Password Reset Code is ${otp}`,
             });
 
             if (response.error) {
@@ -442,23 +434,17 @@ export const sendOTP = async (req, res, next) => {
             { expiresIn: '10m' }
         );
 
-        res.cookie('otp-token', token, {
-            httpOnly: true,
-            maxAge: 1000 * 60 * 10,
-        }); // 10 minutes
-
         return res.status(200).json({
-            message: 'OTP sent please check your email',
-            otpToken: token,
+            message: isEmail
+                ? 'OTP sent please check your email'
+                : 'OTP sent please check your phone',
+            otpToken: token, // set it as a bearer token in the frontend
         });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.status(500).json({
-            message: error.message ?? 'Something went wrong',
-        });
-        return;
+        next(error);
     }
 };
 
@@ -469,46 +455,38 @@ export const sendOTP = async (req, res, next) => {
  */
 export const verifyOTP = async (req, res, next) => {
     try {
-        const { otp, contact, isEmail } = req.body;
+        const { otp, contact, type } = req.data; // type could be auth or resetpassword
+
         if (!otp || !contact) {
-            return res.status(400).json({
-                message:
-                    'An issue occured while requesting and OTP, check your details and try again',
-            });
+            returnError('An issue occured while requesting and OTP', 400);
         }
 
-        // get the token from the cookie
-        const token = req.cookies['otp-token'];
-        if (!token) {
-            return res.status(400).json({
-                message:
-                    'An issue occured while requesting and OTP, check your details and try again',
-            });
-        }
+        // check if the user exists
+        const user = await prisma.user.findFirst({
+            where: { id: req.userId },
+        });
 
-        const payload = jwt.verify(token, env.SECRETVA);
-        const userId = payload.userId;
+        if (!user) {
+            returnError('An issue occured while verifying OTP', 404);
+        }
 
         const otpFromDb = await prisma.otp.findFirst({
             where: {
                 otp,
-                userId,
+                userId: req.userId,
             },
         });
 
         if (!otpFromDb) {
-            return res.status(404).json({
-                message:
-                    'An issue occured while requesting and OTP, check your details and try again',
-            });
+            returnError(
+                'An issue occured while verifying OTP, try again!',
+                400
+            );
         }
 
         // check if the otp is expired
         if (otpFromDb.expiresAt < new Date()) {
-            return res.status(401).json({
-                message:
-                    'An issue occured while requesting and OTP, check your details and try again',
-            });
+            returnError('The OTP has expired, request another one', 401);
         }
 
         await prisma.otp.delete({
@@ -517,58 +495,117 @@ export const verifyOTP = async (req, res, next) => {
             },
         });
 
-        // update user as verified if the user exists
-        const existingUser = await prisma.user.update({
-            where: { id: userId },
-            data: {
-                accountVerified: true,
-            },
-        });
+        switch (type) {
+            case 'auth':
+                // update user as verified if the user exists
+                await prisma.user.update({
+                    where: { id: user.id },
+                    data: {
+                        accountVerified: true,
+                    },
+                });
 
-        // delete the cookie
-        res.clearCookie('otp-token');
+                const authToken = jwt.sign(
+                    {
+                        email: user.email,
+                        id: user.id,
+                    },
+                    env.SECRETVA,
+                    { expiresIn: '24h' }
+                );
 
-        if (!existingUser) {
-            returnError(
-                'Something went wrong when verify your otp, check your details again',
-                404
-            );
+                await sendMail({
+                    from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+                    to: existingUser.email,
+                    subject: 'Nyatiflix Account Confirmation.',
+                    html: renderConfirmationTemplate({
+                        firstname: existingUser.firstname,
+                        email: existingUser.email,
+                    }),
+                });
+                res.status(200).json({
+                    token: authToken,
+                    message: 'OTP verified successfully',
+                });
+                break;
+            case 'forgotpassword':
+                const token = jwt.sign(
+                    {
+                        email: user.email,
+                        id: user.id,
+                    },
+                    env.SECRETVA,
+                    { expiresIn: '15m' }
+                );
+
+                res.status(200).json({
+                    authToken: token, // set it as a bearer token in the frontend
+                    message: 'OTP verified successfully',
+                });
+                break;
+            default:
+                returnError(
+                    "Type must either be 'auth' or 'resetpassword'",
+                    400
+                );
+                break;
         }
-
-        const authToken = jwt.sign(
-            {
-                email: existingUser.email,
-                id: existingUser.id,
-            },
-            env.SECRETVA,
-            { expiresIn: '24h' }
-        );
-
-        res.cookie('token', authToken, {
-            httpOnly: true,
-            maxAge: 1000 * 60 * 60 * 24, // 24 hours
-        });
-
-        await sendMail({
-            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
-            to: existingUser.email,
-            subject: 'Nyatiflix Account Confirmation.',
-            html: renderConfirmationTemplate({
-                firstname: existingUser.firstname,
-                email: existingUser.email,
-            }),
-        });
-
-        return res
-            .status(200)
-            .json({ message: 'OTP verified successfully', token: authToken });
+        // delete the cookie
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.status(500).json({
-            message: error.message ?? 'Something went wrong',
+
+        next(error);
+    }
+};
+
+/**
+ *@name forgotPassword
+ *@description function to reset password of a user
+ *@type {import('express').RequestHandler}
+ */
+export const forgotPassword = async (req, res, next) => {
+    try {
+        const { newPassword } = req.data;
+
+        if (!req.userId) returnError('User Id not provided', 400);
+
+        // verify that the user exists
+        const user = await prisma.user.findFirst({
+            where: { id: req.userId },
         });
+
+        if (!user) returnError('User does not exist', 404);
+
+        // hash the new password
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+        // update the user's password
+        await prisma.user.update({
+            where: { id: user.id },
+            data: { password: hashedNewPassword },
+        });
+
+        // send confirmation email
+        await sendMail({
+            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+            to: user.email,
+            subject: 'Nyatiflix Password Reset Successful.',
+            html: renderConfirmPassChange({
+                email: user.email,
+                firstname: user.firstname,
+            }),
+        });
+
+        // send success message
+        res.status(200).json({
+            message: 'Password changed successfully',
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
         next(error);
     }
 };

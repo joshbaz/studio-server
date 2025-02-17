@@ -8,6 +8,7 @@ import { formatBitrate } from '@/utils/formatBitrate.js';
 import prisma from '@/utils/db.mjs';
 import { returnError } from '@/utils/returnError.js';
 import { spawn } from 'child_process';
+import { uploadQueue } from './queueWorkers.js';
 
 let RESOLUTIONS = {
     SD: 480,
@@ -477,68 +478,20 @@ export async function transcodeVideo2({
          await mergeSegments(segmentFolder, mergedFilePath,clientId, label, filename);
 
           // Step 4: Upload the merged video to DigitalOcean Spaces
-          const ffstream = fs.createReadStream(mergedFilePath);
-          const name = `${label}_${filename}.mp4`;
-          const bucketParams = {
+
+          await uploadQueue.add("upload-to-s3", {
+            mergedFilePath,
+            label,
+            filename,
+            resourceId,
             bucketName,
-            key: name,
-            buffer: ffstream,
-            contentType: 'video/mp4',
-            isPublic: true,
-        };
+            clientId,
+            type,
+            initialMetadata,
+        });
+          
 
-        await  uploadToBucket(bucketParams, (progress) => {
-            io.to(clientId).emit('uploadProgress', {
-                progress,
-                content: {
-                    type,
-                    resolution: label,
-                },
-            });
-        }).then(async (data) => {
-            // ffprobe the transcoded stream
-            const finalMetadata = await new Promise(
-                (resolve, reject) => {
-                    Ffmpeg(mergedFilePath).ffprobe(
-                        (err, data) => {
-                            if (err) reject(err);
-                            else resolve(data.format);
-                        }
-                    );
-                }
-            );
-
-            metadata = {
-                ...initialMetadata,
-                ...finalMetadata,
-            };
-
-            const videoData = {
-                resolution: label,
-                name: bucketParams.key,
-                format: 'video/mp4',
-                url: data.url,
-                encoding: 'libx264',
-                size: metadata.size.toString(),
-                duration: metadata.duration,
-                bitrate: formatBitrate(
-                    metadata.bit_rate ?? 0
-                ),
-            };
-
-            console.log('videoData',videoData);
-             // callback function to handle the completion
-             if (onUploadComplete2) {
-               await onUploadComplete2(videoData, resourceId, type);
-            }
-
-            // remove the local copy of the video after uploading it to s3
-            await fs.promises.rm(mergedFilePath);
-            
-        })
-        .catch((uploadError) => 
-       console.log('upload error',uploadError)
-        );
+    
 
         console.log(`🧹 Cleaning up segments for ${label}`);
         segmentFiles.forEach((segment) => {
@@ -563,6 +516,80 @@ export async function transcodeVideo2({
      console.log("🗑️ Original video deleted");
 
     console.log('All transcoded videos uploaded successfully.');
+}
+
+export async function uploadtoDO({
+    mergedFilePath,
+    label,
+    filename,
+    resourceId,
+    bucketName,
+    clientId,
+    type,
+    initialMetadata
+}){
+    const ffstream = fs.createReadStream(mergedFilePath);
+    const name = `${label}_${filename}.mp4`;
+    const bucketParams = {
+      bucketName,
+      key: name,
+      buffer: ffstream,
+      contentType: 'video/mp4',
+      isPublic: true,
+  };
+
+  await  uploadToBucket(bucketParams, (progress) => {
+      io.to(clientId).emit('uploadProgress', {
+          progress,
+          content: {
+              type,
+              resolution: label,
+          },
+      });
+  }).then(async (data) => {
+      // ffprobe the transcoded stream
+      const finalMetadata = await new Promise(
+          (resolve, reject) => {
+              Ffmpeg(mergedFilePath).ffprobe(
+                  (err, data) => {
+                      if (err) reject(err);
+                      else resolve(data.format);
+                  }
+              );
+          }
+      );
+
+      metadata = {
+          ...initialMetadata,
+          ...finalMetadata,
+      };
+
+      const videoData = {
+          resolution: label,
+          name: bucketParams.key,
+          format: 'video/mp4',
+          url: data.url,
+          encoding: 'libx264',
+          size: metadata.size.toString(),
+          duration: metadata.duration,
+          bitrate: formatBitrate(
+              metadata.bit_rate ?? 0
+          ),
+      };
+
+      console.log('videoData',videoData);
+       // callback function to handle the completion
+       if (onUploadComplete2) {
+         await onUploadComplete2(videoData, resourceId, type);
+      }
+
+      // remove the local copy of the video after uploading it to s3
+      await fs.promises.rm(mergedFilePath);
+      
+  })
+  .catch((uploadError) => 
+ console.log('upload error',uploadError)
+  );
 }
 
 

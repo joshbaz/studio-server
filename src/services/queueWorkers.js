@@ -1,8 +1,9 @@
 //Intialize the queue and redis connection
 import { Queue, Worker } from 'bullmq';
 import { redisConnection } from './redisClient.js';
-import { transcodeVideo, transcodeVideo2 } from "./transcodeVideo.js";
+import { transcodeVideo, transcodeVideo2, uploadtoDO } from "./transcodeVideo.js";
 import { io } from "@/utils/sockets.js";
+import { upload } from './multer.js';
 
 // const connection = new createClient({
 //     // url: process.env.REDIS_URL,
@@ -17,6 +18,7 @@ import { io } from "@/utils/sockets.js";
 // connection.connect();
 
 const videoQueue = new Queue("video-transcoding", { connection: { ...redisConnection, maxRetriesPerRequest: null },});
+const uploadQueue = new Queue("upload-to-s3", { connection: { ...redisConnection, maxRetriesPerRequest: null },});
 
 const videoWorker = new Worker(
     "video-transcoding",
@@ -47,4 +49,41 @@ videoWorker.on("failed", (job, err)=> {
     io.to(job.data.clientId).emit("JobFailed", {message: "Processing failed"});
 });
 
-export { videoQueue, videoWorker };
+const uploadWorker = new Worker(
+    "upload-to-s3",
+    async (job)=> {
+        console.log(`Processing job: ${job.id}`);
+        const {   mergedFilePath,
+            label,
+            filename,
+            resourceId,
+            bucketName,
+            clientId,
+            type, 
+            initialMetadata
+        } = job.data;
+        
+            await uploadtoDO({
+                mergedFilePath,
+                label,
+                filename,
+                resourceId,
+                bucketName,
+                clientId,
+                type,
+                initialMetadata
+            });
+            io.to(clientId).emit("UploadCompleted", {message: `${label}_${filename} - Upload finished`});
+        
+    },
+    { connection: { ...redisConnection, maxRetriesPerRequest: null }, concurrency: 2}
+);
+
+uploadWorker.on("failed", (job, err)=> {
+    let { label, filename } = job.data;
+    console.log(`Job ${job.id} failed upload ${label}_${filename} with error ${err.message}`);
+    io.to(job.data.clientId).emit("JobFailed", {message: `${label}_${filename}- Uploading  failed`});
+});
+
+
+export { videoQueue, videoWorker, uploadQueue, uploadWorker };

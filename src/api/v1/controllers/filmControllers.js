@@ -195,6 +195,7 @@ export const fetchFilm = async (req, res, next) => {
                 video: true,
                 season: {
                     include: {
+                        posters: true,
                         likes: { where: { userId: req.userId } },
                         episodes: {
                             include: {
@@ -275,10 +276,12 @@ export const fetchSeason = async (req, res, next) => {
             },
         });
 
+          const validPurchase = season?.purchase[0]; //added this line
+
         // confirm if the season has a purchase and it has expired
-        if (season.purchase && season.purchase?.expiresAt < new Date()) {
+        if (validPurchase && validPurchase?.expiresAt < new Date()) {
             await prisma.purchase.update({
-                where: { id: season.purchase.id, userId },
+                where: { id: validPurchase.id, userId },
                 data: { valid: false },
             });
         }

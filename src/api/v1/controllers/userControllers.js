@@ -427,7 +427,7 @@ export const sendOTP = async (req, res, next) => {
         const token = jwt.sign(
             {
                 contact,
-                userId: user.id,
+                id: user.id,
                 otpId: otpfromDb.id,
             },
             env.SECRETVA,
@@ -473,7 +473,7 @@ export const verifyOTP = async (req, res, next) => {
         const otpFromDb = await prisma.otp.findFirst({
             where: {
                 otp,
-                userId: req.userId,
+                userId: user.id,
             },
         });
 

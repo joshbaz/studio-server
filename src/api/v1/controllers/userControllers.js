@@ -516,11 +516,11 @@ export const verifyOTP = async (req, res, next) => {
 
                 await sendMail({
                     from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
-                    to: existingUser.email,
+                    to: user.email,
                     subject: 'Nyatiflix Account Confirmation.',
                     html: renderConfirmationTemplate({
-                        firstname: existingUser.firstname,
-                        email: existingUser.email,
+                        firstname: user.firstname,
+                        email: user.email,
                     }),
                 });
                 res.status(200).json({

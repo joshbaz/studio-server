@@ -6,7 +6,7 @@ import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
 import { env } from '@/env.mjs';
 import { checkPaymentStatus as checkMtnStatus } from '@/services/mtnpayments.js';
-import { addDays, isPast } from 'date-fns';
+import { addDays } from 'date-fns';
 import { resSelector } from '@/utils/resSelector.js';
 
 /**
@@ -173,6 +173,30 @@ export const fetchFilms = async (req, res, next) => {
 };
 
 /**
+ * @name fetchFeaturedFilms
+ * @description function to stream film from bucket to client
+ * @type {import('express').RequestHandler}
+ */
+export const fetchFeaturedFilms = async (req, res, next) => {
+    try {
+        const featuredFilms = await prisma.film.findMany({
+            where: { featured: true, visibility: { in: ['published'] } },
+            include: {
+                posters: true,
+            },
+            take: 10,
+        });
+
+        res.status(200).json({ featured: featuredFilms ?? [] });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
  * @name fetchFilm
  * @description function to fetch a film by id
  * @type {import('express').RequestHandler}
@@ -196,6 +220,12 @@ export const fetchFilm = async (req, res, next) => {
                 season: {
                     include: {
                         posters: true,
+                        pricing: {
+                            include: { priceList: true },
+                        },
+                        purchase: {
+                            where: { userId: req.userId, valid: true },
+                        },
                         likes: { where: { userId: req.userId } },
                         episodes: {
                             include: {
@@ -258,7 +288,7 @@ export const fetchSeason = async (req, res, next) => {
         const season = await prisma.season.findUnique({
             where: { id: seasonId },
             include: {
-                film: true,
+                // filmId: true,
                 posters: true,
                 trailers: true,
                 purchase: { where: { userId } },
@@ -276,7 +306,7 @@ export const fetchSeason = async (req, res, next) => {
             },
         });
 
-          const validPurchase = season?.purchase[0]; //added this line
+        const validPurchase = season?.purchase[0]; //added this line
 
         // confirm if the season has a purchase and it has expired
         if (validPurchase && validPurchase?.expiresAt < new Date()) {
@@ -392,60 +422,48 @@ export const fetchSimilarFilms = async (req, res, next) => {
         const { filmId } = req.params;
 
         if (!filmId) {
-            return res.status(400).json({ message: 'No film id provided' });
+            returnError('No film id provided', 400);
         }
-
-        console.log('filmId', filmId);
 
         const film = await prisma.film.findUnique({
             where: { id: filmId },
         });
 
-        console.log('film', film);
-
         if (!film) {
-            return res.status(404).json({ message: 'Film not found' });
+            return res.status(200).json({ films: [] });
         }
 
-        // const posts = await article
-        //    .find({ $text: { $search: title } }, { score: { $meta: 'textScore' } })
-        //    .sort({ score: { $meta: 'textScore' } })
-        //    .limit(5)
-        //    .select(['-updated', '-summary', '-featured', '-tags']);
+        // Create search text from movie content
+        const searchText = `${film.overview} ${film.plotSummary}`;
 
-        const similar = await prisma.$runCommandRaw(`
-            db.getCollection('articles').find(
-            { $text: { $search: ${film.overview} } },
-            { score: { $meta: 'textScore' } }
-         )
-         .sort({ score: { $meta: 'textScore' } })
-         .limit(5)
-         .project({ updated: 0, summary: 0, featured: 0, tags: 0 })
-         .toArray()
-  `);
+        const similarFilms = await prisma.film.aggregateRaw({
+            pipeline: [
+                {
+                    $match: {
+                        $text: { $search: searchText },
+                        _id: { $ne: { $oid: filmId } }, // Assuming movieId is a string
+                    },
+                },
+                {
+                    $addFields: {
+                        score: { $meta: 'textScore' },
+                    },
+                },
+                {
+                    $sort: { score: -1 },
+                },
+                {
+                    $limit: 10,
+                },
+            ],
+        });
 
-        console.log('similar', similar);
-
-        // const similarFilms = await prisma.film.findMany({
-        //    where: {
-        //       // id: { $not: filmId },
-        //       $text: { $search: film.title },
-        //       score: { $meta: 'textScore' },
-        //    },
-        //    include: {
-        //       posters: true,
-        //       trailers: true,
-        //    },
-        //    orderBy: { score: { $meta: 'textScore' } },
-        //    take: 5,
-        // });
-
-        res.status(200).json({ films: similarFilms });
+        res.status(200).json({ films: similarFilms ?? [] });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
-        res.status(error.statusCode).json({ message: error.message });
+        next(error);
     }
 };
 
@@ -488,7 +506,7 @@ export const getVideoSource = async (req, res, next) => {
  * @description function to add a film to the watchlist
  * @type {import('express').RequestHandler}
  */
-export const addWatchList = async (req, res, next) => {
+export const manageWatchlist = async (req, res, next) => {
     try {
         const { type, userId, resourceId } = req.data; // film or season
 
@@ -502,6 +520,7 @@ export const addWatchList = async (req, res, next) => {
 
         switch (type) {
             case 'film':
+            case 'movie':
                 resource = await prisma.film.findUnique({
                     where: { id: resourceId },
                 });
@@ -533,7 +552,7 @@ export const addWatchList = async (req, res, next) => {
                     [resourceField]: resourceId,
                 },
             });
-            return res.status(200).json({ message: 'Added to watchlist' });
+            res.status(200).json({ message: 'Added to watchlist' });
         } else {
             // remove the film from the watchlist
             await prisma.watchlist.delete({
@@ -541,12 +560,13 @@ export const addWatchList = async (req, res, next) => {
                     id: resourceExists.id,
                 },
             });
-            return res.status(200).json({ message: 'Removed from watchlist' });
+            res.status(200).json({ message: 'Removed from watchlist' });
         }
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
         }
+        console.log(error);
         next(error);
     }
 };
@@ -649,6 +669,7 @@ export const likeRateFilm = async (req, res, next) => {
 
         switch (type) {
             case 'film':
+            case 'movie':
                 const filmExists = await prisma.film.findUnique({
                     where: { id: resourceId },
                 });
@@ -712,18 +733,73 @@ export const likeRateFilm = async (req, res, next) => {
 };
 
 /**
- * @name getFilmBySearch
+ * @name lookupFilms
  * @description function to search for a film
  * @type {import('express').RequestHandler}
  */
-export const getFilmBySearch = async (req, res, next) => {
+export const lookupFilms = async (req, res, next) => {
     try {
-        const query = req.query.q;
+        const searchQuery = req.params?.q ?? null;
 
-        const getfilms = await filmModels
-            .find({ title: { $regex: query, $options: 'i' } })
-            .limit(40);
-        res.status(200).json(getfilms);
+        console.log('searchQuery', searchQuery);
+
+        const results = await prisma.film.findMany({
+            where:
+                searchQuery && searchQuery.length > 3
+                    ? {
+                          OR: [
+                              { title: { contains: searchQuery } },
+                              { overview: { contains: searchQuery } },
+                              { plotSummary: { contains: searchQuery } },
+                              {
+                                  season: {
+                                      some: {
+                                          title: { contains: searchQuery },
+                                      },
+                                  },
+                              },
+                              {
+                                  season: {
+                                      some: {
+                                          overview: { contains: searchQuery },
+                                      },
+                                  },
+                              },
+                          ],
+                      }
+                    : undefined,
+            take: 40,
+            orderBy: { title: 'asc' },
+            select: {
+                id: true,
+                title: true,
+                posters: true,
+                season: {
+                    select: {
+                        id: true,
+                        title: true,
+                        posters: true,
+                    },
+                },
+            },
+        });
+
+        // merge the films and seasons into one array
+        const mergedFilmSeasons = results.reduce((result, film) => {
+            const { season, ...restFilm } = film;
+
+            // push the film first
+            result.push(restFilm);
+
+            // check if the film has seasons
+            if (season && season.length > 0) {
+                result.push(...season);
+            }
+
+            return result;
+        }, []);
+
+        res.status(200).json({ films: mergedFilmSeasons ?? [] });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

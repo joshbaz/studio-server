@@ -12,6 +12,7 @@ import {
 import fsExtra from 'fs-extra';
 import path from 'path';
 import { videoQueue } from '@/services/queueWorkers.js';
+import { formatNumber } from '@/utils/formatNumber.js';
 
 const chunkService = new ChunkService();
 
@@ -417,7 +418,7 @@ export const deleteSeason = async (req, res, next) => {
                                 name: true,
                             },
                         },
-                        poster: true,
+                        posters: true,
                     },
                 },
                 film: true,
@@ -439,8 +440,8 @@ export const deleteSeason = async (req, res, next) => {
                 }
 
                 // delete posters
-                if (episode.poster.length > 0) {
-                    for (let poster of episode.poster) {
+                if (episode.posters.length > 0) {
+                    for (let poster of episode.posters) {
                         await deleteFromBucket({
                             bucketName: `${season.filmId}-${seasonId}`,
                             key: poster.name,
@@ -781,8 +782,6 @@ export const uploadingChunks = async (req, res, next) => {
         next(error);
     }
 };
-
-
 
 /**
  *
@@ -1225,9 +1224,7 @@ export const uploadFilm = async (req, res, next) => {
             });
         };
 
-        const { filename } = new ChunkService().formatFileName(
-            fileName
-        );
+        const { filename } = new ChunkService().formatFileName(fileName);
 
         // transcode the video ie generate multiple resolutions of the video
         await transcodeVideo({
@@ -1254,7 +1251,6 @@ export const uploadFilm = async (req, res, next) => {
 export const uploadFilm2 = async (req, res, next) => {
     try {
         const { clientId, fileName, type, resourceId } = req.body; // type: film or episode / resourceId: filmId or episodeId / if type is episode, seasonId is required
-        
 
         if (!clientId) returnError('Client ID is required', 400);
         if (!fileName) returnError('File name is required', 400);
@@ -1262,109 +1258,109 @@ export const uploadFilm2 = async (req, res, next) => {
             returnError('Either Film ID or EpisodeID is required', 400);
         }
 
-         // combine the chunks
-         const filePath = await chunkService.combineChunks(fileName);
+        // combine the chunks
+        const filePath = await chunkService.combineChunks(fileName);
 
+        let resource = null;
 
-         let resource = null;
+        if (type === 'film') {
+            resource = await prisma.film.findUnique({
+                where: { id: resourceId },
+            });
+        }
 
-         if (type === 'film') {
-             resource = await prisma.film.findUnique({
-                 where: { id: resourceId },
-             });
-         }
- 
-         if (type === 'episode') {
-             resource = await prisma.episode.findUnique({
-                 where: { id: resourceId },
-                 include: { season: { select: { id: true, filmId: true } } },
-             });
-         }
- 
-         if (!resource) {
-             // if resource is not found clear the file from the temp folder
-             await fs.promises.rm(filePath);
-             returnError("The resource you were looking for doesn't exist", 404);
-         }
- 
-         const bucketName =
-             type === 'film'
-                 ? resourceId
-                 : `${resource.season?.filmId}-${resource.seasonId}`;
+        if (type === 'episode') {
+            resource = await prisma.episode.findUnique({
+                where: { id: resourceId },
+                include: { season: { select: { id: true, filmId: true } } },
+            });
+        }
 
-                //  const onPreTranscode = async (resolutions, type, resourceId) => {
-                //     try {
-                //         let videos = [];
+        if (!resource) {
+            // if resource is not found clear the file from the temp folder
+            await fs.promises.rm(filePath);
+            returnError("The resource you were looking for doesn't exist", 404);
+        }
 
-                //         console.log('resolutions', 'checking jobs');
-        
-                //         if (type === 'film') {
-                //             videos = await prisma.video.findMany({
-                //                 where: { filmId: resourceId, isTrailer: false },
-                //                 select: { id: true, resolution: true },
-                //             });
-                            
-                //         }
-        
-                //         if (type === 'episode') {
-                //             videos = await prisma.video.findMany({
-                //                 where: { episodeId: resourceId, isTrailer: false },
-                //                 select: { id: true, resolution: true },
-                //             });
-                //         }
-                //         console.log('resolutions', videos);
-        
-                //         // if no videos are found, use the default resolutions
-                //         if (!videos.length > 0) return resolutions;
-        
-                //         const notInVideos = {};
-                //         for (const [resolution, ht] of Object.entries(resolutions)) {
-                //             const exists = videos.some(
-                //                 (vid) => vid.resolution === resolution
-                //             );
-                //             if (!exists) {
-                //                 notInVideos[resolution] = ht;
-                //             }
-                //         }
-                //         return notInVideos;
-                //     } catch (error) {
-                //         throw error;
-                //     }
-                // };
-        
-                // const onUploadComplete = async (data, resourceId, type) => {
-                //     let result = { ...data };
-        
-                //     if (type === 'film') {
-                //         result.filmId = resourceId;
-                //     }
-                //     if (type === 'episode') {
-                //         result.episodeId = resourceId;
-                //     }
-        
-                //     await prisma.video.create({
-                //         data: result,
-                //     });
-                // };
+        const bucketName =
+            type === 'film'
+                ? resourceId
+                : `${resource.season?.filmId}-${resource.seasonId}`;
 
-                const { filename } = new ChunkService().formatFileName(
-                    fileName
-                );
+        //  const onPreTranscode = async (resolutions, type, resourceId) => {
+        //     try {
+        //         let videos = [];
 
-                await videoQueue.add('transcode-video', {
-                    type,
-                    filePath,
-                    resourceId,
-                    resource,
-                    fileName,
-                    filename,
-                    clientId,
-                    bucketName,
-                    outputDir: UPLOAD_DIR,
-                })
+        //         console.log('resolutions', 'checking jobs');
 
-                res.status(200).json({message: "video upload received. Processing in the background will start shortly.", jobQueued: true});
+        //         if (type === 'film') {
+        //             videos = await prisma.video.findMany({
+        //                 where: { filmId: resourceId, isTrailer: false },
+        //                 select: { id: true, resolution: true },
+        //             });
 
+        //         }
+
+        //         if (type === 'episode') {
+        //             videos = await prisma.video.findMany({
+        //                 where: { episodeId: resourceId, isTrailer: false },
+        //                 select: { id: true, resolution: true },
+        //             });
+        //         }
+        //         console.log('resolutions', videos);
+
+        //         // if no videos are found, use the default resolutions
+        //         if (!videos.length > 0) return resolutions;
+
+        //         const notInVideos = {};
+        //         for (const [resolution, ht] of Object.entries(resolutions)) {
+        //             const exists = videos.some(
+        //                 (vid) => vid.resolution === resolution
+        //             );
+        //             if (!exists) {
+        //                 notInVideos[resolution] = ht;
+        //             }
+        //         }
+        //         return notInVideos;
+        //     } catch (error) {
+        //         throw error;
+        //     }
+        // };
+
+        // const onUploadComplete = async (data, resourceId, type) => {
+        //     let result = { ...data };
+
+        //     if (type === 'film') {
+        //         result.filmId = resourceId;
+        //     }
+        //     if (type === 'episode') {
+        //         result.episodeId = resourceId;
+        //     }
+
+        //     await prisma.video.create({
+        //         data: result,
+        //     });
+        // };
+
+        const { filename } = new ChunkService().formatFileName(fileName);
+
+        await videoQueue.add('transcode-video', {
+            type,
+            filePath,
+            resourceId,
+            resource,
+            fileName,
+            filename,
+            clientId,
+            bucketName,
+            outputDir: UPLOAD_DIR,
+        });
+
+        res.status(200).json({
+            message:
+                'video upload received. Processing in the background will start shortly.',
+            jobQueued: true,
+        });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;
@@ -1372,7 +1368,7 @@ export const uploadFilm2 = async (req, res, next) => {
 
         next(error);
     }
-}
+};
 
 /**
  * @name uploadTrailer
@@ -1494,14 +1490,35 @@ export const getDonations = async (req, res, next) => {
     try {
         const appDonations = await prisma.donation.findMany({
             where: { status: 'SUCCESS' },
+            include: {
+                transaction: {
+                    select: {
+                        amount: true,
+                        type: true,
+                        status: true,
+                    },
+                },
+            },
         });
         const webDonations = await prisma.webDonation.findMany({
             where: { payment_status_description: 'Transaction Successful' },
         });
 
+        const totalAppDonations = appDonations.reduce((acc, donation) => {
+            acc += donation.transaction.amount;
+            return acc;
+        }, 0);
+
+        const totalWebDonations = webDonations.reduce((acc, donation) => {
+            acc += donation.amount;
+            return acc;
+        }, 0);
+
         return res.status(200).json({
             appDonations,
             webDonations,
+            totalAppDonations: formatNumber(totalAppDonations),
+            totalWebDonations: formatNumber(totalWebDonations),
         });
     } catch (error) {
         if (!error.statusCode) {

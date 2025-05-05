@@ -1,12 +1,10 @@
 import express from 'express';
 import {
-    getFilmBySearch,
     streamFilm,
     fetchFilms,
     fetchFilm,
     fetchSimilarFilms,
     getVideoSource,
-    addWatchList,
     getWatchList,
     likeRateFilm,
     purchaseFilm,
@@ -16,6 +14,9 @@ import {
     fetchSeason,
     fetchEpisode,
     fetchSeasons,
+    fetchFeaturedFilms,
+    lookupFilms,
+    manageWatchlist,
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
@@ -33,7 +34,7 @@ router.post(
     '/watchlist/add',
     verifyToken,
     validateData(watchlistSchema),
-    addWatchList
+    manageWatchlist
 );
 router.post(
     '/purchase',
@@ -55,13 +56,14 @@ router.post(
 router.post('/likerate', verifyToken, validateData(likeSchema), likeRateFilm);
 
 // GET
-router.get('/stream/:trackId', streamFilm);
 router.get('/all', fetchFilms);
+router.get('/stream/:trackId', streamFilm);
+router.get('/featured', verifyToken, fetchFeaturedFilms);
 router.get('/:filmId', verifyToken, fetchFilm);
-router.get('/similar/:filmId', verifyToken, fetchSimilarFilms);
+router.get('/similar/:filmId', fetchSimilarFilms);
 router.get('/track/:trackid', getVideoSource);
 router.get('/watchlist/:userId', getWatchList);
-router.get('/search', getFilmBySearch);
+router.get('/lookup/:q', verifyToken, lookupFilms);
 router.get(
     '/checkpaymentstatus/:orderId',
     // verifyToken,

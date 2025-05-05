@@ -10,6 +10,7 @@ import { StatusCodes } from 'http-status-codes';
 export function validateData(schema) {
     return async (req, res, next) => {
         try {
+            console.log(req.body);
             const { data, error } = await schema.safeParseAsync(req.body);
             if (error) {
                 throw new ZodError([error]);
@@ -17,16 +18,16 @@ export function validateData(schema) {
             req.data = data;
             next();
         } catch (error) {
-            console.log(error);
             if (error instanceof ZodError) {
                 const errorMessages = error.errors.map((issue) => ({
                     message: issue.message,
                 }));
 
-                
+                console.log(errorMessages);
+
                 res.status(StatusCodes.BAD_REQUEST).json({
                     error: 'Invalid body data',
-                    details: JSON.parse(errorMessages[0].message)[0].message,
+                    message: JSON.parse(errorMessages[0].message)[0].message,
                 });
             } else {
                 res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({

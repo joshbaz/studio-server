@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { Status, DurationUnit, Currency } from '@prisma/client';
 import { isValid } from 'date-fns';
-import { type } from 'os';
 
 export const loginUserSchema = z.object({
     email: z
@@ -460,17 +459,23 @@ export const updatePricingSchema = z.object({
 export const watchlistSchema = z.object({
     userId: z.string({ message: 'User ID is required' }).min(1),
     resourceId: z.string({ message: 'Resource ID is required' }).min(1),
-    type: z.union([z.literal('season'), z.literal('film')], {
-        message: 'Type must be one of the following:, season or film',
-    }),
+    type: z.union(
+        [z.literal('season'), z.literal('film'), z.literal('movie')],
+        {
+            message: 'Type must be one of the following:, season or film/movie',
+        }
+    ),
 });
 
 export const likeSchema = z.object({
     userId: z.string({ message: 'User ID is required' }).min(1),
     resourceId: z.string({ message: 'Resource ID is required' }).min(1),
-    type: z.union([z.literal('season'), z.literal('film')], {
-        message: 'Type must be one of the following:, season or film',
-    }),
+    type: z.union(
+        [z.literal('season'), z.literal('film'), z.literal('movie')],
+        {
+            message: 'Type must be one of the following:, season or film/movie',
+        }
+    ),
     likeType: z
         .union(
             [

@@ -165,7 +165,7 @@ model film {
   // updatedAt DateTime? @updatedAt 
   purchase  purchase[]
 
-  @@index([title], name: "title_index")
+  @@index([title, overview, plotSummary], name: "film_content_search")
 }
 
 model poster {

@@ -208,7 +208,7 @@ export const fetchFilm = async (req, res, next) => {
             returnError('No film id provided', 400);
         }
 
-        const film = await prisma.film.findUnique({
+        let film = await prisma.film.findUnique({
             where: { id: filmId },
             include: {
                 posters: true,
@@ -261,6 +261,53 @@ export const fetchFilm = async (req, res, next) => {
             await prisma.purchase.update({
                 where: { id: validPurchase.id, userId: req.userId },
                 data: { valid: false },
+            });
+
+            film = await prisma.film.update({
+                where: {
+                    id: filmId,
+                    purchase: { some: { id: validPurchase.id } },
+                },
+                data: { purchase: { update: { data: { valid: false } } } },
+                include: {
+                    posters: true,
+                    pricing: {
+                        include: { priceList: true },
+                    },
+                    purchase: { where: { userId: req.userId, valid: true } },
+                    video: true,
+                    season: {
+                        include: {
+                            posters: true,
+                            pricing: {
+                                include: { priceList: true },
+                            },
+                            purchase: {
+                                where: { userId: req.userId, valid: true },
+                            },
+                            likes: { where: { userId: req.userId } },
+                            episodes: {
+                                include: {
+                                    posters: true,
+                                    video: true,
+                                },
+                            },
+                        },
+                    },
+                    watchlist: {
+                        where: { userId: req.userId, filmId },
+                        select: {
+                            id: true,
+                            filmId: true,
+                            type: true,
+                            userId: true,
+                        },
+                    },
+                    likes: {
+                        where: { userId: req.userId, filmId },
+                    },
+                    views: true,
+                },
             });
         }
 

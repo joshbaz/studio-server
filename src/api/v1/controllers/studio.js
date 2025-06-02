@@ -1488,21 +1488,23 @@ export const uploadTrailer = async (req, res, next) => {
  */
 export const getDonations = async (req, res, next) => {
     try {
-        const appDonations = await prisma.donation.findMany({
-            where: { status: 'SUCCESS' },
-            include: {
-                transaction: {
-                    select: {
-                        amount: true,
-                        type: true,
-                        status: true,
+        const appDonations =
+            (await prisma.donation.findMany({
+                where: { status: 'SUCCESS' },
+                include: {
+                    transaction: {
+                        select: {
+                            amount: true,
+                            type: true,
+                            status: true,
+                        },
                     },
                 },
-            },
-        });
-        const webDonations = await prisma.webDonation.findMany({
-            where: { payment_status_description: 'Transaction Successful' },
-        });
+            })) ?? [];
+        const webDonations =
+            (await prisma.webDonation.findMany({
+                where: { payment_status_description: 'Transaction Successful' },
+            })) ?? [];
 
         const totalAppDonations = appDonations.reduce((acc, donation) => {
             acc += donation.transaction.amount;

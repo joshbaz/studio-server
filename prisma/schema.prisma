@@ -57,6 +57,8 @@ model user {
   likes             likes[]
   views             views[]
   rating            rating[]
+  verificationTokens verificationToken[]
+  passwordResetTokens passwordResetToken[]
 
   @@index([email, phoneNumber, username, firstname, lastname])
 }
@@ -508,4 +510,22 @@ model Category {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model verificationToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String   @unique
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @db.ObjectId
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model passwordResetToken {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  token     String   @unique
+  user      user     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @db.ObjectId
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }

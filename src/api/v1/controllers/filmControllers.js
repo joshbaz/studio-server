@@ -336,6 +336,15 @@ export const fetchSeason = async (req, res, next) => {
             where: { id: seasonId },
             include: {
                 // filmId: true,
+                video: {
+                    where: { isTrailer: true },
+                    select: {
+                       
+                        url: true,
+                        isTrailer: true,
+                        
+                    },
+                },
                 posters: true,
                 trailers: true,
                 purchase: { where: { userId } },

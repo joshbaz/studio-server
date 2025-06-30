@@ -327,6 +327,8 @@ model pricing {
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
+
+  @@unique([filmId, seasonId], name: "pricing_film_season_unique")
 }
 
 model price {

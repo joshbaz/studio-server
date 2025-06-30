@@ -13,6 +13,10 @@ import {
     testEmailOTP,
     testSMSOTP,
     forgotPassword,
+    sendVerificationEmail,
+    verifyAccount,
+    sendPasswordResetEmail,
+    resetPassword,
 } from '../controllers/userControllers.js';
 import { body } from 'express-validator';
 import rateLimit from 'express-rate-limit';
@@ -56,6 +60,10 @@ router.post(
     validateData(forgotPasswordSchema),
     forgotPassword
 );
+router.post('/send-verification-email', sendVerificationEmail);
+router.get('/verify-account', verifyAccount);
+router.post('/send-password-reset-email', sendPasswordResetEmail);
+router.post('/reset-password', resetPassword);
 
 // GET
 router.get('/me/:userId', verifyToken, getUserProfile);

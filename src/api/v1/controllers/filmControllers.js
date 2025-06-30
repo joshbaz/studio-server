@@ -219,6 +219,7 @@ export const fetchFilm = async (req, res, next) => {
                 video: true,
                 season: {
                     include: {
+                        trailers: true,
                         posters: true,
                         pricing: {
                             include: { priceList: true },

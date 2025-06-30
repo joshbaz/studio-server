@@ -336,7 +336,7 @@ export const fetchSeason = async (req, res, next) => {
             where: { id: seasonId },
             include: {
                 // filmId: true,
-                video: {
+                trailers: {
                     where: { isTrailer: true },
                     select: {
                        

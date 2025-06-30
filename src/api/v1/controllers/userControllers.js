@@ -12,6 +12,7 @@ import {
     renderConfirmPassChange,
 } from '@/services/emailTemplates.js';
 import { returnError } from '@/utils/returnError.js';
+import crypto from 'crypto';
 
 /**
  *@name createUser
@@ -688,6 +689,192 @@ export const testSMSOTP = async (req, res, next) => {
             error.statusCode = 500;
         }
 
+        next(error);
+    }
+};
+
+/**
+ *@name sendVerificationEmail
+ *@description Send a verification email with a link to verify the user's account
+ *@type {import('express').RequestHandler}
+ */
+export const sendVerificationEmail = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        if (!email) returnError('Email is required', 400);
+        const user = await prisma.user.findFirst({ where: { email } });
+        if (!user) returnError('User not found', 404);
+        if (user.accountVerified) {
+            return res.status(400).json({ message: 'Account already verified.' });
+        }
+
+        // Generate a unique token
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24); // 24 hours
+
+        // Remove any existing tokens for this user
+        await prisma.verificationToken.deleteMany({ where: { userId: user.id } });
+
+        // Save the new token
+        await prisma.verificationToken.create({
+            data: {
+                token,
+                userId: user.id,
+                expiresAt,
+            },
+        });
+
+        // Construct verification link
+        const verificationLink = `http://localhost:5173/verifyaccount?token=${token}`;
+
+        // Send the email
+        await sendMail({
+            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+            to: email,
+            subject: 'Verify your Nyati account',
+            html: `<p>Click <a href="${verificationLink}">here</a> to verify your account.<br>If you did not request this, please ignore this email.</p>`
+        });
+
+        res.status(200).json({ message: 'Verification email sent' });
+    } catch (error) {
+        if (!error.statusCode) error.statusCode = 500;
+        next(error);
+    }
+};
+
+/**
+ *@name verifyAccount
+ *@description Verify a user's account using the token from the verification link
+ *@type {import('express').RequestHandler}
+ */
+export const verifyAccount = async (req, res, next) => {
+    try {
+        const { token } = req.query;
+        if (!token) returnError('Verification token is required', 400);
+
+        // Find the token
+        const record = await prisma.verificationToken.findFirst({
+            where: { token },
+            include: { user: true },
+        });
+
+        if (!record || record.expiresAt < new Date()) {
+            returnError('Invalid or expired verification token', 400);
+        }
+
+        // If already verified, return info
+        if (record.user.accountVerified) {
+            return res.status(400).json({ message: 'Account has already been verified.' });
+        }
+
+        // Mark user as verified
+        await prisma.user.update({
+            where: { id: record.userId },
+            data: { accountVerified: true },
+        });
+
+        // Delete the token
+        await prisma.verificationToken.delete({ where: { id: record.id } });
+
+        res.status(200).json({ message: 'Account verified successfully' });
+    } catch (error) {
+        if (!error.statusCode) error.statusCode = 500;
+        next(error);
+    }
+};
+
+/**
+ *@name sendPasswordResetEmail
+ *@description Send a password reset email with a link to reset the user's password
+ *@type {import('express').RequestHandler}
+ */
+export const sendPasswordResetEmail = async (req, res, next) => {
+    try {
+        const { email } = req.body;
+        if (!email) returnError('Email is required', 400);
+        const user = await prisma.user.findFirst({ where: { email } });
+        if (!user) returnError('User not found', 404);
+
+        // Generate a unique token
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+        // Remove any existing tokens for this user
+        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+
+        // Save the new token
+        await prisma.passwordResetToken.create({
+            data: {
+                token,
+                userId: user.id,
+                expiresAt,
+            },
+        });
+
+        // Construct reset link
+        const resetLink = `http://localhost:5173/resetpasskey?token=${token}`;
+
+        // Send the email
+        await sendMail({
+            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+            to: email,
+            subject: 'Reset your Nyati account password',
+            html: `<p>Click <a href="${resetLink}">here</a> to reset your password.<br>If you did not request this, please ignore this email.</p>`
+        });
+
+        res.status(200).json({ message: 'Password reset email sent' });
+    } catch (error) {
+        if (!error.statusCode) error.statusCode = 500;
+        next(error);
+    }
+};
+
+/**
+ *@name resetPassword
+ *@description Reset a user's password using the token from the reset link
+ *@type {import('express').RequestHandler}
+ */
+export const resetPassword = async (req, res, next) => {
+    try {
+        const { token, newPassword } = req.body;
+        if (!token || !newPassword) returnError('Token and new password are required', 400);
+
+        // Find the token
+        const record = await prisma.passwordResetToken.findFirst({
+            where: { token },
+            include: { user: true },
+        });
+
+        if (!record || record.expiresAt < new Date()) {
+            returnError('Invalid or expired password reset token', 400);
+        }
+
+        // Hash the new password
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        // Update the user's password
+        await prisma.user.update({
+            where: { id: record.userId },
+            data: { password: hashedPassword },
+        });
+
+        // Send confirmation email
+        await sendMail({
+            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+            to: record.user.email,
+            subject: 'Nyatiflix Password Reset Successful.',
+            html: renderConfirmPassChange({
+                email: record.user.email,
+                firstname: record.user.firstname,
+            }),
+        });
+
+        // Delete the token
+        await prisma.passwordResetToken.delete({ where: { id: record.id } });
+
+        res.status(200).json({ message: 'Password reset successfully' });
+    } catch (error) {
+        if (!error.statusCode) error.statusCode = 500;
         next(error);
     }
 };

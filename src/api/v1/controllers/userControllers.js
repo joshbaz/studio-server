@@ -725,7 +725,7 @@ export const sendVerificationEmail = async (req, res, next) => {
         });
 
         // Construct verification link
-        const verificationLink = `http://localhost:5173/verifyaccount?token=${token}`;
+        const verificationLink = `https://stream.nyatimotionpictures.com/verifyaccount?token=${token}`;
 
         // Send the email
         await sendMail({
@@ -812,7 +812,7 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         });
 
         // Construct reset link
-        const resetLink = `http://localhost:5173/resetpasskey?token=${token}`;
+        const resetLink = `https://stream.nyatimotionpictures.com/resetpasskey?token=${token}`;
 
         // Send the email
         await sendMail({

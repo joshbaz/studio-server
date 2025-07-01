@@ -13,6 +13,7 @@ import {
 } from '@/services/emailTemplates.js';
 import { returnError } from '@/utils/returnError.js';
 import crypto from 'crypto';
+import nodemailer from 'nodemailer';
 
 /**
  *@name createUser
@@ -791,11 +792,11 @@ export const verifyAccount = async (req, res, next) => {
 export const sendPasswordResetEmail = async (req, res, next) => {
     try {
         const { email } = req.body;
+        console.log("email", email)
         if (!email) returnError('Email is required', 400);
         const user = await prisma.user.findFirst({ where: { email } });
         if (!user) returnError('User not found', 404);
 
-        console.log("here")
         // Generate a unique token
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
@@ -815,9 +816,24 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         // Construct reset link
         const resetLink = `https://stream.nyatimotionpictures.com/resetpasskey?token=${token}`;
 
+        let userCred = process.env.NODE_MAILER_USERCRED
+        let userPass = process.env.NODE_MAILER_PASSCRED
+
+        console.log(userCred, userPass)
+        // Create transporter here
+        const transporter = nodemailer.createTransport({
+            host: process.env.SMTP_HOST || 'smtp.zoho.com',
+            port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465,
+            secure: true, // use TLS for port 587
+            auth: {
+                user: userCred, // your Zoho email from env
+                pass: userPass  // your Zoho app password from env
+            }
+        });
+
         // Send the email
-        await sendMail({
-            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+        await transporter.sendMail({
+            from: `Nyati Motion Pictures Nyati Motion Pictures <no-reply@nyatimotionpictures.com>`,
             to: email,
             subject: 'Reset your Nyati account password',
             html: `<p>Click <a href="${resetLink}">here</a> to reset your password.<br>If you did not request this, please ignore this email.</p>`

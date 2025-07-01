@@ -1,6 +1,8 @@
 import nodemailer from 'nodemailer';
 import { env } from '@/env.mjs';
 
+import dotenv from 'dotenv'
+dotenv.config();
 
 
 /**
@@ -12,8 +14,8 @@ export const sendMail = async (mailOptions) => {
    try {
       const transporter = nodemailer.createTransport({
          host: process.env.NODE_MAILER_HOST,
-         port: 587,
-         secure: false,
+         port: 465,
+         secure: true,
          auth: {
             user: process.env.NODE_MAILER_USERCRED,
             pass: process.env.NODE_MAILER_PASSCRED,

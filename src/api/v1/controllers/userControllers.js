@@ -831,11 +831,11 @@ export const sendPasswordResetEmail = async (req, res, next) => {
             }
         });
 
-        console.log("transport",transporter)
+        console.log("transports",transporter)
 
         // Send the email
         await transporter.sendMail({
-            from: `no-reply@nyatimotionpictures.com`,
+            from: userCred,
             to: email,
             subject: 'Reset your Nyati account password',
             html: `<p>Click <a href="${resetLink}">here</a> to reset your password.<br>If you did not request this, please ignore this email.</p>`

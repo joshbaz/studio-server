@@ -795,6 +795,7 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         const user = await prisma.user.findFirst({ where: { email } });
         if (!user) returnError('User not found', 404);
 
+        console.log("here")
         // Generate a unique token
         const token = crypto.randomBytes(32).toString('hex');
         const expiresAt = new Date(Date.now() + 1000 * 60 * 60); // 1 hour

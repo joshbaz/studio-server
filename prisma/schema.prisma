@@ -324,6 +324,7 @@ model pricing {
 
   seasonId String? @db.ObjectId
   season   season?   @relation(fields: [seasonId], references: [id])
+  
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt

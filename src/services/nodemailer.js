@@ -12,8 +12,8 @@ export const sendMail = async (mailOptions) => {
    try {
       const transporter = nodemailer.createTransport({
          host: env.NODE_MAILER_HOST,
-         port: 465,
-         secure: true,
+         port: 587,
+         secure: false,
          auth: {
             user: env.NODE_MAILER_USERCRED,
             pass: env.NODE_MAILER_PASSCRED,

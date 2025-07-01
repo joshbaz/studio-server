@@ -822,7 +822,7 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         console.log(userCred, userPass)
         // Create transporter here
         let transporter = nodemailer.createTransport({
-            service: 'Zoho',
+            service: 'zoho',
             auth: {
                 user: userCred, // your Zoho email from env
                 pass: userPass  // your Zoho app password from env

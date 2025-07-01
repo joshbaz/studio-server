@@ -816,13 +816,15 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         // Construct reset link
         const resetLink = `https://stream.nyatimotionpictures.com/resetpasskey?token=${token}`;
 
-        let userCred = process.env.NODE_MAILER_USERCRED2
-        let userPass = process.env.NODE_MAILER_PASSCRED2
+        let userCred = process.env.NODE_MAILER_USERCRED
+        let userPass = process.env.NODE_MAILER_PASSCRED
 
         console.log(userCred, userPass)
         // Create transporter here
         let transporter = nodemailer.createTransport({
-            service: 'gmail',
+            host: process.env.SMTP_HOST || 'smtp.zoho.com',
+            port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587,
+            secure: false, // use TLS for port 587
             auth: {
                 user: userCred, // your Zoho email from env
                 pass: userPass  // your Zoho app password from env

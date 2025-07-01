@@ -161,7 +161,7 @@ model film {
   rating               rating[]
   Category             Category?      @relation(fields: [categoryId], references: [id])
   categoryId           String?        @db.ObjectId
-  pricing              pricing?
+  pricings             pricing[]
 
   createdAt DateTime   @default(now())
   // updatedAt DateTime? @updatedAt 
@@ -243,7 +243,7 @@ model season {
   film             film?     @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId           String?   @db.ObjectId
   watched          watched[]
-  pricing          pricing?
+  pricings         pricing[]
 
   Category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId String?   @db.ObjectId
@@ -319,16 +319,14 @@ model pricing {
   currency  String
   priceList price[]
 
-  film   film?   @relation(fields: [filmId], references: [id], onDelete: Cascade)
-  filmId String? @unique @db.ObjectId
+  filmId String? @db.ObjectId
+  film   film?   @relation(fields: [filmId], references: [id])
 
-  season   season? @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  seasonId String? @unique @db.ObjectId
+  seasonId String? @db.ObjectId
+  season   season?   @relation(fields: [seasonId], references: [id])
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
-
-  @@unique([filmId, seasonId], name: "pricing_film_season_unique")
 }
 
 model price {

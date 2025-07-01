@@ -3,7 +3,7 @@ import { env } from '@/env.mjs';
 
 const transporter = nodemailer.createTransport({
    host: env.NODE_MAILER_HOST,
-   port: 587,
+   port: 465,
    secure: true,
    auth: {
       user: env.NODE_MAILER_USERCRED,

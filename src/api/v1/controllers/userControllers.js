@@ -835,7 +835,7 @@ export const sendPasswordResetEmail = async (req, res, next) => {
 
         // Send the email
         await transporter.sendMail({
-            from: `Nyati Motion Pictures `,
+            from: `no-reply@nyatimotionpictures.com`,
             to: email,
             subject: 'Reset your Nyati account password',
             html: `<p>Click <a href="${resetLink}">here</a> to reset your password.<br>If you did not request this, please ignore this email.</p>`

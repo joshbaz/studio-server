@@ -821,10 +821,10 @@ export const sendPasswordResetEmail = async (req, res, next) => {
 
         console.log(userCred, userPass)
         // Create transporter here
-        const transporter = nodemailer.createTransport({
+        let transporter = nodemailer.createTransport({
             host: process.env.SMTP_HOST || 'smtp.zoho.com',
-            port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 465,
-            secure: true, // use TLS for port 587
+            port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587,
+            secure: false, // use TLS for port 587
             auth: {
                 user: userCred, // your Zoho email from env
                 pass: userPass  // your Zoho app password from env

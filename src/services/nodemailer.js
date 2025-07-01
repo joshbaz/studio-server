@@ -11,12 +11,12 @@ import { env } from '@/env.mjs';
 export const sendMail = async (mailOptions) => {
    try {
       const transporter = nodemailer.createTransport({
-         host: env.NODE_MAILER_HOST,
+         host: process.env.NODE_MAILER_HOST,
          port: 587,
          secure: false,
          auth: {
-            user: env.NODE_MAILER_USERCRED,
-            pass: env.NODE_MAILER_PASSCRED,
+            user: process.env.NODE_MAILER_USERCRED,
+            pass: process.env.NODE_MAILER_PASSCRED,
          },
       });
       const response = await transporter.sendMail(mailOptions);

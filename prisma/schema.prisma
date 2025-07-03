@@ -319,10 +319,10 @@ model pricing {
   currency  String
   priceList price[]
 
-  filmId String? @unique @db.ObjectId
+  filmId String?  @db.ObjectId
   film   film?   @relation(fields: [filmId], references: [id])
 
-  seasonId String? @unique @db.ObjectId
+  seasonId String?  @db.ObjectId
   season   season?   @relation(fields: [seasonId], references: [id])
   
 

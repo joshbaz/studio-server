@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
 import prisma from '@/utils/db.mjs';
 // import { resend } from '@/services/resend.js';
-import { sendMail } from '@/services/nodemailer.js';
+import { sendZohoMail } from '@/services/zohoMail.js';
 import { at, sendSMS } from '@/services/sms.js';
 import { generate as generateOtp } from 'otp-generator';
 import {
@@ -394,8 +394,7 @@ export const sendOTP = async (req, res, next) => {
 
         let response;
         if (isEmail) {
-            response = await sendMail({
-                from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+            response = await sendZohoMail({
                 to: contact,
                 subject:
                     type === 'auth'
@@ -516,8 +515,7 @@ export const verifyOTP = async (req, res, next) => {
                     { expiresIn: '24h' }
                 );
 
-                await sendMail({
-                    from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+                await sendZohoMail({
                     to: user.email,
                     subject: 'Nyatiflix Account Confirmation.',
                     html: renderConfirmationTemplate({
@@ -590,8 +588,7 @@ export const forgotPassword = async (req, res, next) => {
         });
 
         // send confirmation email
-        await sendMail({
-            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+        await sendZohoMail({
             to: user.email,
             subject: 'Nyatiflix Password Reset Successful.',
             html: renderConfirmPassChange({
@@ -628,8 +625,7 @@ export const testEmailOTP = async (req, res, next) => {
         //    html: renderVerificationTemplate(otp),
         // });
 
-        const response = await sendMail({
-            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+        const response = await sendZohoMail({
             to: 'mymbugua@gmail.com',
             subject: 'Your Nyati Motion Pictures Verification Code',
             html: renderVerificationTemplate(otp),
@@ -728,9 +724,8 @@ export const sendVerificationEmail = async (req, res, next) => {
         // Construct verification link
         const verificationLink = `https://stream.nyatimotionpictures.com/verifyaccount?token=${token}`;
 
-        // Send the email
-        await sendMail({
-            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+        // Send the email via Zoho Mail API
+        await sendZohoMail({
             to: email,
             subject: 'Verify your Nyati account',
             html: `<p>Click <a href="${verificationLink}">here</a> to verify your account.<br>If you did not request this, please ignore this email.</p>`
@@ -792,7 +787,6 @@ export const verifyAccount = async (req, res, next) => {
 export const sendPasswordResetEmail = async (req, res, next) => {
     try {
         const { email } = req.body;
-        console.log("email", email)
         if (!email) returnError('Email is required', 400);
         const user = await prisma.user.findFirst({ where: { email } });
         if (!user) returnError('User not found', 404);
@@ -816,26 +810,8 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         // Construct reset link
         const resetLink = `https://stream.nyatimotionpictures.com/resetpasskey?token=${token}`;
 
-        let userCred = process.env.NODE_MAILER_USERCRED
-        let userPass = process.env.NODE_MAILER_PASSCRED_APP
-
-        console.log(userCred, userPass)
-        // Create transporter here
-        let transporter = nodemailer.createTransport({
-            host: process.env.SMTP_HOST || 'smtp.zoho.com',
-            port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT) : 587,
-            secure: false, // use TLS for port 587
-            auth: {
-                user: userCred, // your Zoho email from env
-                pass: userPass  // your Zoho app password from env
-            }
-        });
-
-        console.log("transports",transporter)
-
-        // Send the email
-        await transporter.sendMail({
-            from: userCred,
+        // Send the email using Zoho
+        await sendZohoMail({
             to: email,
             subject: 'Reset your Nyati account password',
             html: `<p>Click <a href="${resetLink}">here</a> to reset your password.<br>If you did not request this, please ignore this email.</p>`
@@ -843,7 +819,6 @@ export const sendPasswordResetEmail = async (req, res, next) => {
 
         res.status(200).json({ message: 'Password reset email sent' });
     } catch (error) {
-        console.log("error", error)
         if (!error.statusCode) error.statusCode = 500;
         next(error);
     }
@@ -879,8 +854,7 @@ export const resetPassword = async (req, res, next) => {
         });
 
         // Send confirmation email
-        await sendMail({
-            from: 'Nyati Motion Pictures <no-reply@nyatimotionpictures.com>',
+        await sendZohoMail({
             to: record.user.email,
             subject: 'Nyatiflix Password Reset Successful.',
             html: renderConfirmPassChange({

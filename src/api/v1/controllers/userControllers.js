@@ -817,7 +817,7 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         const resetLink = `https://stream.nyatimotionpictures.com/resetpasskey?token=${token}`;
 
         let userCred = process.env.NODE_MAILER_USERCRED
-        let userPass = process.env.NODE_MAILER_PASSCRED
+        let userPass = process.env.NODE_MAILER_PASSCRED_APP
 
         console.log(userCred, userPass)
         // Create transporter here

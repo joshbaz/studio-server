@@ -18,7 +18,7 @@ export const sendMail = async (mailOptions) => {
          secure: true,
          auth: {
             user: process.env.NODE_MAILER_USERCRED,
-            pass: process.env.NODE_MAILER_PASSCRED,
+            pass: process.env.NODE_MAILER_PASSCRED_APP,
          },
       });
       const response = await transporter.sendMail(mailOptions);

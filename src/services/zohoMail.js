@@ -37,10 +37,12 @@ export const getZohoAccessToken = async () => {
 export const sendZohoMail = async ({ to, subject, html, from }) => {
   try {
     const accessToken = await getZohoAccessToken();
+   
+   
     const response = await axios.post(
       `https://mail.zoho.com/api/accounts/${ZOHO_ACCOUNT_ID}/messages`,
       {
-        fromAddress: from || ZOHO_FROM_ADDRESS,
+        fromAddress:  from || ZOHO_FROM_ADDRESS,
         toAddress: to,
         subject,
         content: html,

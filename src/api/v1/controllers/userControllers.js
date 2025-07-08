@@ -727,6 +727,7 @@ export const sendVerificationEmail = async (req, res, next) => {
         // Send the email via Zoho Mail API
         await sendZohoMail({
             to: email,
+            from: 'no-reply@nyatimotionpictures.com',
             subject: 'Verify your Nyati account',
             html: `<p>Click <a href="${verificationLink}">here</a> to verify your account.<br>If you did not request this, please ignore this email.</p>`
         });
@@ -813,6 +814,7 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         // Send the email using Zoho
         await sendZohoMail({
             to: email,
+            from: 'no-reply@nyatimotionpictures.com',
             subject: 'Reset your Nyati account password',
             html: `<p>Click <a href="${resetLink}">here</a> to reset your password.<br>If you did not request this, please ignore this email.</p>`
         });
@@ -856,6 +858,7 @@ export const resetPassword = async (req, res, next) => {
         // Send confirmation email
         await sendZohoMail({
             to: record.user.email,
+            from: 'no-reply@nyatimotionpictures.com',
             subject: 'Nyatiflix Password Reset Successful.',
             html: renderConfirmPassChange({
                 email: record.user.email,

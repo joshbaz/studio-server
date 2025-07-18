@@ -729,7 +729,34 @@ export const sendVerificationEmail = async (req, res, next) => {
             to: email,
             from: 'no-reply@nyatimotionpictures.com',
             subject: 'Verify your Nyati account',
-            html: `<p>Click <a href="${verificationLink}">here</a> to verify your account.<br>If you did not request this, please ignore this email.</p>`
+            html: `
+                <div style="font-family: Arial, sans-serif; background: #f8f8f8; padding: 32px;">
+                    <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); padding: 32px;">
+                        <div style="text-align: center;">
+                            <img src="https://nyatimotionpictures.com/logo.png" alt="Nyati Motion Pictures" style="width: 120px; margin-bottom: 24px;" />
+                        </div>
+                        <h2 style="color: #222; text-align: center;">Verify your Nyati account</h2>
+                        <p style="font-size: 16px; color: #444; text-align: center;">
+                            Thank you for signing up with Nyati Motion Pictures!<br>
+                            Please verify your email address to activate your account.
+                        </p>
+                        <div style="text-align: center; margin: 32px 0;">
+                            <a href="${verificationLink}" style="background: #e50914; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 4px; font-size: 16px; font-weight: bold; display: inline-block;">
+                                Verify Account
+                            </a>
+                        </div>
+                        <p style="font-size: 14px; color: #888; text-align: center;">
+                            Or copy and paste this link into your browser:<br>
+                            <span style="word-break: break-all; color: #555;">${verificationLink}</span>
+                        </p>
+                        <hr style="margin: 32px 0; border: none; border-top: 1px solid #eee;">
+                        <p style="font-size: 13px; color: #aaa; text-align: center;">
+                            If you did not request this, please ignore this email.<br>
+                            &copy; ${new Date().getFullYear()} Nyati Motion Pictures
+                        </p>
+                    </div>
+                </div>
+            `
         });
 
         res.status(200).json({ message: 'Verification email sent' });
@@ -811,12 +838,37 @@ export const sendPasswordResetEmail = async (req, res, next) => {
         // Construct reset link
         const resetLink = `https://stream.nyatimotionpictures.com/resetpasskey?token=${token}`;
 
-        // Send the email using Zoho
+        // Send the email using Zoho with a proper template
         await sendZohoMail({
             to: email,
             from: 'no-reply@nyatimotionpictures.com',
             subject: 'Reset your Nyati account password',
-            html: `<p>Click <a href="${resetLink}">here</a> to reset your password.<br>If you did not request this, please ignore this email.</p>`
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; background: #fff; border-radius: 8px; border: 1px solid #eee; box-shadow: 0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="background: #1a1a1a; color: #fff; padding: 24px 32px; border-radius: 8px 8px 0 0;">
+                        <h2 style="margin: 0; font-size: 1.5em;">Nyati Motion Pictures</h2>
+                    </div>
+                    <div style="padding: 32px;">
+                        <h3 style="margin-top: 0;">Reset Your Password</h3>
+                        <p>Hello${user.firstname ? ` ${user.firstname}` : ''},</p>
+                        <p>We received a request to reset your Nyati account password.</p>
+                        <p>
+                            <a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background: #e50914; color: #fff; border-radius: 4px; text-decoration: none; font-weight: bold;">
+                                Reset Password
+                            </a>
+                        </p>
+                        <p style="color: #888; font-size: 0.95em;">
+                            Or copy and paste this link into your browser:<br>
+                            <span style="word-break: break-all;">${resetLink}</span>
+                        </p>
+                        <p>If you did not request a password reset, you can safely ignore this email.</p>
+                        <p style="margin-bottom: 0;">Best regards,<br>The Nyati Team</p>
+                    </div>
+                    <div style="background: #fafafa; color: #888; text-align: center; font-size: 0.9em; padding: 16px; border-radius: 0 0 8px 8px;">
+                        &copy; ${new Date().getFullYear()} Nyati Motion Pictures. All rights reserved.
+                    </div>
+                </div>
+            `
         });
 
         res.status(200).json({ message: 'Password reset email sent' });

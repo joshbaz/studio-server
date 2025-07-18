@@ -1080,8 +1080,8 @@ export const uploadingTrailer = async (req, res, next) => {
  * @type {import('express').RequestHandler}
  */
 export const uploadChunk = async (req, res, next) => {
+    const { fileName, start } = req.body;
     try {
-        const { fileName, start } = req.body;
         console.log('fileName', fileName, start);
         if (!fileName || !start) {
             returnError('File name and start are required', 400);
@@ -1104,6 +1104,14 @@ export const uploadChunk = async (req, res, next) => {
             chunkPath,
         });
     } catch (error) {
+        // If there is an error, attempt to delete the chunk folder before sending the error
+        if (fileName) {
+            try {
+                await chunkService.deleteChunksFolder(fileName);
+            } catch (cleanupErr) {
+                console.error('Error cleaning up chunk folder:', cleanupErr);
+            }
+        }
         if (!error.statusCode) {
             error.statusCode = 500;
         }

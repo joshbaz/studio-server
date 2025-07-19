@@ -283,7 +283,11 @@ const splitVideoIntoSegments = async (filePath, segmentFolder, clientId, filenam
             .on('end', () => resolve())
             .on('progress', (progress) => {
                 console.log(`Splitting progress: ${progress.percent}%`);
-                io.to(clientId).emit('SplittingProgress', { progress: Math.round(progress.percent), stage: 'splitting' });
+                io.to(clientId).emit('SplittingProgress', { 
+                    progress: Math.round(progress.percent), 
+                    stage: 'splitting',
+                    clientId 
+                });
             })
             .on('error', reject)
             .run();
@@ -317,6 +321,7 @@ const transcodeSegment = async (inputPath, outputPath, height, clientId, label, 
                     segmentLength: indexNum,
                     stage: `transcoding--${label}`,
                     resolution: label,
+                    clientId,
                 });
             })
             .on('error', reject)
@@ -358,6 +363,7 @@ const mergeSegments = async (segmentFolder, finalOutputPath, clientId, label, fi
                     progress: Math.round(progress.percent),
                     stage: `merging-${label}`,
                     resolution: label,
+                    clientId,
                 });
             })
             .on('end', resolve)
@@ -545,6 +551,7 @@ export async function uploadtoDO({
               type,
               resolution: label,
           },
+          clientId,
       });
   }).then(async (data) => {
       // ffprobe the transcoded stream

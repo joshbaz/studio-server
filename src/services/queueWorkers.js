@@ -67,7 +67,10 @@ const videoWorker = new Worker(
             console.log('Could not update job status to completed:', dbError.message);
         }
         
-        io.to(clientId).emit("JobCompleted", {message: "Processing finished"});
+        io.to(clientId).emit("JobCompleted", {
+            message: "Processing finished",
+            clientId
+        });
     },
     { connection: { ...redisConnection, maxRetriesPerRequest: null }, concurrency: 2}
 );
@@ -89,7 +92,10 @@ videoWorker.on("failed", async (job, err)=> {
         console.log('Could not update job status to failed:', dbError.message);
     }
     
-    io.to(job.data.clientId).emit("JobFailed", {message: "Processing failed"});
+    io.to(job.data.clientId).emit("JobFailed", {
+        message: "Processing failed",
+        clientId: job.data.clientId
+    });
 });
 
 const uploadWorker = new Worker(

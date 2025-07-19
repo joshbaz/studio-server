@@ -39,6 +39,13 @@ import {
     uploadingFilm,
     uploadingTrailer,
     uploadFilm2,
+    // Video Processing Job Management
+    getVideoProcessingJobs,
+    getVideoProcessingJob,
+    cancelVideoProcessingJob,
+    deleteVideoProcessingJob,
+    retryVideoProcessingJob,
+    clearCompletedJobs,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -194,5 +201,13 @@ router.delete(
     validateData(deleteVideoSchema),
     deleteVideos
 );
+
+// Video Processing Job Management Routes
+router.get('/processing-jobs', verifyToken, getVideoProcessingJobs);
+router.get('/processing-jobs/:jobId', verifyToken, getVideoProcessingJob);
+router.post('/processing-jobs/:jobId/cancel', verifyToken, cancelVideoProcessingJob);
+router.post('/processing-jobs/:jobId/retry', verifyToken, retryVideoProcessingJob);
+router.delete('/processing-jobs/:jobId', verifyToken, deleteVideoProcessingJob);
+router.post('/processing-jobs/clear', verifyToken, clearCompletedJobs);
 
 export default router;

@@ -4,6 +4,7 @@ import { redisConnection } from './redisClient.js';
 import { transcodeVideo, transcodeVideo2, uploadtoDO } from "./transcodeVideo.js";
 import { io } from "@/utils/sockets.js";
 import { upload } from './multer.js';
+import prisma from '@/utils/db.mjs';
 
 // const connection = new createClient({
 //     // url: process.env.REDIS_URL,
@@ -26,26 +27,68 @@ const videoWorker = new Worker(
         console.log(`Processing job: ${job.id}`);
         const { type, filePath, fileName,filename, outputDir, clientId, bucketName,resourceId, resource, onPreTranscode, onUploadComplete } = job.data;
         
-            await transcodeVideo2({
-                type,
-                filePath,
-                resourceId,
-                resource,
-                fileName,
-                filename,
-                outputDir,
-                clientId,
-                bucketName,
-                socio: io,
+        // Update job status to active
+        try {
+            await prisma.videoProcessingJob.updateMany({
+                where: { jobId: job.id.toString() },
+                data: { 
+                    status: 'active',
+                    canCancel: false // Cannot cancel active jobs
+                }
             });
-            io.to(clientId).emit("JobCompleted", {message: "Processing finished"});
+        } catch (dbError) {
+            console.log('Could not update job status to active:', dbError.message);
+        }
         
+        await transcodeVideo2({
+            type,
+            filePath,
+            resourceId,
+            resource,
+            fileName,
+            filename,
+            outputDir,
+            clientId,
+            bucketName,
+            socio: io,
+        });
+        
+        // Update job status to completed
+        try {
+            await prisma.videoProcessingJob.updateMany({
+                where: { jobId: job.id.toString() },
+                data: { 
+                    status: 'completed',
+                    progress: 100,
+                    canCancel: false
+                }
+            });
+        } catch (dbError) {
+            console.log('Could not update job status to completed:', dbError.message);
+        }
+        
+        io.to(clientId).emit("JobCompleted", {message: "Processing finished"});
     },
     { connection: { ...redisConnection, maxRetriesPerRequest: null }, concurrency: 2}
 );
 
-videoWorker.on("failed", (job, err)=> {
+videoWorker.on("failed", async (job, err)=> {
     console.log(`Job ${job.id} failed with error ${err.message}`);
+    
+    // Update job status to failed
+    try {
+        await prisma.videoProcessingJob.updateMany({
+            where: { jobId: job.id.toString() },
+            data: { 
+                status: 'failed',
+                failedReason: err.message,
+                canCancel: false
+            }
+        });
+    } catch (dbError) {
+        console.log('Could not update job status to failed:', dbError.message);
+    }
+    
     io.to(job.data.clientId).emit("JobFailed", {message: "Processing failed"});
 });
 

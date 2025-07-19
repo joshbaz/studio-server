@@ -1299,64 +1299,10 @@ export const uploadFilm2 = async (req, res, next) => {
                 ? resourceId
                 : `${resource.season?.filmId}-${resource.seasonId}`;
 
-        //  const onPreTranscode = async (resolutions, type, resourceId) => {
-        //     try {
-        //         let videos = [];
-
-        //         console.log('resolutions', 'checking jobs');
-
-        //         if (type === 'film') {
-        //             videos = await prisma.video.findMany({
-        //                 where: { filmId: resourceId, isTrailer: false },
-        //                 select: { id: true, resolution: true },
-        //             });
-
-        //         }
-
-        //         if (type === 'episode') {
-        //             videos = await prisma.video.findMany({
-        //                 where: { episodeId: resourceId, isTrailer: false },
-        //                 select: { id: true, resolution: true },
-        //             });
-        //         }
-        //         console.log('resolutions', videos);
-
-        //         // if no videos are found, use the default resolutions
-        //         if (!videos.length > 0) return resolutions;
-
-        //         const notInVideos = {};
-        //         for (const [resolution, ht] of Object.entries(resolutions)) {
-        //             const exists = videos.some(
-        //                 (vid) => vid.resolution === resolution
-        //             );
-        //             if (!exists) {
-        //                 notInVideos[resolution] = ht;
-        //             }
-        //         }
-        //         return notInVideos;
-        //     } catch (error) {
-        //         throw error;
-        //     }
-        // };
-
-        // const onUploadComplete = async (data, resourceId, type) => {
-        //     let result = { ...data };
-
-        //     if (type === 'film') {
-        //         result.filmId = resourceId;
-        //     }
-        //     if (type === 'episode') {
-        //         result.episodeId = resourceId;
-        //     }
-
-        //     await prisma.video.create({
-        //         data: result,
-        //     });
-        // };
-
         const { filename } = new ChunkService().formatFileName(fileName);
 
-        await videoQueue.add('transcode-video', {
+        // Add job to queue
+        const job = await videoQueue.add('transcode-video', {
             type,
             filePath,
             resourceId,
@@ -1368,10 +1314,33 @@ export const uploadFilm2 = async (req, res, next) => {
             outputDir: UPLOAD_DIR,
         });
 
+        // Save job details to database
+        const jobData = {
+            jobId: job.id.toString(),
+            queueName: 'video-transcoding',
+            status: 'waiting',
+            type,
+            resourceId,
+            resourceName: type === 'film' ? resource.title : resource.title,
+            fileName,
+            canCancel: true,
+        };
+
+        if (type === 'film') {
+            jobData.filmId = resourceId;
+        } else {
+            jobData.episodeId = resourceId;
+        }
+
+        await prisma.videoProcessingJob.create({
+            data: jobData,
+        });
+
         res.status(200).json({
             message:
                 'video upload received. Processing in the background will start shortly.',
             jobQueued: true,
+            jobId: job.id.toString(),
         });
     } catch (error) {
         if (!error.statusCode) {
@@ -2194,6 +2163,361 @@ export const deleteVideos = async (req, res, next) => {
             error.statusCode = 500;
         }
 
+        next(error);
+    }
+};
+
+// Video Processing Job Management
+
+/**
+ * @name getVideoProcessingJobs
+ * @description Get all video processing jobs with their status
+ * @type {import('express').RequestHandler}
+ */
+export const getVideoProcessingJobs = async (req, res, next) => {
+    try {
+        const { status, type } = req.query;
+        
+        const filter = {};
+        if (status) filter.status = status;
+        if (type) filter.type = type;
+
+        const jobs = await prisma.videoProcessingJob.findMany({
+            where: filter,
+            include: {
+                film: {
+                    select: {
+                        id: true,
+                        title: true,
+                        type: true,
+                    },
+                },
+                episode: {
+                    select: {
+                        id: true,
+                        title: true,
+                        episode: true,
+                        season: {
+                            select: {
+                                id: true,
+                                season: true,
+                                film: {
+                                    select: {
+                                        id: true,
+                                        title: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            orderBy: {
+                createdAt: 'desc',
+            },
+        });
+
+        // Get queue statistics
+        const queueStats = {
+            total: jobs.length,
+            waiting: jobs.filter(job => job.status === 'waiting').length,
+            active: jobs.filter(job => job.status === 'active').length,
+            completed: jobs.filter(job => job.status === 'completed').length,
+            failed: jobs.filter(job => job.status === 'failed').length,
+            cancelled: jobs.filter(job => job.status === 'cancelled').length,
+        };
+
+        res.status(200).json({
+            jobs,
+            stats: queueStats,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name getVideoProcessingJob
+ * @description Get a specific video processing job by ID
+ * @type {import('express').RequestHandler}
+ */
+export const getVideoProcessingJob = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!jobId) returnError('Job ID is required', 400);
+
+        const job = await prisma.videoProcessingJob.findUnique({
+            where: { id: jobId },
+            include: {
+                film: {
+                    select: {
+                        id: true,
+                        title: true,
+                        type: true,
+                    },
+                },
+                episode: {
+                    select: {
+                        id: true,
+                        title: true,
+                        episode: true,
+                        season: {
+                            select: {
+                                id: true,
+                                seasonNumber: true,
+                                film: {
+                                    select: {
+                                        id: true,
+                                        title: true,
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        });
+
+        if (!job) returnError('Job not found', 404);
+
+        // Get BullMQ job details if still in queue
+        let queueJobDetails = null;
+        try {
+            const queueJob = await videoQueue.getJob(job.jobId);
+            if (queueJob) {
+                queueJobDetails = {
+                    progress: queueJob.progress,
+                    state: await queueJob.getState(),
+                    processedOn: queueJob.processedOn,
+                    finishedOn: queueJob.finishedOn,
+                    failedReason: queueJob.failedReason,
+                };
+            }
+        } catch (queueError) {
+            console.log('Could not fetch queue job details:', queueError.message);
+        }
+
+        res.status(200).json({
+            job,
+            queueDetails: queueJobDetails,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name cancelVideoProcessingJob
+ * @description Cancel a video processing job
+ * @type {import('express').RequestHandler}
+ */
+export const cancelVideoProcessingJob = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!jobId) returnError('Job ID is required', 400);
+
+        const job = await prisma.videoProcessingJob.findUnique({
+            where: { id: jobId },
+        });
+
+        if (!job) returnError('Job not found', 404);
+
+        if (!job.canCancel) {
+            returnError('This job cannot be cancelled', 400);
+        }
+
+        if (['completed', 'failed', 'cancelled'].includes(job.status)) {
+            returnError('Job is already finished', 400);
+        }
+
+        // Cancel the BullMQ job
+        try {
+            const queueJob = await videoQueue.getJob(job.jobId);
+            if (queueJob) {
+                await queueJob.remove();
+            }
+        } catch (queueError) {
+            console.log('Could not cancel queue job:', queueError.message);
+        }
+
+        // Update database status
+        await prisma.videoProcessingJob.update({
+            where: { id: jobId },
+            data: {
+                status: 'cancelled',
+                cancelledAt: new Date(),
+                canCancel: false,
+            },
+        });
+
+        res.status(200).json({
+            message: 'Job cancelled successfully',
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name deleteVideoProcessingJob
+ * @description Delete a video processing job record
+ * @type {import('express').RequestHandler}
+ */
+export const deleteVideoProcessingJob = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!jobId) returnError('Job ID is required', 400);
+
+        const job = await prisma.videoProcessingJob.findUnique({
+            where: { id: jobId },
+        });
+
+        if (!job) returnError('Job not found', 404);
+
+        // Only allow deletion of completed, failed, or cancelled jobs
+        if (!['completed', 'failed', 'cancelled'].includes(job.status)) {
+            returnError('Cannot delete active or waiting jobs. Cancel them first.', 400);
+        }
+
+        await prisma.videoProcessingJob.delete({
+            where: { id: jobId },
+        });
+
+        res.status(200).json({
+            message: 'Job record deleted successfully',
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name retryVideoProcessingJob
+ * @description Retry a failed video processing job
+ * @type {import('express').RequestHandler}
+ */
+export const retryVideoProcessingJob = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!jobId) returnError('Job ID is required', 400);
+
+        const job = await prisma.videoProcessingJob.findUnique({
+            where: { id: jobId },
+            include: {
+                film: true,
+                episode: {
+                    include: {
+                        season: {
+                            select: { id: true, filmId: true }
+                        }
+                    }
+                }
+            },
+        });
+
+        if (!job) returnError('Job not found', 404);
+
+        if (job.status !== 'failed') {
+            returnError('Only failed jobs can be retried', 400);
+        }
+
+        // Create new queue job
+        const resource = job.film || job.episode;
+        const bucketName = job.type === 'film' 
+            ? job.resourceId 
+            : `${job.episode.season.filmId}-${job.episode.seasonId}`;
+
+        const filePath = path.join(UPLOAD_DIR, job.fileName);
+        const { filename } = new ChunkService().formatFileName(job.fileName);
+
+        const newQueueJob = await videoQueue.add('transcode-video', {
+            type: job.type,
+            filePath,
+            resourceId: job.resourceId,
+            resource,
+            fileName: job.fileName,
+            filename,
+            clientId: 'retry-' + Date.now(), // Generate a new client ID
+            bucketName,
+            outputDir: UPLOAD_DIR,
+        });
+
+        // Update job record
+        await prisma.videoProcessingJob.update({
+            where: { id: jobId },
+            data: {
+                jobId: newQueueJob.id.toString(),
+                status: 'waiting',
+                progress: 0,
+                canCancel: true,
+                cancelledAt: null,
+                failedReason: null,
+            },
+        });
+
+        res.status(200).json({
+            message: 'Job queued for retry',
+            newJobId: newQueueJob.id.toString(),
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name clearCompletedJobs
+ * @description Clear all completed and failed job records
+ * @type {import('express').RequestHandler}
+ */
+export const clearCompletedJobs = async (req, res, next) => {
+    try {
+        const { status } = req.body; // 'completed', 'failed', 'cancelled', or 'all'
+
+        let whereClause = {};
+        
+        if (status === 'all') {
+            whereClause = {
+                status: {
+                    in: ['completed', 'failed', 'cancelled']
+                }
+            };
+        } else if (['completed', 'failed', 'cancelled'].includes(status)) {
+            whereClause = { status };
+        } else {
+            returnError('Invalid status. Use "completed", "failed", "cancelled", or "all"', 400);
+        }
+
+        const deletedJobs = await prisma.videoProcessingJob.deleteMany({
+            where: whereClause,
+        });
+
+        res.status(200).json({
+            message: `Cleared ${deletedJobs.count} job records`,
+            deletedCount: deletedJobs.count,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
         next(error);
     }
 };

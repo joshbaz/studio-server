@@ -1087,10 +1087,12 @@ export const uploadChunk = async (req, res, next) => {
             returnError('File name and start are required', 400);
         }
 
-        const chunkExists = chunkService.checkChunk(fileName, start);
-        if (chunkExists) {
-            returnError('Chunk already exists', 400);
-        }
+
+        // remove the check chunk service
+        // const chunkExists = chunkService.checkChunk(fileName, start);
+        // if (chunkExists) {
+        //     returnError('Chunk already exists', 400);
+        // }
 
         const filePath = req.file.path;
         const chunkPath = await chunkService.saveChunk(

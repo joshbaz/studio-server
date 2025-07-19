@@ -51,7 +51,7 @@ const videoWorker = new Worker(
                 outputDir,
                 clientId,
                 bucketName,
-                socio: io,
+                jobId: job.id.toString(), // Pass the job ID for cancellation checks
             });
             
             // Update job status to completed

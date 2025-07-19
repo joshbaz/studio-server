@@ -428,11 +428,11 @@ const onUploadComplete2 = async (data, resourceId, type) => {
 };
 
 // Helper function to check if job is cancelled
-const checkJobCancellation = async (resourceId) => {
+const checkJobCancellation = async (jobId) => {
     try {
         const job = await prisma.videoProcessingJob.findFirst({
             where: { 
-                resourceId: resourceId,
+                jobId: jobId,
                 status: 'cancelled'
             }
         });
@@ -454,6 +454,7 @@ export async function transcodeVideo2({
     outputDir,
     clientId,
     bucketName,
+    jobId, // Add jobId parameter
 }) {
     
     if (onPreTranscode2) {
@@ -461,7 +462,7 @@ export async function transcodeVideo2({
     }
 
     // Check for cancellation before starting
-    if (await checkJobCancellation(resourceId)) {
+    if (await checkJobCancellation(jobId)) {
         throw new Error('Job was cancelled before processing started');
     }
 
@@ -481,7 +482,7 @@ export async function transcodeVideo2({
         console.log('Segments created');
 
         // Check for cancellation after splitting
-        if (await checkJobCancellation(resourceId)) {
+        if (await checkJobCancellation(jobId)) {
             // Clean up segment folder
             fs.rmSync(segmentFolder, { recursive: true, force: true });
             // Clean up original file
@@ -496,7 +497,7 @@ export async function transcodeVideo2({
             console.log(`🚀 Starting transcoding for ${label}`);
 
             // Check for cancellation before each resolution
-            if (await checkJobCancellation(resourceId)) {
+            if (await checkJobCancellation(jobId)) {
                 // Clean up segment folder
                 fs.rmSync(segmentFolder, { recursive: true, force: true });
                 // Clean up original file
@@ -519,7 +520,7 @@ export async function transcodeVideo2({
                 const outputPath = path.join(segmentFolder, `${label}_${segment}`);
 
                 // Check for cancellation before each segment
-                if (await checkJobCancellation(resourceId)) {
+                if (await checkJobCancellation(jobId)) {
                     // Clean up segment folder
                     fs.rmSync(segmentFolder, { recursive: true, force: true });
                     // Clean up original file
@@ -537,7 +538,7 @@ export async function transcodeVideo2({
              await mergeSegments(segmentFolder, mergedFilePath, clientId, label, filename);
 
              // Check for cancellation before upload
-             if (await checkJobCancellation(resourceId)) {
+             if (await checkJobCancellation(jobId)) {
                  // Clean up files
                  fs.rmSync(segmentFolder, { recursive: true, force: true });
                  if (fs.existsSync(mergedFilePath)) {

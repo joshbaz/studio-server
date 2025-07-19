@@ -29,23 +29,12 @@ class ChunkService {
      * @returns {{ ext: string; filename: string }}
      * @example
      * const chunkService = new ChunkService();
-     * const result = chunkService.formatFileName('file.mp4'); // returns {ext: 'mp4', filename: 'file'}
+     * const result = chunkService.formatFileName('file mp4'); // returns {ext: 'mp4', filename: 'file_mp4'}
      */
     formatFileName(fileName) {
-        // First, replace spaces with underscores
-        const normalizedName = fileName.toLowerCase().replace(/\s/g, '_');
-        
-        // Find the last dot to separate extension from filename
-        const lastDotIndex = normalizedName.lastIndexOf('.');
-        
-        if (lastDotIndex === -1) {
-            // No extension found
-            return { ext: '', filename: normalizedName };
-        }
-        
-        const ext = normalizedName.substring(lastDotIndex + 1);
-        const filename = normalizedName.substring(0, lastDotIndex);
-        
+        const splitName = fileName.toLowerCase().replace(/\s/g, '_').split('.');
+        const ext = splitName[splitName.length - 1];
+        const filename = splitName.filter((item) => item !== ext).join('_');
         return { ext, filename };
     }
 

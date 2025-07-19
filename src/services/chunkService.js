@@ -125,7 +125,14 @@ class ChunkService {
     async deleteChunksFolder(fileName) {
         const { filename } = this.formatFileName(fileName);
         const filePath = path.join(this.uploadDir, filename);
-        return await fs.promises.rm(filePath, { recursive: true }); // Delete the directory and its contents
+        
+        // Check if directory exists before trying to delete it
+        if (fs.existsSync(filePath)) {
+            return await fs.promises.rm(filePath, { recursive: true, force: true }); // Delete the directory and its contents
+        } else {
+            console.log(`Chunks folder doesn't exist: ${filePath}`);
+            return null; // Return null to indicate no deletion was needed
+        }
     }
 }
 

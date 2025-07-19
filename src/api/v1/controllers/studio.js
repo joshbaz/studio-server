@@ -2302,7 +2302,7 @@ export const getVideoProcessingJob = async (req, res, next) => {
                         season: {
                             select: {
                                 id: true,
-                                seasonNumber: true,
+                                season: true,
                                 film: {
                                     select: {
                                         id: true,

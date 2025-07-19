@@ -47,6 +47,7 @@ import {
     retryVideoProcessingJob,
     clearCompletedJobs,
     cleanupFailedJob,
+    checkExistingProcessingJob,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -206,6 +207,7 @@ router.delete(
 // Video Processing Job Management Routes
 router.get('/processing-jobs', verifyToken, getVideoProcessingJobs);
 router.get('/processing-jobs/:jobId', verifyToken, getVideoProcessingJob);
+router.get('/processing-jobs/check-existing', verifyToken, checkExistingProcessingJob);
 router.post('/processing-jobs/:jobId/cancel', verifyToken, cancelVideoProcessingJob);
 router.post('/processing-jobs/:jobId/retry', verifyToken, retryVideoProcessingJob);
 router.post('/processing-jobs/:jobId/cleanup', verifyToken, cleanupFailedJob);

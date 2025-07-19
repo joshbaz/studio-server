@@ -2627,3 +2627,47 @@ export const cleanupFailedJob = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * @name checkExistingProcessingJob
+ * @description Check if there's an existing processing job for a resource
+ * @type {import('express').RequestHandler}
+ */
+export const checkExistingProcessingJob = async (req, res, next) => {
+    try {
+        const { resourceId, type } = req.query;
+
+        if (!resourceId) returnError('Resource ID is required', 400);
+        if (!type) returnError('Type is required', 400);
+
+        // Check for existing jobs that are not completed, failed, or cancelled
+        const existingJob = await prisma.videoProcessingJob.findFirst({
+            where: {
+                resourceId,
+                type,
+                status: {
+                    notIn: ['completed', 'failed', 'cancelled']
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        res.status(200).json({
+            hasExistingJob: !!existingJob,
+            existingJob: existingJob ? {
+                id: existingJob.id,
+                status: existingJob.status,
+                fileName: existingJob.fileName,
+                createdAt: existingJob.createdAt,
+                progress: existingJob.progress
+            } : null
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};

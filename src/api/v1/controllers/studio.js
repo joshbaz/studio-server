@@ -61,10 +61,27 @@ const cleanupFilmFolder = async (resourceId, type, fileName) => {
         
         // Clean up any temporary files in uploads directory
         const { filename } = chunkService.formatFileName(fileName);
-        const filePath = path.join(UPLOAD_DIR, `${filename}.mp4`);
         
-        if (fs.existsSync(filePath)) {
-            await fs.promises.unlink(filePath);
+        // Clean up the original combined file
+        const originalFilePath = path.join(UPLOAD_DIR, `${filename}.mp4`);
+        if (fs.existsSync(originalFilePath)) {
+            await fs.promises.unlink(originalFilePath);
+        }
+        
+        // Clean up final transcoded .mp4 files (SD_, HD_, FHD_, UHD_ prefixed files)
+        const transcodedFiles = [
+            `SD_${filename}.mp4`,
+            `HD_${filename}.mp4`, 
+            `FHD_${filename}.mp4`,
+            `UHD_${filename}.mp4`
+        ];
+        
+        for (const transcodedFile of transcodedFiles) {
+            const transcodedFilePath = path.join(UPLOAD_DIR, transcodedFile);
+            if (fs.existsSync(transcodedFilePath)) {
+                await fs.promises.unlink(transcodedFilePath);
+                console.log(`🗑️ Cleaned up transcoded file: ${transcodedFile}`);
+            }
         }
         
         // Clean up segment folders if they exist

@@ -489,6 +489,19 @@ export async function transcodeVideo2({
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
             }
+            // Clean up any transcoded files that might have been created
+            const transcodedFiles = [
+                `SD_${filename}.mp4`,
+                `HD_${filename}.mp4`, 
+                `FHD_${filename}.mp4`,
+                `UHD_${filename}.mp4`
+            ];
+            for (const transcodedFile of transcodedFiles) {
+                const transcodedFilePath = path.join(outputDir, transcodedFile);
+                if (fs.existsSync(transcodedFilePath)) {
+                    fs.unlinkSync(transcodedFilePath);
+                }
+            }
             throw new Error('Job was cancelled after video splitting');
         }
 
@@ -503,6 +516,19 @@ export async function transcodeVideo2({
                 // Clean up original file
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
+                }
+                // Clean up any transcoded files that might have been created
+                const transcodedFiles = [
+                    `SD_${filename}.mp4`,
+                    `HD_${filename}.mp4`, 
+                    `FHD_${filename}.mp4`,
+                    `UHD_${filename}.mp4`
+                ];
+                for (const transcodedFile of transcodedFiles) {
+                    const transcodedFilePath = path.join(outputDir, transcodedFile);
+                    if (fs.existsSync(transcodedFilePath)) {
+                        fs.unlinkSync(transcodedFilePath);
+                    }
                 }
                 throw new Error(`Job was cancelled during ${label} processing`);
             }
@@ -526,6 +552,19 @@ export async function transcodeVideo2({
                     // Clean up original file
                     if (fs.existsSync(filePath)) {
                         fs.unlinkSync(filePath);
+                    }
+                    // Clean up any transcoded files that might have been created
+                    const transcodedFiles = [
+                        `SD_${filename}.mp4`,
+                        `HD_${filename}.mp4`, 
+                        `FHD_${filename}.mp4`,
+                        `UHD_${filename}.mp4`
+                    ];
+                    for (const transcodedFile of transcodedFiles) {
+                        const transcodedFilePath = path.join(outputDir, transcodedFile);
+                        if (fs.existsSync(transcodedFilePath)) {
+                            fs.unlinkSync(transcodedFilePath);
+                        }
                     }
                     throw new Error(`Job was cancelled during segment processing for ${label}`);
                 }
@@ -594,6 +633,22 @@ export async function transcodeVideo2({
             }
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
+            }
+            
+            // Clean up final transcoded .mp4 files that might have been created
+            const transcodedFiles = [
+                `SD_${filename}.mp4`,
+                `HD_${filename}.mp4`, 
+                `FHD_${filename}.mp4`,
+                `UHD_${filename}.mp4`
+            ];
+            
+            for (const transcodedFile of transcodedFiles) {
+                const transcodedFilePath = path.join(outputDir, transcodedFile);
+                if (fs.existsSync(transcodedFilePath)) {
+                    fs.unlinkSync(transcodedFilePath);
+                    console.log(`🗑️ Cleaned up transcoded file during error: ${transcodedFile}`);
+                }
             }
         } catch (cleanupError) {
             console.error('Error during cleanup:', cleanupError.message);

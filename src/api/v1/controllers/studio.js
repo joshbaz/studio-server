@@ -46,6 +46,40 @@ function broadcastProgress({ progress, clientId, content }) {
     io.to(clientId).emit('uploadProgress', { content, progress });
 }
 
+/**
+ * @name cleanupFilmFolder
+ * @description Clean up film folder and chunks for a given resource
+ * @param {string} resourceId - The resource ID (film or episode ID)
+ * @param {string} type - The type of resource ('film' or 'episode')
+ * @param {string} fileName - The original file name
+ */
+const cleanupFilmFolder = async (resourceId, type, fileName) => {
+    try {
+        // Clean up chunks folder if it exists
+        const chunkService = new ChunkService();
+        await chunkService.deleteChunksFolder(fileName);
+        
+        // Clean up any temporary files in uploads directory
+        const { filename } = chunkService.formatFileName(fileName);
+        const filePath = path.join(UPLOAD_DIR, `${filename}.mp4`);
+        
+        if (fs.existsSync(filePath)) {
+            await fs.promises.unlink(filePath);
+        }
+        
+        // Clean up segment folders if they exist
+        const segmentFolder = path.join(UPLOAD_DIR, `segments_${filename}`);
+        if (fs.existsSync(segmentFolder)) {
+            await fs.promises.rm(segmentFolder, { recursive: true, force: true });
+        }
+        
+        console.log(`🧹 Cleaned up folders for ${type} ${resourceId} (${fileName})`);
+    } catch (error) {
+        console.error('Error cleaning up film folder:', error.message);
+        // Don't throw error as this is cleanup operation
+    }
+};
+
 //Films
 /**
  *
@@ -2338,15 +2372,28 @@ export const cancelVideoProcessingJob = async (req, res, next) => {
             returnError('Job is already finished', 400);
         }
 
-        // Cancel the BullMQ job
+        // Try to cancel/remove the BullMQ job
         try {
             const queueJob = await videoQueue.getJob(job.jobId);
             if (queueJob) {
-                await queueJob.remove();
+                const jobState = await queueJob.getState();
+                
+                if (jobState === 'waiting' || jobState === 'delayed') {
+                    // Job hasn't started yet, we can remove it
+                    await queueJob.remove();
+                } else if (jobState === 'active') {
+                    // Job is currently processing, we can't remove it but we can mark it as cancelled
+                    // The worker should check for cancellation periodically
+                    console.log(`Job ${job.jobId} is active, marking as cancelled`);
+                }
             }
         } catch (queueError) {
             console.log('Could not cancel queue job:', queueError.message);
+            // Continue with database update even if queue operation fails
         }
+
+        // Clean up film folders when cancelling
+        await cleanupFilmFolder(job.resourceId, job.type, job.fileName);
 
         // Update database status
         await prisma.videoProcessingJob.update({
@@ -2358,8 +2405,20 @@ export const cancelVideoProcessingJob = async (req, res, next) => {
             },
         });
 
+        // Emit cancellation event to client
+        try {
+            const { resourceId } = job;
+            io.to(resourceId).emit('JobCancelled', { 
+                message: 'Job was cancelled',
+                jobId: job.jobId,
+                clientId: resourceId 
+            });
+        } catch (socketError) {
+            console.log('Could not emit cancellation event:', socketError.message);
+        }
+
         res.status(200).json({
-            message: 'Job cancelled successfully',
+            message: job.status === 'active' ? 'Job stop request sent successfully' : 'Job cancelled successfully',
         });
     } catch (error) {
         if (!error.statusCode) {
@@ -2506,6 +2565,18 @@ export const clearCompletedJobs = async (req, res, next) => {
             returnError('Invalid status. Use "completed", "failed", "cancelled", or "all"', 400);
         }
 
+        // Get jobs before deleting them for cleanup
+        const jobsToDelete = await prisma.videoProcessingJob.findMany({
+            where: whereClause,
+        });
+
+        // Clean up folders for failed jobs
+        for (const job of jobsToDelete) {
+            if (job.status === 'failed') {
+                await cleanupFilmFolder(job.resourceId, job.type, job.fileName);
+            }
+        }
+
         const deletedJobs = await prisma.videoProcessingJob.deleteMany({
             where: whereClause,
         });
@@ -2513,6 +2584,41 @@ export const clearCompletedJobs = async (req, res, next) => {
         res.status(200).json({
             message: `Cleared ${deletedJobs.count} job records`,
             deletedCount: deletedJobs.count,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name cleanupFailedJob
+ * @description Clean up folders for a specific failed job
+ * @type {import('express').RequestHandler}
+ */
+export const cleanupFailedJob = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!jobId) returnError('Job ID is required', 400);
+
+        const job = await prisma.videoProcessingJob.findUnique({
+            where: { id: jobId },
+        });
+
+        if (!job) returnError('Job not found', 404);
+
+        if (job.status !== 'failed') {
+            returnError('Only failed jobs can be cleaned up', 400);
+        }
+
+        // Clean up film folders
+        await cleanupFilmFolder(job.resourceId, job.type, job.fileName);
+
+        res.status(200).json({
+            message: 'Job folders cleaned up successfully',
         });
     } catch (error) {
         if (!error.statusCode) {

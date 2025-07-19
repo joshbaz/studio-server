@@ -2695,3 +2695,164 @@ export const checkExistingProcessingJob = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * @name syncJobStatus
+ * @description Sync job status with BullMQ queue state
+ * @type {import('express').RequestHandler}
+ */
+export const syncJobStatus = async (req, res, next) => {
+    try {
+        const { jobId } = req.params;
+
+        if (!jobId) returnError('Job ID is required', 400);
+
+        const job = await prisma.videoProcessingJob.findUnique({
+            where: { id: jobId },
+        });
+
+        if (!job) returnError('Job not found', 404);
+
+        // Get BullMQ job details
+        let queueJobDetails = null;
+        try {
+            const queueJob = await videoQueue.getJob(job.jobId);
+            if (queueJob) {
+                const jobState = await queueJob.getState();
+                queueJobDetails = {
+                    progress: queueJob.progress,
+                    state: jobState,
+                    processedOn: queueJob.processedOn,
+                    finishedOn: queueJob.finishedOn,
+                    failedReason: queueJob.failedReason,
+                };
+
+                // Sync status based on queue state
+                let newStatus = job.status;
+                if (jobState === 'active' && job.status === 'waiting') {
+                    newStatus = 'active';
+                } else if (jobState === 'completed' && job.status !== 'completed') {
+                    newStatus = 'completed';
+                } else if (jobState === 'failed' && job.status !== 'failed') {
+                    newStatus = 'failed';
+                }
+
+                if (newStatus !== job.status) {
+                    await prisma.videoProcessingJob.update({
+                        where: { id: jobId },
+                        data: { 
+                            status: newStatus,
+                            progress: jobState === 'completed' ? 100 : job.progress,
+                            failedReason: jobState === 'failed' ? queueJob.failedReason : job.failedReason,
+                        },
+                    });
+                }
+            }
+        } catch (queueError) {
+            console.log('Could not fetch queue job details:', queueError.message);
+        }
+
+        res.status(200).json({
+            message: 'Job status synced successfully',
+            job: {
+                ...job,
+                queueDetails: queueJobDetails,
+            },
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};
+
+/**
+ * @name fixStuckJobs
+ * @description Fix jobs that are stuck in waiting state but actually processing
+ * @type {import('express').RequestHandler}
+ */
+export const fixStuckJobs = async (req, res, next) => {
+    try {
+        // Find all waiting jobs
+        const waitingJobs = await prisma.videoProcessingJob.findMany({
+            where: { status: 'waiting' },
+        });
+
+        let fixedCount = 0;
+        const results = [];
+
+        for (const job of waitingJobs) {
+            try {
+                const queueJob = await videoQueue.getJob(job.jobId);
+                if (queueJob) {
+                    const jobState = await queueJob.getState();
+                    
+                    if (jobState === 'active') {
+                        // Job is actually processing, update status
+                        await prisma.videoProcessingJob.update({
+                            where: { id: job.id },
+                            data: { status: 'active' },
+                        });
+                        fixedCount++;
+                        results.push({
+                            jobId: job.id,
+                            oldStatus: 'waiting',
+                            newStatus: 'active',
+                            queueState: jobState,
+                        });
+                    } else if (jobState === 'completed') {
+                        // Job is completed, update status
+                        await prisma.videoProcessingJob.update({
+                            where: { id: job.id },
+                            data: { 
+                                status: 'completed',
+                                progress: 100,
+                            },
+                        });
+                        fixedCount++;
+                        results.push({
+                            jobId: job.id,
+                            oldStatus: 'waiting',
+                            newStatus: 'completed',
+                            queueState: jobState,
+                        });
+                    } else if (jobState === 'failed') {
+                        // Job failed, update status
+                        await prisma.videoProcessingJob.update({
+                            where: { id: job.id },
+                            data: { 
+                                status: 'failed',
+                                failedReason: queueJob.failedReason || 'Job failed in queue',
+                            },
+                        });
+                        fixedCount++;
+                        results.push({
+                            jobId: job.id,
+                            oldStatus: 'waiting',
+                            newStatus: 'failed',
+                            queueState: jobState,
+                        });
+                    }
+                }
+            } catch (error) {
+                console.log(`Error checking job ${job.id}:`, error.message);
+                results.push({
+                    jobId: job.id,
+                    error: error.message,
+                });
+            }
+        }
+
+        res.status(200).json({
+            message: `Fixed ${fixedCount} stuck jobs`,
+            fixedCount,
+            results,
+        });
+    } catch (error) {
+        if (!error.statusCode) {
+            error.statusCode = 500;
+        }
+        next(error);
+    }
+};

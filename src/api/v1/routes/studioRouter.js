@@ -48,6 +48,8 @@ import {
     clearCompletedJobs,
     cleanupFailedJob,
     checkExistingProcessingJob,
+    syncJobStatus,
+    fixStuckJobs,
 } from '../controllers/studio.js';
 import { validateData } from '../middleware/validateBody.mjs';
 import {
@@ -211,6 +213,8 @@ router.get('/processing-jobs/:jobId', verifyToken, getVideoProcessingJob);
 router.post('/processing-jobs/:jobId/cancel', verifyToken, cancelVideoProcessingJob);
 router.post('/processing-jobs/:jobId/retry', verifyToken, retryVideoProcessingJob);
 router.post('/processing-jobs/:jobId/cleanup', verifyToken, cleanupFailedJob);
+router.post('/processing-jobs/:jobId/sync', verifyToken, syncJobStatus);
+router.post('/processing-jobs/fix-stuck', verifyToken, fixStuckJobs);
 router.delete('/processing-jobs/:jobId', verifyToken, deleteVideoProcessingJob);
 router.post('/processing-jobs/clear', verifyToken, clearCompletedJobs);
 

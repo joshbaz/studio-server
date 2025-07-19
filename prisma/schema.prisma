@@ -162,6 +162,7 @@ model film {
   Category             Category?      @relation(fields: [categoryId], references: [id])
   categoryId           String?        @db.ObjectId
   pricing             pricing[]
+  videoProcessingJobs  VideoProcessingJob[]
 
   createdAt DateTime   @default(now())
   // updatedAt DateTime? @updatedAt 
@@ -244,6 +245,7 @@ model season {
   filmId           String?   @db.ObjectId
   watched          watched[]
   pricing         pricing[]
+  videoProcessingJobs  VideoProcessingJob[]
 
   Category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId String?   @db.ObjectId
@@ -285,6 +287,7 @@ model episode {
   seasonId          String?   @db.ObjectId
   watched           watched[]
   posters           poster[]
+  videoProcessingJobs  VideoProcessingJob[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -509,8 +512,38 @@ model Category {
   films   film[]
   seasons season[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+}
+
+model VideoProcessingJob {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  jobId        String   @unique // BullMQ job ID
+  queueName    String   // Queue name (e.g. "video-transcoding")
+  status       String   @default("waiting") // waiting, active, completed, failed, cancelled
+  progress     Int      @default(0) // Progress percentage
+  
+  // Resource details
+  type         String   // "film" or "episode"
+  resourceId   String   @db.ObjectId // filmId or episodeId
+  resourceName String   // film title or episode title
+  fileName     String   // original filename
+  
+  // Job control
+  canCancel    Boolean  @default(true)
+  cancelledAt  DateTime?
+  failedReason String?
+  
+  // Relationships
+  film         film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId       String?  @db.ObjectId
+  episode      episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId    String?  @db.ObjectId
+  season       season?  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId     String?  @db.ObjectId
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 model verificationToken {

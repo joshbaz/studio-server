@@ -33,50 +33,79 @@ const videoWorker = new Worker(
                 where: { jobId: job.id.toString() },
                 data: { 
                     status: 'active',
-                    canCancel: false // Cannot cancel active jobs
+                    canCancel: true // Active jobs can still be stopped
                 }
             });
         } catch (dbError) {
             console.log('Could not update job status to active:', dbError.message);
         }
         
-        await transcodeVideo2({
-            type,
-            filePath,
-            resourceId,
-            resource,
-            fileName,
-            filename,
-            outputDir,
-            clientId,
-            bucketName,
-            socio: io,
-        });
-        
-        // Update job status to completed
         try {
-            await prisma.videoProcessingJob.updateMany({
-                where: { jobId: job.id.toString() },
-                data: { 
-                    status: 'completed',
-                    progress: 100,
-                    canCancel: false
-                }
+            await transcodeVideo2({
+                type,
+                filePath,
+                resourceId,
+                resource,
+                fileName,
+                filename,
+                outputDir,
+                clientId,
+                bucketName,
+                socio: io,
             });
-        } catch (dbError) {
-            console.log('Could not update job status to completed:', dbError.message);
+            
+            // Update job status to completed
+            try {
+                await prisma.videoProcessingJob.updateMany({
+                    where: { jobId: job.id.toString() },
+                    data: { 
+                        status: 'completed',
+                        progress: 100,
+                        canCancel: false
+                    }
+                });
+            } catch (dbError) {
+                console.log('Could not update job status to completed:', dbError.message);
+            }
+            
+            io.to(clientId).emit("JobCompleted", {
+                message: "Processing finished",
+                clientId
+            });
+        } catch (error) {
+            // Check if job was cancelled
+            const jobRecord = await prisma.videoProcessingJob.findFirst({
+                where: { jobId: job.id.toString() }
+            });
+            
+            if (jobRecord && jobRecord.status === 'cancelled') {
+                console.log(`Job ${job.id} was cancelled, skipping error handling`);
+                return; // Don't mark as failed if it was cancelled
+            }
+            
+            // If not cancelled, throw the error to trigger failed handler
+            throw error;
         }
-        
-        io.to(clientId).emit("JobCompleted", {
-            message: "Processing finished",
-            clientId
-        });
     },
     { connection: { ...redisConnection, maxRetriesPerRequest: null }, concurrency: 2}
 );
 
 videoWorker.on("failed", async (job, err)=> {
     console.log(`Job ${job.id} failed with error ${err.message}`);
+    
+    // Check if job was cancelled (don't mark as failed if cancelled)
+    try {
+        const jobRecord = await prisma.videoProcessingJob.findFirst({
+            where: { jobId: job.id.toString() }
+        });
+        
+        if (jobRecord && jobRecord.status === 'cancelled') {
+            console.log(`Job ${job.id} was cancelled, not marking as failed`);
+            return;
+        }
+    } catch (dbError) {
+        console.log('Could not check job status:', dbError.message);
+    }
     
     // Update job status to failed
     try {

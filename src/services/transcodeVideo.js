@@ -427,6 +427,22 @@ const onUploadComplete2 = async (data, resourceId, type) => {
     });
 };
 
+// Helper function to check if job is cancelled
+const checkJobCancellation = async (resourceId) => {
+    try {
+        const job = await prisma.videoProcessingJob.findFirst({
+            where: { 
+                resourceId: resourceId,
+                status: 'cancelled'
+            }
+        });
+        return !!job; // Returns true if job is cancelled
+    } catch (error) {
+        console.log('Error checking job cancellation:', error.message);
+        return false;
+    }
+};
+
 
 export async function transcodeVideo2({
     type,
@@ -444,6 +460,11 @@ export async function transcodeVideo2({
         RESOLUTIONS = await onPreTranscode2(RESOLUTIONS, type, resourceId);
     }
 
+    // Check for cancellation before starting
+    if (await checkJobCancellation(resourceId)) {
+        throw new Error('Job was cancelled before processing started');
+    }
+
     const initialMetadata = await new Promise((resolve, reject) => {
         Ffmpeg(filePath).ffprobe((err, data) => {
             if (err) reject(err);
@@ -454,74 +475,130 @@ export async function transcodeVideo2({
     const segmentFolder = path.join(outputDir, `segments_${filename}`);
     fs.mkdirSync(segmentFolder, { recursive: true });
 
-     // Step 1: Split the original video into segments
-    await splitVideoIntoSegments(filePath, segmentFolder, clientId, filename); // Split the video into segments
-    console.log('Segments created');
+    try {
+         // Step 1: Split the original video into segments
+        await splitVideoIntoSegments(filePath, segmentFolder, clientId, filename);
+        console.log('Segments created');
 
-    // const transcodedSegments = {};
-
-    // Step 2: Process each resolution sequentially
-    for (const [label, height] of Object.entries(RESOLUTIONS)) {
-        console.log(`🚀 Starting transcoding for ${label}`);
-
-        const segmentFiles = fs
-            .readdirSync(segmentFolder)
-            .filter((file) => file.startsWith(`${filename}_segment_`) && file.endsWith('.ts'));
-
-            console.log('segmentFiles',segmentFiles?.length, segmentFiles);
-        for (const segment of segmentFiles) {
-            console.log('segment', segmentFiles?.indexOf(segment));
-            let indexNum = `${segmentFiles?.indexOf(segment) + 1}/${segmentFiles?.length}`;
-            const inputPath = path.join(segmentFolder, segment);
-            const outputPath = path.join(segmentFolder, `${label}_${segment}`);
-
-            await transcodeSegment(inputPath, outputPath, height, clientId, label,indexNum); // transcode each segment
-            // transcodedSegments[label].push(outputPath);
+        // Check for cancellation after splitting
+        if (await checkJobCancellation(resourceId)) {
+            // Clean up segment folder
+            fs.rmSync(segmentFolder, { recursive: true, force: true });
+            // Clean up original file
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+            throw new Error('Job was cancelled after video splitting');
         }
 
-         // Step 3: Merge the transcoded segments into a single file
-         const mergedFilePath = path.join(outputDir, `${label}_${filename}.mp4`);
-         await mergeSegments(segmentFolder, mergedFilePath,clientId, label, filename);
+        // Step 2: Process each resolution sequentially
+        for (const [label, height] of Object.entries(RESOLUTIONS)) {
+            console.log(`🚀 Starting transcoding for ${label}`);
 
-          // Step 4: Upload the merged video to DigitalOcean Spaces
-
-          await uploadQueue.add("upload-to-s3", {
-            mergedFilePath,
-            label,
-            filename,
-            resourceId,
-            bucketName,
-            clientId,
-            type,
-            initialMetadata,
-        });
-          
-
-    
-
-        console.log(`🧹 Cleaning up segments for ${label}`);
-        segmentFiles.forEach((segment) => {
-            const transcodedSegment = path.join(
-                segmentFolder,
-                `${label}_${segment}`
-            );
-            if (fs.existsSync(transcodedSegment)) {
-                fs.unlinkSync(transcodedSegment);
+            // Check for cancellation before each resolution
+            if (await checkJobCancellation(resourceId)) {
+                // Clean up segment folder
+                fs.rmSync(segmentFolder, { recursive: true, force: true });
+                // Clean up original file
+                if (fs.existsSync(filePath)) {
+                    fs.unlinkSync(filePath);
+                }
+                throw new Error(`Job was cancelled during ${label} processing`);
             }
-        });
 
-        console.log(`✅ Finished processing ${label}`);
+            const segmentFiles = fs
+                .readdirSync(segmentFolder)
+                .filter((file) => file.startsWith(`${filename}_segment_`) && file.endsWith('.ts'));
+
+            console.log('segmentFiles',segmentFiles?.length, segmentFiles);
+            
+            for (const segment of segmentFiles) {
+                console.log('segment', segmentFiles?.indexOf(segment));
+                let indexNum = `${segmentFiles?.indexOf(segment) + 1}/${segmentFiles?.length}`;
+                const inputPath = path.join(segmentFolder, segment);
+                const outputPath = path.join(segmentFolder, `${label}_${segment}`);
+
+                // Check for cancellation before each segment
+                if (await checkJobCancellation(resourceId)) {
+                    // Clean up segment folder
+                    fs.rmSync(segmentFolder, { recursive: true, force: true });
+                    // Clean up original file
+                    if (fs.existsSync(filePath)) {
+                        fs.unlinkSync(filePath);
+                    }
+                    throw new Error(`Job was cancelled during segment processing for ${label}`);
+                }
+
+                await transcodeSegment(inputPath, outputPath, height, clientId, label, indexNum);
+            }
+
+             // Step 3: Merge the transcoded segments into a single file
+             const mergedFilePath = path.join(outputDir, `${label}_${filename}.mp4`);
+             await mergeSegments(segmentFolder, mergedFilePath, clientId, label, filename);
+
+             // Check for cancellation before upload
+             if (await checkJobCancellation(resourceId)) {
+                 // Clean up files
+                 fs.rmSync(segmentFolder, { recursive: true, force: true });
+                 if (fs.existsSync(mergedFilePath)) {
+                     fs.unlinkSync(mergedFilePath);
+                 }
+                 // Clean up original file
+                 if (fs.existsSync(filePath)) {
+                     fs.unlinkSync(filePath);
+                 }
+                 throw new Error(`Job was cancelled before uploading ${label}`);
+             }
+
+              // Step 4: Upload the merged video to DigitalOcean Spaces
+              await uploadQueue.add("upload-to-s3", {
+                mergedFilePath,
+                label,
+                filename,
+                resourceId,
+                bucketName,
+                clientId,
+                type,
+                initialMetadata,
+            });
+
+            console.log(`🧹 Cleaning up segments for ${label}`);
+            segmentFiles.forEach((segment) => {
+                const transcodedSegment = path.join(
+                    segmentFolder,
+                    `${label}_${segment}`
+                );
+                if (fs.existsSync(transcodedSegment)) {
+                    fs.unlinkSync(transcodedSegment);
+                }
+            });
+
+            console.log(`✅ Finished processing ${label}`);
+        }
+
+        // Remove the segment folder completely after all resolutions are processed
+        fs.rmSync(segmentFolder, { recursive: true, force: true });
+        console.log("🧹 All temporary segment files deleted");
+
+         // Remove the original video file
+         fs.unlinkSync(filePath);
+         console.log("🗑️ Original video deleted");
+
+        console.log('All transcoded videos uploaded successfully.');
+    } catch (error) {
+        // Clean up on any error
+        try {
+            if (fs.existsSync(segmentFolder)) {
+                fs.rmSync(segmentFolder, { recursive: true, force: true });
+            }
+            if (fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+            }
+        } catch (cleanupError) {
+            console.error('Error during cleanup:', cleanupError.message);
+        }
+        throw error;
     }
-
-    // Remove the segment folder completely after all resolutions are processed
-    fs.rmSync(segmentFolder, { recursive: true, force: true });
-    console.log("🧹 All temporary segment files deleted");
-
-     // Remove the original video file
-     fs.unlinkSync(filePath);
-     console.log("🗑️ Original video deleted");
-
-    console.log('All transcoded videos uploaded successfully.');
 }
 
 export async function uploadtoDO({
@@ -792,7 +869,6 @@ export async function transcodeOneAtATimeOld(
                         }
                     })
                     .on('error', (error) => reject(error))
-                    // .save(outputFilePath);
                     .run();
             });
         }

@@ -59,6 +59,12 @@ class ChunkService {
 
         try {
             await fs.promises.access(tempPath, fs.constants.F_OK);
+
+            // If a chunk already exists at chunkPath, remove it before replacing
+            if (fs.existsSync(chunkPath)) {
+                await fs.promises.unlink(chunkPath);
+            }
+
             await fs.promises.rename(tempPath, chunkPath);
             console.log(`Saved chunk ${chunkPath}`);
         } catch (err) {

@@ -800,7 +800,9 @@ export const checkingChunks = async (req, res, next) => {
         }
         // let filesname = fileName.split('.').shift().replace(/\s/g, '_');
         const chunkPath = path.join(UPLOAD_DIR, `${fileName}-${start}`);
-        const exists = fs.existsSync(chunkPath);
+        // const exists = fs.existsSync(chunkPath);
+        const exists = false;
+        console.log("exists", exists)
         return res.json({ exists });
     } catch (error) {
         if (!error.statusCode) {

@@ -163,6 +163,7 @@ model film {
   categoryId           String?        @db.ObjectId
   pricing             pricing[]
   videoProcessingJobs  VideoProcessingJob[]
+  uploadJobs          UploadJob[]
 
   createdAt DateTime   @default(now())
   // updatedAt DateTime? @updatedAt 
@@ -246,6 +247,7 @@ model season {
   watched          watched[]
   pricing         pricing[]
   videoProcessingJobs  VideoProcessingJob[]
+  uploadJobs          UploadJob[]
 
   Category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   categoryId String?   @db.ObjectId
@@ -288,6 +290,7 @@ model episode {
   watched           watched[]
   posters           poster[]
   videoProcessingJobs  VideoProcessingJob[]
+  uploadJobs          UploadJob[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
@@ -296,8 +299,9 @@ model episode {
 model video {
   id         String   @id @default(auto()) @map("_id") @db.ObjectId
   url        String
+  hlsUrl     String?  // HLS playlist URL for streaming
   format     String
-  name       String   @unique
+  name       String
   fps        String?
   resolution String?  @default("HD")
   bitrate    String?
@@ -315,6 +319,22 @@ model video {
 
   createdAt DateTime  @default(now())
   updatedAt DateTime? @updatedAt
+}
+
+model subtitle {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  filename     String
+  language     String   @default("eng")
+  label        String?  // User-friendly label for the subtitle (e.g., "English", "Spanish", "English (CC)")
+  resourceId   String   @db.ObjectId
+  resourceType String   // "film" or "episode"
+  filePath     String?  // Local file path (temporary)
+  s3Url        String?  // S3 URL for the subtitle file
+  fileSize     Int?     // File size in bytes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([resourceId, resourceType])
 }
 
 model pricing {
@@ -519,20 +539,78 @@ model Category {
 model VideoProcessingJob {
   id           String   @id @default(auto()) @map("_id") @db.ObjectId
   jobId        String   @unique // BullMQ job ID
-  queueName    String   // Queue name (e.g. "video-transcoding")
-  status       String   @default("waiting") // waiting, active, completed, failed, cancelled
+  queueName    String?   // Queue name (e.g. "video-transcoding")
+  jobType      String?   // Job type (e.g. "video_processing", "trailer_processing")
+  status       String   @default("waiting") // waiting, queued, active, completed, failed, cancelled
   progress     Int      @default(0) // Progress percentage
   
   // Resource details
-  type         String   // "film" or "episode"
+  resourceType String?   // "film", "episode", "season"
   resourceId   String   @db.ObjectId // filmId or episodeId
-  resourceName String   // film title or episode title
+  resourceName String?  // film title or episode title
   fileName     String   // original filename
+  filePath     String?  // path to the file being processed
+  bucketName   String?  // S3 bucket name
+  clientId     String?  // Socket client ID for progress updates
   
   // Job control
   canCancel    Boolean  @default(true)
   cancelledAt  DateTime?
   failedReason String?
+  errorMessage String?  // Error message for failed jobs
+  
+  // Relationships
+  film         film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
+  filmId       String?  @db.ObjectId
+  episode      episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  episodeId    String?  @db.ObjectId
+  season       season?  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  seasonId     String?  @db.ObjectId
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model UploadJob {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  jobId        String   @unique // BullMQ job ID
+  queueName    String?  // Queue name (e.g. "upload-hls-to-s3", "upload-master-playlist")
+  jobType      String   // Job type (e.g. "upload-hls-to-s3", "upload-master-playlist", "upload-subtitle-to-s3")
+  status       String   @default("waiting") // waiting, queued, active, completed, failed, cancelled, retried
+  progress     Int      @default(0) // Progress percentage
+  
+  // Resource details
+  resourceType String?  // "film", "episode", "season"
+  resourceId   String   @db.ObjectId // filmId or episodeId
+  resourceName String?  // film title or episode title
+  filename    String?  // filename for upload
+  fileName    String?  // original filename (for backward compatibility)
+  
+  // Upload-specific details
+  uploadType   String?  // "hls", "master_playlist", "subtitle", "video"
+  contentType  String?  // "video", "audio", "subtitle", "playlist"
+  label        String?  // Resolution label (SD, HD, FHD, UHD)
+  
+  // File paths for different upload types
+  hlsDir              String? // Path to HLS directory
+  masterPlaylistPath  String? // Path to master playlist file
+  subtitlePath        String? // Path to subtitle file
+  uploadPath          String? // Custom upload path
+  
+  // Metadata
+  initialMetadata     Json?   // Original video metadata
+  subtitleMetadata    Json?   // Subtitle file metadata
+  subtitleLanguages   String[] // Available subtitle languages
+  
+  // S3 details
+  bucketName   String?  // S3 bucket name
+  clientId     String?  // Socket client ID for progress updates
+  
+  // Job control
+  canCancel    Boolean  @default(true)
+  cancelledAt  DateTime?
+  failedReason String?
+  errorMessage String?  // Error message for failed jobs
   
   // Relationships
   film         film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)

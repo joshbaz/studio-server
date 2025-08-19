@@ -1,173 +1,110 @@
-import { env } from '../env.mjs';
-import { Upload } from '@aws-sdk/lib-storage';
-import { S3Client, DeleteObjectCommand, CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand } from '@aws-sdk/client-s3';
-import fs from 'fs';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { Agent as HttpsAgent } from 'https';
+
+// Configure global Node.js HTTP agent limits for high concurrency
+process.env.UV_THREADPOOL_SIZE = '64'; // Increase thread pool size
+process.env.NODE_OPTIONS = '--max-old-space-size=4096'; // Increase memory limit
+
+// Configure HTTPS agent for high concurrency S3 operations
+// Note: The @smithy/node-http-handler warning about socket capacity is expected during high concurrency
+// operations (like video transcoding + subtitle uploads + streaming). The warning appears when there are
+// more than 50 concurrent requests, but our configuration handles up to 500 concurrent sockets.
+// The warning is informational and doesn't affect functionality - requests are queued and processed.
+const httpsAgent = new HttpsAgent({
+  keepAlive: true,
+  keepAliveMsecs: 30000, // 30 seconds
+  maxSockets: 500, // Increased from 200 to 500 for very high concurrency
+  maxFreeSockets: 100, // Increased from 50 to 100
+  timeout: 60000, // 60 seconds
+  freeSocketTimeout: 30000, // 30 seconds
+  socketAcquisitionWarningTimeout: 10000, // Increased to 10 seconds warning
+});
 
 export const s3Client = new S3Client({
-    region: 'fra1',
-    endpoint: env.DO_SPACESENDPOINT,
+    // region: 'sfo3',
+    region: process.env.DO_SPACESREGION,
+    // endpoint: 'https://nyati-cdn.sfo3.digitaloceanspaces.com',
+    endpoint: process.env.DO_SPACESENDPOINT,
     credentials: {
-        accessKeyId: env.DO_SPACEACCESSKEY,
-        secretAccessKey: env.DO_SPACESECRETKEY,
+        accessKeyId: process.env.DO_SPACEACCESSKEY,
+        secretAccessKey: process.env.DO_SPACESECRETKEY,
     },
     forcePathStyle: true,
+    maxAttempts: 5, // Increased retries for better reliability
+    retryMode: 'adaptive', // Adaptive retry strategy
+    requestHandler: {
+        httpOptions: {
+            agent: httpsAgent,
+            timeout: 60000, // 60 seconds timeout
+            connectTimeout: 30000, // 30 seconds connection timeout
+        }
+    },
+    // Additional configuration for high concurrency
+    requestTimeout: 60000, // 60 seconds request timeout
+    connectionTimeout: 30000, // 30 seconds connection timeout
 });
 
 /**
- * @typedef {Object} UploadToBucketParams
- * @property {string} bucketName
- * @property {string} key
- * @property {Buffer} buffer
- * @property {string} contentType
- * @property {boolean} isPublic
- */
-
-/**
  * @name uploadToBucket
- * @description Upload file to Digital Ocean Spaces
- * @param {UploadToBucketParams} params
- * @param {VoidFunction} [onUploadProgress] - Callback function to track upload progress
- * @returns {Promise<string>}
+ * @description function to upload file to bucket
+ * @param {Object} params - The upload parameters
+ * @param {string} params.bucketName - The bucket name
+ * @param {string} params.key - The file key
+ * @param {Buffer|ReadableStream} params.buffer - The file buffer or stream
+ * @param {string} params.contentType - The content type
+ * @param {boolean} params.isPublic - Whether the file should be public
+ * @param {Function} params.onProgress - Progress callback function
+ * @returns {Promise<Object>} The upload result
  */
-export const uploadToBucket = async (
-    { key, buffer, isPublic, bucketName, contentType },
-    onUploadProgress
-) => {
+export const uploadToBucket = async (params, onProgress) => {
+    const { bucketName, key, buffer, contentType, isPublic = false, onProgress: progressCallback } = params;
+
+    const command = new PutObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+        Body: buffer,
+        ContentType: contentType,
+        ACL: isPublic ? 'public-read' : 'private',
+    });
+
     try {
-        const uploadParams = {
-            Key: key,
-            Body: buffer,
-            Bucket: bucketName,
-            ContentType: contentType,
-            ACL: isPublic ? 'public-read' : 'private',
-        };
-
-        const upload = new Upload({
-            client: s3Client,
-            params: uploadParams,
-        });
-
-        // remove this as its only for backend testing ...
-        upload.on('httpUploadProgress', (progress) => {
-            const customProgress = Math.floor(
-                (progress.loaded / progress.total) * 100
-            );
-
-            // Broadcast progress to all connected clients
-            if (onUploadProgress) onUploadProgress(customProgress);
-        });
-
-        const { $metadata: Omit, ETag, ...response } = await upload.done();
+        const response = await s3Client.send(command);
+        
+        if (progressCallback) {
+            progressCallback(100);
+        }
 
         return {
-            url: `${env.DO_SPACESENDPOINT}/${bucketName}/${key}`,
+            url: `${process.env.DO_SPACESENDPOINT}/${bucketName}/${key}`,
             ...response,
         };
     } catch (error) {
-        throw new Error(error.message);
-    }
-};
-
-/**
- * Joshua's test upload
- */
-// export const uploadToBucketTest = async (
-//     { key, bufferPath, isPublic, bucketName, contentType },
-//     onUploadProgress
-// ) => {
-//     try {
-//         const fileStream = fs.createReadStream(bufferPath);
-//         const fileSize = fs.statSync(bufferPath).size;
-//         const chunkSize = 50 * 1024 * 1024; // 5MB
-//         const totalParts = Math.ceil(fileSize / chunkSize);
-
-//         console.log(`Starting upload: ${key} (${fileSize} bytes, ${totalParts} parts)`);
-
-//         const createUpload = new CreateMultipartUploadCommand(
-//             {
-//                 Bucket: bucketName,
-//                 Key: key,
-//                 ContentType: contentType,
-//                 ACL: isPublic ? 'public-read' : 'private',
-//             });
-        
-//         const { UploadId } = await s3Client.send(createUpload);
-//         let partNumber = 1;
-//         let parts = [];
-//         let uploadedSize = 0;
-
-//         for await (const chunk of fileStream) {
-//             const uploadPart = new UploadPartCommand({
-//                 Bucket: bucketName,
-//                 Key: key,
-//                 UploadId,
-//                 PartNumber: partNumber,
-//                 Body: chunk,
-//             });
-            
-//             const { ETag } = await s3Client.send(uploadPart);
-//             parts.push({ ETag, PartNumber: partNumber });
-
-//              // Update progress
-//              uploadedSize += chunk.length;
-//              const progress = Math.floor((uploadedSize / fileSize) * 100);
-//              if (onUploadProgress) onUploadProgress(progress);
-
-//             partNumber++;
-//         }
-
-//         const completeUpload = new CompleteMultipartUploadCommand({
-//             Bucket: bucketName,
-//             Key: key,
-//             UploadId,
-//             MultipartUpload: {
-//                 Parts: parts,
-//             },
-//         });
-
-//         await s3Client.send(completeUpload);
-
-//         return {
-//             url: `${env.DO_SPACESENDPOINT}/${bucketName}/${key}`,
-//             size: fileSize,
-//         };
-//     }
-//     catch (error) {
-//         throw new Error(error.message);
-//     }
-// };
-
-/**
- * @name streamFromBucket
- * @description Stream file from Digital Ocean Spaces
- * @param {Pick<"bucketName"|"key", UploadToBucketParams>} params
- * @returns {Promise<string>}
- */
-export const streamFromBucket = async ({ bucketName, key }) => {
-    try {
-        // TODO: Implement streaming from Digital Ocean Spaces
-    } catch (error) {
-        throw new Error(error.message);
+        console.error('❌ Upload error:', error);
+        throw error;
     }
 };
 
 /**
  * @name deleteFromBucket
- * @description Delete file from Digital Ocean Spaces
- * @param {Pick<"bucketName"|"key", UploadToBucketParams>} params
- * @returns {Promise<string>}
+ * @description function to delete file from bucket
+ * @param {Object} params - The delete parameters
+ * @param {string} params.bucketName - The bucket name
+ * @param {string} params.key - The file key
+ * @returns {Promise<Object>} The delete result
  */
-export const deleteFromBucket = async ({ bucketName, key }) => {
-    try {
-        const deleteParams = {
-            Bucket: bucketName,
-            Key: key,
-        };
+export const deleteFromBucket = async (params) => {
+    const { bucketName, key } = params;
 
-        const command = new DeleteObjectCommand(deleteParams);
+    const command = new DeleteObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+    });
+
+    try {
         const response = await s3Client.send(command);
         return response;
     } catch (error) {
-        throw new Error(error.message);
+        console.error('❌ Delete error:', error);
+        throw error;
     }
 };

@@ -5,6 +5,8 @@ import UserRoutes from './routes/userRoutes.js';
 import PaymentRoutes from './routes/paymentRoutes.js';
 import SubscriptionRoutes from './routes/subscriptionRoutes.js';
 import StudioRouter from './routes/studioRouter.js';
+import StreamingRoutes from './routes/streaming.js';
+import UserStreamingRoutes from './routes/userStreaming.js';
 import { requestLogger } from './middleware/requestlogger.mjs';
 
 const router = express.Router();
@@ -21,6 +23,8 @@ const endpoints = [
     { path: '/admin/auth', router: AdminAuthRoutes },
     { path: '/subscription', router: SubscriptionRoutes },
     { path: '/studio', router: StudioRouter },
+    { path: '/streaming', router: StreamingRoutes },
+    { path: '/userStreaming', router: UserStreamingRoutes },
 ];
 
 // map the endpoints to the router

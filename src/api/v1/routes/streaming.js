@@ -13,9 +13,9 @@ const prisma = new PrismaClient();
 
 // Configure HTTPS agent for high concurrency S3 operations
 const httpsAgent = new HttpsAgent({
-  keepAlive: true,
+  keepAlive: false,
   keepAliveMsecs: 30000, // 30 seconds
-  maxSockets: 500, // Increased from 200 to 500 for very high concurrency
+  maxSockets: 20, // Increased from 200 to 500 for very high concurrency
   maxFreeSockets: 100, // Increased from 50 to 100
   timeout: 60000, // 60 seconds
   freeSocketTimeout: 30000, // 30 seconds
@@ -24,9 +24,9 @@ const httpsAgent = new HttpsAgent({
 
 // Configure global HTTP agent for high concurrency
 const httpAgent = new HttpAgent({
-  keepAlive: true,
+  keepAlive: false,
   keepAliveMsecs: 30000, // 30 seconds
-  maxSockets: 500, // Increased from default 50
+  maxSockets: 20, // Increased from default 50
   maxFreeSockets: 100,
   timeout: 60000, // 60 seconds
   freeSocketTimeout: 30000, // 30 seconds

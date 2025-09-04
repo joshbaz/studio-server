@@ -2708,17 +2708,46 @@ export const retryVideoProcessingJob = async (req, res, next) => {
             returnError('Only failed jobs can be retried', 400);
         }
 
+        // Log job details for debugging
+        console.log(`🔄 Retrying video processing job:`, {
+            jobId,
+            type: job.resourceType,
+            resourceId: job.resourceId,
+            status: job.status,
+            hasFilm: !!job.film,
+            hasEpisode: !!job.episode,
+            episodeSeasonId: job.episode?.season?.id,
+            episodeFilmId: job.episode?.season?.filmId
+        });
+
         // Create new queue job
         const resource = job.film || job.episode;
-        const bucketName = job.type === 'film'
-            ? job.resourceId
-            : `${job.episode.season.filmId}-${job.episode.seasonId}`;
+        
+        // Validate that we have the required resource data
+        if (!resource) {
+            returnError(`Job ${jobId} is missing resource data (film or episode)`, 400);
+        }
+        
+        // Safely determine bucket name based on job type
+        let bucketName;
+        if (job.resourceType === 'film') {
+            bucketName = job.resourceId;
+            console.log(`🎬 Film job: using resourceId as bucket name: ${bucketName}`);
+        } else if (job.resourceType === 'episode' && job.episode && job.episode.season) {
+            bucketName = `${job.episode.season.filmId}-${job.episode.season.id}`;
+            console.log(`📺 Episode job: using season-based bucket name: ${bucketName}`);
+        } else {
+            // Fallback for episodes without season data
+            bucketName = job.resourceId;
+            console.warn(`⚠️ Episode job ${jobId} missing season data, using resourceId as bucket name: ${bucketName}`);
+        }
 
-        const filePath = path.join(UPLOAD_DIR, job.fileName);
-        const { filename } = new ChunkService().formatFileName(job.fileName);
-
+       
+        const { filename, ext } = new ChunkService().formatFileName(job.fileName);
+        
+        const filePath = path.join(UPLOAD_DIR, `${filename}.${ext}`);
         const newQueueJob = await videoQueue.add('transcode-video', {
-            type: job.type,
+            type: job.resourceType,
             filePath,
             resourceId: job.resourceId,
             resource,
@@ -2742,9 +2771,14 @@ export const retryVideoProcessingJob = async (req, res, next) => {
             },
         });
 
+        console.log(`✅ Job ${jobId} successfully queued for retry with new job ID: ${newQueueJob.id}`);
+        
         res.status(200).json({
             message: 'Job queued for retry',
             newJobId: newQueueJob.id.toString(),
+            originalJobId: jobId,
+            bucketName,
+            type: job.resourceType
         });
     } catch (error) {
         if (!error.statusCode) {

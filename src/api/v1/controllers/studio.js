@@ -14,6 +14,7 @@ import fsExtra from 'fs-extra';
 import path from 'path';
 import { videoQueue, hlsUploadQueue, masterPlaylistQueue } from '@/services/queueWorkers.js';
 import { formatNumber } from '@/utils/formatNumber.js';
+import { DeleteObjectsCommand } from '@aws-sdk/client-s3';
 
 // Configure HTTPS agent for high concurrency S3 operations
 const httpsAgent = new HttpsAgent({
@@ -3399,10 +3400,27 @@ export const deleteSubtitle = async (req, res, next) => {
 
                 if (key) {
                     console.log(`🗑️ Deleting subtitle from S3: ${key}`);
-                    await s3Client.deleteObject({
+
+                    const deleteCommand = new DeleteObjectsCommand({
                         Bucket: process.env.DO_SPACESBUCKET,
-                        Key: key
-                    });
+                        Delete: {
+                            Objects: [
+                                {
+                                    Key: key  
+                                }
+                            ],
+                            Quiet: false
+                        }
+                    })
+
+                    const deleteResponse = await s3Client.send(deleteCommand);
+                    // await s3Client.deleteObject({
+                    //     Bucket: process.env.DO_SPACESBUCKET,
+                    //     Key: key
+                    // });
+                    if (deleteResponse.Errors && deleteResponse.Errors.length > 0) {
+                        console.warn(`⚠️ could not be deleted:`, deleteResponse.Errors);
+                    }
                     console.log(`✅ Subtitle deleted from S3: ${key}`);
                 }
             } catch (s3Error) {

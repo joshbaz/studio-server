@@ -14,6 +14,8 @@
         "dev": "concurrently \"node esbuild.config.mjs --watch\" \"nodemon dist/index.cjs\"",
         "ninja-watch": "console-ninja yarn --watch app.mjs",
         "start": "node dist/index.cjs",
+        "start:high-concurrency": "node --max-old-space-size=16384 --expose-gc --max-semi-space-size=512 dist/index.cjs",
+        "start:ultra-scale": "node --max-old-space-size=32768 --expose-gc --max-semi-space-size=1024 --optimize-for-size dist/index.cjs",
         "build": "rimraf dist && NODE_ENV='production' node esbuild.config.mjs",
         "postinstall": "prisma generate",
         "postbuild": "prisma generate",

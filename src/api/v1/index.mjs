@@ -5,8 +5,8 @@ import UserRoutes from './routes/userRoutes.js';
 import PaymentRoutes from './routes/paymentRoutes.js';
 import SubscriptionRoutes from './routes/subscriptionRoutes.js';
 import StudioRouter from './routes/studioRouter.js';
-import StreamingRoutes from './routes/streaming.js';
-import UserStreamingRoutes from './routes/userStreaming.js';
+import StreamingRoutes from './routes/streaming2.js';
+import UserStreamingRoutes from './routes/userStreaming2.js';
 import { requestLogger } from './middleware/requestlogger.mjs';
 
 const router = express.Router();

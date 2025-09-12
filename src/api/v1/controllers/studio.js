@@ -3265,7 +3265,23 @@ export const uploadSubtitle = async (req, res, next) => {
             select: {
                 id: true,
                 name: true,
-                resolution: true
+                resolution: true,
+                season: {
+                    select: {
+                      id: true,
+                      filmId: true
+                    }
+                  },
+                  episode: {
+                    select: {
+                      season: {
+                        select: {
+                          id: true,
+                          filmId: true
+                        }
+                      }
+                    }
+                  }
             },
             take: 1 // Just get the first video
         });
@@ -3287,9 +3303,16 @@ export const uploadSubtitle = async (req, res, next) => {
             // Write buffer to temporary file
             fs.writeFileSync(tempSubtitlePath, subtitleFile.buffer);
             console.log(`📝 Created temporary subtitle file: ${tempSubtitlePath}`);
-
+            let bucketName
             // Use existing uploadSubtitleToDO function with subtitle metadata
-            const bucketName = type === 'film' ? resourceId : `${resource.filmId}-${resourceId}`;
+            if (type === 'film'){
+                bucketName = resourceId
+            } else if (firstVideo.episode?.season?.filmId){
+                bucketName = `${firstVideo?.episode?.season?.filmId}-${firstVideo?.episode?.season?.id}`;
+            } else {
+                bucketName = `${firstVideo?.season?.filmId}-${firstVideo?.season?.id}`;
+            }
+             
             const uploadPath = `subtitles/${cleanBaseName}/`;
 
             const subtitleMetadata = {

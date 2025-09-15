@@ -135,9 +135,9 @@ const handleStreamError = (error, res) => {
 // Configure HTTPS agent for ultra-high concurrency S3 operations (2000+ concurrent users)
 const httpsAgent = new HttpsAgent({
   keepAlive: true, // ✅ Enable connection pooling for massive scale
-  keepAliveMsecs: 60000, // 60 seconds - longer keep-alive for high concurrency
-  maxSockets: 2000, // Scale for 2000+ concurrent connections
-  maxFreeSockets: 500, // Large pool of reusable connections
+  keepAliveMsecs: 1000, // 60 seconds - longer keep-alive for high concurrency
+  maxSockets: 1000, // Scale for 2000+ concurrent connections
+  maxFreeSockets: 250, // Large pool of reusable connections
   timeout: 30000, // 2 minutes - longer timeout for high load
   scheduling: 'lifo', //Last-In-First-Out for better performance
 });
@@ -155,7 +155,8 @@ const s3Client = new S3Client({
     secretAccessKey: process.env.DO_SPACESECRETKEY
   },
   maxAttempts: 5, // Increased retries for high concurrency
-  retryMode: 'adaptive', // Adaptive retry strategy
+  // retryMode: 'adaptive', // Adaptive retry strategy
+  retryMode: 'standard', // Adaptive retry strategy
   requestHandler: {
     httpOptions: {
       agent: httpsAgent,
@@ -169,6 +170,70 @@ const s3Client = new S3Client({
    connectionTimeout: 8000,
    // Disable the warning or increase timeout
    socketAcquisitionWarningTimeout: 30000, // 30 seconds instead of default
+});
+
+// Ultra-high concurrency user streaming configuration for 2000+ concurrent users
+const USER_STREAMING_CONFIG = {
+  // Adaptive chunk sizes based on content type and load
+  CHUNK_SIZES: {
+    m3u8: 64 * 1024,     // 32KB for playlists (ultra-fast loading)
+    ts: 512 * 1024,      // 512KB for video segments (memory efficient)
+    mp4: 256 * 1024,     // 256KB for MP4 files (balanced)
+    default: 128 * 1024  // 128KB default (conservative)
+  },
+  
+  // Aggressive cache durations for high concurrency
+  CACHE_DURATIONS: {
+    m3u8: 300,    // 10 minutes for playlists (reduce server load)
+    ts: 86400,   // 7 days for segments (maximize caching)
+    mp4: 2592000, // 30 days for MP4 files (long-term caching)
+    default: 7200 // 2 hours default
+  },
+  
+  // Optimized range request limits for high concurrency
+  MAX_RANGE_SIZE: 2 * 1024 * 1024,  // 2MB max range size (memory efficient)
+  MIN_RANGE_SIZE: 1024,               // 512B min range size (granular control)
+  
+  // Memory-efficient buffer settings
+  BUFFER_SIZE: 64 * 1024,           // 32KB buffer (reduced for high concurrency)
+  HIGH_WATER_MARK: 128 * 1024,       // 64KB high water mark (prevent memory buildup)
+};
+
+// Simple connection tracker
+const connectionTracker = {
+  active: 0,
+  max: 1000,
+  acquire() {
+    if (this.active < this.max) {
+      this.active++;
+      return true;
+    }
+    return false;
+  },
+  release() {
+    if (this.active > 0) this.active--;
+  },
+  getStats() {
+    return {
+      active: this.active,
+      max: this.max,
+      usage: (this.active / this.max * 100).toFixed(1) + '%'
+    };
+  }
+};
+
+
+const streamLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 100, // limit each IP to 100 requests per minute
+  message: {
+    error: 'Too many requests',
+    message: 'Please try again later'
+  },
+  skip: (req) => {
+    // Don't rate limit range requests (they're normal for video playback)
+    return req.headers.range;
+  }
 });
 
 /**
@@ -220,190 +285,122 @@ const verifyStreamingToken = (req) => {
   return { userId: null, isValid: false };
 };
 
-// Ultra-high concurrency user streaming configuration for 2000+ concurrent users
-const USER_STREAMING_CONFIG = {
-  // Adaptive chunk sizes based on content type and load
-  CHUNK_SIZES: {
-    m3u8: 32 * 1024,     // 32KB for playlists (ultra-fast loading)
-    ts: 512 * 1024,      // 512KB for video segments (memory efficient)
-    mp4: 256 * 1024,     // 256KB for MP4 files (balanced)
-    default: 128 * 1024  // 128KB default (conservative)
-  },
-  
-  // Aggressive cache durations for high concurrency
-  CACHE_DURATIONS: {
-    m3u8: 600,    // 10 minutes for playlists (reduce server load)
-    ts: 604800,   // 7 days for segments (maximize caching)
-    mp4: 2592000, // 30 days for MP4 files (long-term caching)
-    default: 7200 // 2 hours default
-  },
-  
-  // Optimized range request limits for high concurrency
-  MAX_RANGE_SIZE: 5 * 1024 * 1024,  // 5MB max range size (memory efficient)
-  MIN_RANGE_SIZE: 512,               // 512B min range size (granular control)
-  
-  // Memory-efficient buffer settings
-  BUFFER_SIZE: 32 * 1024,           // 32KB buffer (reduced for high concurrency)
-  HIGH_WATER_MARK: 64 * 1024,       // 64KB high water mark (prevent memory buildup)
-  
-  // High concurrency specific settings
-  MAX_CONCURRENT_STREAMS: 2500,      // Support 2500 concurrent streams
-  STREAM_TIMEOUT: 300000,            // 5 minutes stream timeout
-  BACKPRESSURE_THRESHOLD: 0.8,       // 80% memory usage threshold
-  MEMORY_POOL_SIZE: 100 * 1024 * 1024, // 100MB memory pool
-  CONNECTION_POOL_TIMEOUT: 30000,    // 30 seconds connection pool timeout
-};
-
-
-// Simple connection tracker
-const connectionTracker = {
-  active: 0,
-  max: 1000,
-  acquire() {
-    if (this.active < this.max) {
-      this.active++;
-      return true;
-    }
-    return false;
-  },
-  release() {
-    if (this.active > 0) this.active--;
-  },
-  getStats() {
-    return {
-      active: this.active,
-      max: this.max,
-      usage: (this.active / this.max * 100).toFixed(1) + '%'
-    };
-  }
-};
-
-const streamLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    max: 100, // limit each IP to 100 requests per minute
-    message: {
-      error: 'Too many requests',
-      message: 'Please try again later'
-    },
-    skip: (req) => {
-      // Don't rate limit range requests (they're normal for video playback)
-      return req.headers.range;
-    }
-  });
 
 /**
  * Memory Pool Management for High Concurrency User Streaming
  */
-class UserContentMemoryPool {
-  constructor(maxSize = USER_STREAMING_CONFIG.MEMORY_POOL_SIZE) {
-    this.pool = new Map();
-    this.maxSize = maxSize;
-    this.currentSize = 0;
-    this.accessCount = new Map();
-    this.lastCleanup = Date.now();
-    this.cleanupInterval = 300000; // 5 minutes
-  }
+// class UserContentMemoryPool {
+//   constructor(maxSize = USER_STREAMING_CONFIG.MEMORY_POOL_SIZE) {
+//     this.pool = new Map();
+//     this.maxSize = maxSize;
+//     this.currentSize = 0;
+//     this.accessCount = new Map();
+//     this.lastCleanup = Date.now();
+//     this.cleanupInterval = 300000; // 5 minutes
+//   }
 
-  get(key) {
-    const item = this.pool.get(key);
-    if (item) {
-      item.lastAccessed = Date.now();
-      this.accessCount.set(key, (this.accessCount.get(key) || 0) + 1);
-      return item.data;
-    }
-    return null;
-  }
+//   get(key) {
+//     const item = this.pool.get(key);
+//     if (item) {
+//       item.lastAccessed = Date.now();
+//       this.accessCount.set(key, (this.accessCount.get(key) || 0) + 1);
+//       return item.data;
+//     }
+//     return null;
+//   }
 
-  set(key, data, size) {
-    // Auto-cleanup if needed
-    this.autoCleanup();
+//   set(key, data, size) {
+//     // Auto-cleanup if needed
+//     this.autoCleanup();
     
-    // Remove old items if we're over capacity
-    while (this.currentSize + size > this.maxSize && this.pool.size > 0) {
-      const oldestKey = this.getOldestKey();
-      if (oldestKey) {
-        this.remove(oldestKey);
-      }
-    }
+//     // Remove old items if we're over capacity
+//     while (this.currentSize + size > this.maxSize && this.pool.size > 0) {
+//       const oldestKey = this.getOldestKey();
+//       if (oldestKey) {
+//         this.remove(oldestKey);
+//       }
+//     }
 
-    this.pool.set(key, {
-      data,
-      size,
-      lastAccessed: Date.now(),
-      createdAt: Date.now()
-    });
-    this.currentSize += size;
-    this.accessCount.set(key, 1);
-  }
+//     this.pool.set(key, {
+//       data,
+//       size,
+//       lastAccessed: Date.now(),
+//       createdAt: Date.now()
+//     });
+//     this.currentSize += size;
+//     this.accessCount.set(key, 1);
+//   }
 
-  remove(key) {
-    const item = this.pool.get(key);
-    if (item) {
-      this.currentSize -= item.size;
-      this.pool.delete(key);
-      this.accessCount.delete(key);
-    }
-  }
+//   remove(key) {
+//     const item = this.pool.get(key);
+//     if (item) {
+//       this.currentSize -= item.size;
+//       this.pool.delete(key);
+//       this.accessCount.delete(key);
+//     }
+//   }
 
-  getOldestKey() {
-    let oldestKey = null;
-    let oldestTime = Date.now();
+//   getOldestKey() {
+//     let oldestKey = null;
+//     let oldestTime = Date.now();
     
-    for (const [key, item] of this.pool) {
-      if (item.lastAccessed < oldestTime) {
-        oldestTime = item.lastAccessed;
-        oldestKey = key;
-      }
-    }
+//     for (const [key, item] of this.pool) {
+//       if (item.lastAccessed < oldestTime) {
+//         oldestTime = item.lastAccessed;
+//         oldestKey = key;
+//       }
+//     }
     
-    return oldestKey;
-  }
+//     return oldestKey;
+//   }
 
-  autoCleanup() {
-    const now = Date.now();
-    if (now - this.lastCleanup > this.cleanupInterval) {
-      this.cleanup();
-      this.lastCleanup = now;
-    }
-  }
+//   autoCleanup() {
+//     const now = Date.now();
+//     if (now - this.lastCleanup > this.cleanupInterval) {
+//       this.cleanup();
+//       this.lastCleanup = now;
+//     }
+//   }
 
-  cleanup() {
-    const now = Date.now();
-    const maxAge = 1800000; // 30 minutes
+//   cleanup() {
+//     const now = Date.now();
+//     const maxAge = 1800000; // 30 minutes
     
-    for (const [key, item] of this.pool) {
-      if (now - item.lastAccessed > maxAge) {
-        this.remove(key);
-      }
-    }
-  }
+//     for (const [key, item] of this.pool) {
+//       if (now - item.lastAccessed > maxAge) {
+//         this.remove(key);
+//       }
+//     }
+//   }
 
-  getStats() {
-    return {
-      poolSize: this.pool.size,
-      currentSize: this.currentSize,
-      maxSize: this.maxSize,
-      utilization: (this.currentSize / this.maxSize) * 100
-    };
-  }
+//   getStats() {
+//     return {
+//       poolSize: this.pool.size,
+//       currentSize: this.currentSize,
+//       maxSize: this.maxSize,
+//       utilization: (this.currentSize / this.maxSize) * 100
+//     };
+//   }
 
-  clear() {
-    this.pool.clear();
-    this.accessCount.clear();
-    this.currentSize = 0;
-  }
-}
+//   clear() {
+//     this.pool.clear();
+//     this.accessCount.clear();
+//     this.currentSize = 0;
+//   }
+// }
 
 // Initialize global memory pool for user streaming
-const userContentPool = new UserContentMemoryPool();
+// const userContentPool = new UserContentMemoryPool();
 
 /**
  * Optimized range request handler for user streaming
  */
 const handleUserRangeRequest = (range, fileSize, contentType) => {
   if (!range) return null;
-  
-  // Parse range header
+
+  try {
+
+     // Parse range header
   const parts = range.replace(/bytes=/, "").split("-");
   const start = parseInt(parts[0], 10);
   const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
@@ -414,20 +411,57 @@ const handleUserRangeRequest = (range, fileSize, contentType) => {
   }
   
   // Optimize chunk size based on content type
-  let chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.default;
-  if (contentType.includes('m3u8')) chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.m3u8;
-  else if (contentType.includes('mp2t')) chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.ts;
-  else if (contentType.includes('mp4')) chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.mp4;
+  // let chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.default;
+  // if (contentType.includes('m3u8')) chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.m3u8;
+  // else if (contentType.includes('mp2t')) chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.ts;
+  // else if (contentType.includes('mp4')) chunkSize = USER_STREAMING_CONFIG.CHUNK_SIZES.mp4;
   
-  // Calculate optimal range
-  const rangeSize = end - start + 1;
-  if (rangeSize <= chunkSize) {
-    return { start, end, chunkSize: rangeSize };
+  // // Calculate optimal range
+  // const rangeSize = end - start + 1;
+  // if (rangeSize <= chunkSize) {
+  //   return { start, end, chunkSize: rangeSize };
+  // }
+  
+  // // Limit range size for optimal performance
+  // const optimalEnd = Math.min(end, start + chunkSize - 1);
+  // return { start, end: optimalEnd, chunkSize: optimalEnd - start + 1 };
+
+   // Optimize chunk sizes for different content types
+     // For TS files, be more generous with range sizes to support proper buffering
+     let maxChunkSize;
+  if (contentType.includes('m3u8')){
+    // maxChunkSize = fileSize; // Return entire manifest
+  return { start: 0, end: fileSize - 1, chunkSize: fileSize }; // Full manifest
+  }  
+  else if (contentType.includes('mp2t')) {
+    maxChunkSize = 4 * 1024 * 1024; // 4MB for TS segments (increased from 2MB)
+  }
+  else {
+    maxChunkSize = 2 * 1024 * 1024; // 2MB default
+  }
+
+  const requestedSize = end - start + 1;
+
+     // Don't chunk if the requested size is reasonable
+     if (requestedSize <= maxChunkSize) {
+      return {
+        start,
+        end,
+        chunkSize: requestedSize
+      };
+    }
+  // Only chunk if significantly larger than max
+  return {
+    start,
+    end: start + maxChunkSize - 1,
+    chunkSize: maxChunkSize
+  };
+  }  catch (error) {
+    console.error('Range header parsing error:', error);
+    return null;
   }
   
-  // Limit range size for optimal performance
-  const optimalEnd = Math.min(end, start + chunkSize - 1);
-  return { start, end: optimalEnd, chunkSize: optimalEnd - start + 1 };
+ 
 };
 
 /**
@@ -449,18 +483,29 @@ const getUserCacheHeaders = (filename, rangeInfo) => {
   else if (ext === '.mp4') cacheDuration = USER_STREAMING_CONFIG.CACHE_DURATIONS.mp4;
   
   if (ext === '.m3u8'){
+    // return {
+    //     ...baseHeaders,
+    //     'Cache-Control': `public, max-age=${cacheDuration}`,
+    //     'Expires': new Date(Date.now() + cacheDuration * 1000).toUTCString(),
+    //   };
     return {
-        ...baseHeaders,
-        'Cache-Control': `public, max-age=${cacheDuration}`,
-        'Expires': new Date(Date.now() + cacheDuration * 1000).toUTCString(),
-      };
+      ...baseHeaders,
+      'Cache-Control': 'no-cache, max-age=30', // Short cache for manifests
+      'Expires': new Date(Date.now() + 30000).toUTCString()
+    };
   } else if (ext === '.ts'){
+    // return {
+    //     ...baseHeaders,
+    //     'Cache-Control': `public, max-age=${cacheDuration}`,
+    //     'Expires': new Date(Date.now() + cacheDuration * 1000).toUTCString(),
+    //     'ETag': `"${filename}-${rangeInfo ? rangeInfo.start : 'full'}"`
+    // }
+
     return {
-        ...baseHeaders,
-        'Cache-Control': `public, max-age=${cacheDuration}`,
-        'Expires': new Date(Date.now() + cacheDuration * 1000).toUTCString(),
-        'ETag': `"${filename}-${rangeInfo ? rangeInfo.start : 'full'}"`
-    }
+      ...baseHeaders,
+      'Cache-Control': 'public, max-age=31536000', // 1 year cache
+      'ETag': `"${filename}-${rangeInfo ? rangeInfo.start : 'full'}"`
+    };
   }else {
     return {
         ...baseHeaders,
@@ -472,9 +517,22 @@ const getUserCacheHeaders = (filename, rangeInfo) => {
   
 };
 
+router.use('/stream/video/:resourceId/:videoId/:filename', (req, res, next)=> {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Accept-Encoding, Content-Type');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if(req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+})
 router.use('/stream/video/:resourceId/:videoId/:filename', streamLimiter);
 router.use('/stream/trailer/:resourceId/:videoId/:filename', streamLimiter);
 
+// tracks User streaming
 router.use((req, res, next) => {
   const connectionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 
@@ -510,337 +568,30 @@ router.use((req, res, next) => {
   next();
 });
 
-/**
- * Get trailer streaming URLs for user consumption
- */
-router.get('/trailer/:resourceId', async (req, res) => {
-  try {
-    const { resourceId } = req.params;
-    const baseUrl = `${req.protocol}://${req.get('host')}/api/v1/userStreaming`;
-    
-    console.log(`🎬 User streaming: Getting trailer for resource: ${resourceId}`);
-    
-    // Query database to get trailer videos for this resource
-    const videos = await prisma.video.findMany({
-      where: {
-        OR: [
-         { filmId: resourceId},
-         { episodeId: resourceId },
-         { seasonId: resourceId }
-        ],
-       
-        isTrailer: true // Only get trailers
-      },
-      select: {
-        id: true,
-        name: true,
-        resolution: true,
-        format: true,
-       
-        size: true,
-        isTrailer: true
-      },
-      orderBy: {
-        resolution: 'asc' // Order by resolution (SD, HD, FHD, UHD)
-      }
-    });
+// Global error handler for user streaming routes
+// Global error handler for streaming routes
+router.use((error, req, res, next) => {
+  if (req.url.includes('/video/') || req.url.includes('/trailer/')) {
+    console.error('🚨 Global streaming error:', error);
 
-    if (videos.length === 0) {
-      return res.json({
-        success: false,
-        message: 'No trailer found for this resource',
-        resourceId
-      });
-    }
-
-    console.log(`🎬 User streaming: Found ${videos.length} trailer(s) for resource ${resourceId}`);
-
-    // Get the best quality trailer (usually HD or highest available)
-    const bestTrailer = videos.find(v => v.resolution === 'HD') || 
-                       videos.find(v => v.resolution === 'FHD') || 
-                       videos.find(v => v.resolution === 'UHD') || 
-                       videos[0];
-
-    console.log(`🎬 User streaming: Selected trailer:`, bestTrailer);
-
-    // Generate streaming URLs
-    const response = {
-      success: true,
-      resourceId,
-      trailer: {
-        id: bestTrailer.id,
-        name: bestTrailer.name,
-        resolution: bestTrailer.resolution,
-        format: bestTrailer.format,
-        fileSize: bestTrailer.fileSize
-      },
-      streamingUrls: {
-        hls: `${baseUrl}/stream/trailer/${resourceId}/${bestTrailer.id}/trailer_${bestTrailer.name}.m3u8`,
-        direct: bestTrailer.url // Fallback to direct S3 URL
-      },
-      streamingConfig: {
-        supportsRangeRequests: true,
-        optimizedChunkSizes: USER_STREAMING_CONFIG.CHUNK_SIZES,
-        cacheDurations: USER_STREAMING_CONFIG.CACHE_DURATIONS,
-        maxRangeSize: USER_STREAMING_CONFIG.MAX_RANGE_SIZE
-      }
-    };
-
-    console.log(`🎬 User streaming: Generated trailer URLs for ${resourceId}:`, response.streamingUrls);
-    res.json(response);
-
-  } catch (error) {
-    console.error('❌ User streaming error getting trailer:', error);
-    res.status(500).json({ 
-      error: 'Failed to get trailer streaming URLs', 
-      details: error.message 
-    });
-  }
-});
-
-/**
- * Stream trailer files for user consumption
- */
-router.get('/stream/trailer/:resourceId/:videoId/:filename', async (req, res) => {
-  let requestId = null;
-  let s3Response = null;
-  try {
-    const { resourceId, videoId, filename } = req.params;
-   
-    const range = req.headers.range;
-
-    // Generate unique request ID
-    requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-     // Store request info for potential cancellation
-     activeStreamRequests.set(requestId, {
-      url: req.url,
-      startTime: Date.now(),
-      userId: req.userId,
-      resourceId: req.params.resourceId
-    });
-
-    console.log(`🎬 User streaming: Trailer request: ${resourceId}/${videoId}/${filename} `);
-    console.log(`📡 Range: ${range}`);
-
-    // Handle client abort gracefully
-    req.on('close', () => {
-      console.log('⚠️ Client closed connection (likely seeking)');
-      // Clean up any ongoing operations
-      // Cancel the S3 request from queue
-      // if (requestId) {
-      //   s3UserRequestQueue.cancelRequest(requestId);
-      //   activeStreamRequests.delete(requestId);
-      // }
-      
-      // Clean up S3 response if it exists
-      // if (s3Response && s3Response.Body && typeof s3Response.Body.destroy === 'function') {
-      //   s3Response.Body.destroy();
-      // }
-    });
-
-    // Query database to get the specific trailer video
-    const video = await prisma.video.findFirst({
-      where: {
-        id: videoId,
-        OR: [
-          { filmId: resourceId },
-          { episodeId: resourceId },
-          { seasonId: resourceId }
-        ],
-        isTrailer: true
-      },
-      select: {
-       url: true,
-       name: true,
-        hlsUrl: true,
-            season: {
-          select: {
-            id: true,
-            filmId: true
-          }
-        },
-        size: true,
-       
-        format: true
-      }
-    });
-
-    if (!video) {
-      return res.status(404).json({ error: 'Trailer not found' });
-    }
-
-    console.log(`📋 User streaming: Found trailer: ${video.name}`);
-
-     // Determine the correct file path based on resource type
-     let actualResourcePath = resourceId;
-
-       // Special handling for seasons: use seriesId-seasonId format
-    if (video.season && video.season.filmId) {
-      actualResourcePath = `${video.season.filmId}-${video.season.id}`;
-    }
-
-     // Extract base trailer name from the video
-     const baseTrailerName = video.name.replace(/\.(m3u8|mp4)$/, ''); // Remove extension
-     const cleanBaseName = baseTrailerName.replace(/^(HD_|trailer_)/, ''); // Remove HD_ and trailer_ prefixes
-
-     console.log(`🎬 Base trailer name: ${cleanBaseName}`);
-
-      // Determine file path based on filename for trailer structure
-    let filePath;
-    let contentType;
-
-    console.log(`🔍 Analyzing trailer filename: ${filename}`);
-    
-    if (filename.includes('.m3u8')) {
-      // Trailer HLS playlist - use the correct resource path (seriesId-seasonId for seasons)
-      filePath = `${actualResourcePath}/hls_trailer/${filename}`;
-      contentType = 'application/vnd.apple.mpegurl';
-      console.log(`📋 Detected trailer HLS playlist: ${filePath}`);
-      
-    } else if (filename.includes('.ts')) {
-      // Trailer HLS segment file - use the correct resource path (seriesId-seasonId for seasons)
-      filePath = `${actualResourcePath}/hls_trailer/${filename}`;
-      contentType = 'video/mp2t';
-      console.log(`📋 Detected trailer HLS segment: ${filePath}`);
-    } else {
-      return res.status(400).json({ error: 'Unsupported trailer file type' });
-    }
-
-    
-
-    console.log(`📁 User streaming: Extracted file path: ${filePath} from bucket`);
-
-     // Check if client already disconnected
-     if (req.aborted) {
-      console.log('⚠️ Request aborted before streaming');
+    if (req.aborted) {
+      console.log('⚠️ Error occurred after client disconnected');
       return;
     }
 
-    // Get file info from S3
-    const headCommand = new GetObjectCommand({
-      Bucket: process.env.DO_SPACESBUCKET,
-      Key: filePath
-    });
-
-    const headResponse = await s3UserRequestQueue.add(()=>s3Client.send(headCommand));
-    const fileSize = parseInt(headResponse.ContentLength);
-    
-    console.log(`📊 User streaming: File size: ${fileSize} bytes`);
-
-   
-
-    // Handle range requests with optimization
-    const rangeInfo = handleUserRangeRequest(range, fileSize, contentType);
-    
-    if (rangeInfo) {
-      console.log(`📦 User streaming: Streaming optimized chunk: ${rangeInfo.start}-${rangeInfo.end}/${fileSize} (${rangeInfo.chunkSize} bytes)`);
-
-      // Set optimized headers for range request
-      const headers = {
-        'Content-Type': contentType,
-        'Accept-Ranges': 'bytes',
-        'Access-Control-Allow-Origin': '*',
-        ...getUserCacheHeaders(filename)
-      };
-
-      headers['Content-Range'] = `bytes ${rangeInfo.start}-${rangeInfo.end}/${fileSize}`;
-      headers['Content-Length'] = rangeInfo.chunkSize;
-
-      res.writeHead(206, headers);
-
-      // Stream the specific range with optimized buffer and connection pooling
-      const getCommand = new GetObjectCommand({
-        Bucket: process.env.DO_SPACESBUCKET,
-        Key: filePath,
-        Range: `bytes=${rangeInfo.start}-${rangeInfo.end}`
-      });
-
-      const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand));
-      
-      s3Response = stream;
-      // Optimize the stream with proper buffering and connection reuse
-      const optimizedStream = stream.Body;
-      optimizedStream.on('error', (error) => {
-        console.error('❌ User streaming stream error:', error);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Streaming failed' });
-        }
-      });
-
-      // Pipe with optimized buffer settings and connection pooling
-      optimizedStream.pipe(res, {
-        highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
-      });
-
-    } else {
-      // Full file request with optimization
-      console.log(`📦 User streaming: Streaming full file: ${fileSize} bytes`);
-
-      const headers = {
-        'Content-Type': contentType,
-        'Accept-Ranges': 'bytes',
-        'Access-Control-Allow-Origin': '*',
-        ...getUserCacheHeaders(filename)
-      };
-
-      headers['Content-Length'] = fileSize;
-
-      res.writeHead(200, headers);
-
-      const getCommand = new GetObjectCommand({
-        Bucket: process.env.DO_SPACESBUCKET,
-        Key: filePath
-      });
-
-      const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand));
-      
-      s3Response = stream;
-      // Optimize the stream with connection pooling
-      const optimizedStream = stream.Body;
-      optimizedStream.on('error', (error) => {
-        console.error('❌ User streaming stream error:', error);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Streaming failed' });
-        }
-      });
-
-      // Pipe with optimized buffer settings and connection reuse
-      optimizedStream.pipe(res, {
-        highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
-      });
-    }
-
-  } catch (error) {
-    console.error('❌ User streaming trailer error:', error);
-    
-    if (error.name === 'NoSuchKey') {
-      return res.status(404).json({ error: 'File not found' });
-    }
-    
     if (!res.headersSent) {
-      res.status(500).json({ error: 'Trailer streaming failed', details: error.message });
+      if (error.name === 'NoSuchKey') {
+        res.status(404).json({ error: 'File not found' });
+      } else if (error.name === 'AccessDenied') {
+        res.status(403).json({ error: 'Access denied' });
+      } else {
+        res.status(500).json({ error: 'Streaming failed' });
+      }
     }
-    if (!req.aborted && !res.headersSent) {
-      handleStreamError(error, res);
-    } else {
-      console.log('⚠️ Error occurred after client disconnected:', error.message);
-    }
-  }finally {
-    // Clean up request tracking
-    // if (requestId) {
-    //   activeStreamRequests.delete(requestId);
-    // }
-    
-    // Clean up S3 response
-    // if (s3Response && s3Response.Body && typeof s3Response.Body.destroy === 'function') {
-    //   s3Response.Body.destroy();
-    // }
+  } else {
+    next(error);
   }
 });
-
-
-
 
 /**
  * Get streaming URLs for user consumption
@@ -848,7 +599,13 @@ router.get('/stream/trailer/:resourceId/:videoId/:filename', async (req, res) =>
 router.get('/urls/:resourceId',   verifyToken, async (req, res) => {
   try {
     const { resourceId } = req.params;
-    const userId = req.userId; // Get user ID from auth middleware
+       // Verify token from query parameter or Authorization header
+       const tokenInfo = verifyStreamingToken(req);
+       if (!tokenInfo.isValid) {
+         return res.status(401).json({ error: 'Unauthorized', message: 'Invalid or missing token' });
+       }
+
+    const userId = tokenInfo.userId; // Get user ID from auth middleware
     const baseUrl = `${req.protocol}://${req.get('host')}/api/v1/userStreaming`;
     
     console.log(`🎬 User streaming: Getting URLs for resource: ${resourceId} for user: ${userId}`);
@@ -1206,356 +963,95 @@ router.get('/urls/:resourceId',   verifyToken, async (req, res) => {
   }
 });
 
+
 /**
- * Stream regular video files for user consumption
+ * Get trailer streaming URLs for user consumption
  */
-router.get('/stream/video/:resourceId/:videoId/:filename', async (req, res) => {
-    let s3Response = null;
+router.get('/trailer/:resourceId', async (req, res) => {
   try {
-    const { resourceId, videoId, filename } = req.params;
+    const { resourceId } = req.params;
+    const baseUrl = `${req.protocol}://${req.get('host')}/api/v1/userStreaming`;
     
-    // Verify token from query parameter or Authorization header
-    const tokenInfo = verifyStreamingToken(req);
-    if (!tokenInfo.isValid) {
-      return res.status(401).json({ error: 'Unauthorized', message: 'Invalid or missing token' });
-    }
+    console.log(`🎬 User streaming: Getting trailer for resource: ${resourceId}`);
     
-    const userId = tokenInfo.userId;
-    const range = req.headers.range;
-
-    console.log(`🎬 User streaming: Video request: ${resourceId}/${videoId}/${filename} from user: ${userId}`);
-    console.log(`📡 Range: ${range}`);
-
-    // Check access permissions before streaming
-    let hasAccess = false;
-    let isFree = false;
-    
-    // Check if it's a film
-    const film = await prisma.film.findUnique({
-      where: { id: resourceId },
-      include: {
-        purchase: { 
-          where: { 
-            userId: userId, 
-            valid: true,
-            expiresAt: { gt: new Date() }
-          } 
-        }
+    // Query database to get trailer videos for this resource
+    const videos = await prisma.video.findMany({
+      where: {
+        OR: [
+         { filmId: resourceId},
+         { episodeId: resourceId },
+         { seasonId: resourceId }
+        ],
+       
+        isTrailer: true // Only get trailers
+      },
+      select: {
+        id: true,
+        name: true,
+        resolution: true,
+        format: true,
+       
+        size: true,
+        isTrailer: true
+      },
+      orderBy: {
+        resolution: 'asc' // Order by resolution (SD, HD, FHD, UHD)
       }
     });
-    
-    if (film) {
-      // Check if film is free through the access property
-      isFree = film.access === 'free';
-      
-      // Check if user has valid purchase
-      hasAccess = isFree || film.purchase.length > 0;
-      
-      console.log(`🎬 User streaming: Film "${film.title}" - Access: ${film.access}, Free: ${isFree}, Has Access: ${hasAccess}`);
-    } else {
-      // Check if it's an episode
-      const episode = await prisma.episode.findUnique({
-        where: { id: resourceId },
-        include: {
-          season: {
-            include: {
-              pricing: {
-                include: { priceList: true }
-              },
-              purchase: { 
-                where: { 
-                  userId: userId, 
-                  valid: true,
-                  expiresAt: { gt: new Date() }
-                } 
-              }
-            }
-          }
-        }
-      });
-      
-      if (episode) {
-         // Check if episode's season is free through the access property
-         isFree = episode.season.access === 'free';
-        // Check if user has valid purchase for the season
-        hasAccess = isFree || episode.season.purchase.length > 0;
-        
-        console.log(`🎬 User streaming: Episode "${episode.title}" from season "${episode.season.title}" - Free: ${isFree}, Has Access: ${hasAccess}`);
-      } else {
-        // Check if it's a season
-        const season = await prisma.season.findUnique({
-          where: { id: resourceId },
-          include: {
-            pricing: {
-              include: { priceList: true }
-            },
-            purchase: { 
-              where: { 
-                userId: userId, 
-                valid: true,
-                expiresAt: { gt: new Date() }
-              } 
-            }
-          }
-        });
-        
-        if (season) {
-            // Check if season is free through the access property
-            isFree = season.access === 'free';
-          // Check if user has valid purchase
-          hasAccess = isFree || season.purchase.length > 0;
-          
-          console.log(`🎬 User streaming: Season "${season.title}" - Free: ${isFree}, Has Access: ${hasAccess}`);
-        } else {
-          return res.status(404).json({ error: 'Resource not found' });
-        }
-      }
-    }
-    
-    // If user doesn't have access, return error
-    if (!hasAccess) {
-      console.log(`🚫 User streaming: Access denied for user ${userId} to resource ${resourceId}`);
-      return res.status(403).json({ 
-        error: 'Access denied', 
-        message: 'This content requires purchase or is not available',
+
+    if (videos.length === 0) {
+      return res.json({
+        success: false,
+        message: 'No trailer found for this resource',
         resourceId
       });
     }
 
-    // Query database to get the specific video
-    const video = await prisma.video.findFirst({
-      where: {
-        id: videoId,
-        OR: [
-          { filmId: resourceId },
-          { episodeId: resourceId },
-          { seasonId: resourceId }
-        ]
+    console.log(`🎬 User streaming: Found ${videos.length} trailer(s) for resource ${resourceId}`);
+
+    // Get the best quality trailer (usually HD or highest available)
+    const bestTrailer = videos.find(v => v.resolution === 'HD') || 
+                       videos.find(v => v.resolution === 'FHD') || 
+                       videos.find(v => v.resolution === 'UHD') || 
+                       videos[0];
+
+    console.log(`🎬 User streaming: Selected trailer:`, bestTrailer);
+
+    // Generate streaming URLs
+    const response = {
+      success: true,
+      resourceId,
+      trailer: {
+        id: bestTrailer.id,
+        name: bestTrailer.name,
+        resolution: bestTrailer.resolution,
+        format: bestTrailer.format,
+        fileSize: bestTrailer.fileSize
       },
-      select: {
-        name: true,
-        resolution: true,
-        format: true,
-        url: true,
-        hlsUrl: true,
-        episode:{
-          select:{
-            id:true,
-            season:{
-              select:{
-                id:true,
-                filmId:true
-              }
-            }
-          }
-        },
-        seasonId:true,
-        season: {
-          select: {
-            id: true,
-            filmId: true
-          }
-        }
+      streamingUrls: {
+        hls: `${baseUrl}/stream/trailer/${resourceId}/${bestTrailer.id}/trailer_${bestTrailer.name}.m3u8`,
+        direct: bestTrailer.url // Fallback to direct S3 URL
+      },
+      streamingConfig: {
+        supportsRangeRequests: true,
+        optimizedChunkSizes: USER_STREAMING_CONFIG.CHUNK_SIZES,
+        cacheDurations: USER_STREAMING_CONFIG.CACHE_DURATIONS,
+        maxRangeSize: USER_STREAMING_CONFIG.MAX_RANGE_SIZE
       }
-    });
+    };
 
-    if (!video) {
-      return res.status(404).json({ error: 'Video not found' });
-    }
-
-    console.log(`📋 User streaming: Found video: ${video.name} (${video.resolution})`);
-
-    // Extract base video name from the video
-    const baseVideoName = video.name.replace(/\.(m3u8|mp4)$/, ''); // Remove extension
-    const cleanBaseName = baseVideoName.replace(/^(SD_|HD_|FHD_|UHD_|master_)/, ''); // Remove resolution and master prefixes
-    
-    console.log(`🎬 User streaming: Base video name: ${cleanBaseName}`);
-    console.log(`🎬 User streaming: Video resolution: ${video.resolution}`);
-
-    // Determine file path based on filename and video resolution
-    let filePath;
-    let contentType;
-    
-    console.log(`🔍 User streaming: Analyzing filename: ${filename}`);
-
-      // Determine the correct file path based on resource type
-      let actualResourcePath = resourceId;
-
-             // Special handling for seasons: use seriesId-seasonId format
-    if (video.season && video.season.filmId) {
-      actualResourcePath = `${video.season.filmId}-${video.season.id}`;
-      console.log(`🎬 Season trailer detected - using path: ${actualResourcePath} (seriesId-seasonId format)`);
-    } else if (video.episode && video.episode.season && video.episode.season.filmId) {
-      actualResourcePath = `${video.episode.season.filmId}-${video.episode.season.id}`;
-      console.log(`🎬 Episode trailer detected - using path: ${actualResourcePath} (seriesId-seasonId format)`);
-    }
-    
-    if (filename.includes('.m3u8')) {
-      // Check if this is a master playlist
-        filePath = `${actualResourcePath}/hls_${video.resolution}_${cleanBaseName}/${filename}`;
-        contentType = 'application/vnd.apple.mpegurl';
-        console.log(`📋 User streaming: Detected HLS playlist: ${filePath}`);
-      
-    } else if (filename.includes('.ts')) {
-      // HLS segment file - use video resolution from database
-      filePath = `${actualResourcePath}/hls_${video.resolution}_${cleanBaseName}/${filename}`;
-      contentType = 'video/mp2t';
-      console.log(`📋 User streaming: Detected HLS segment: ${filePath}`);
-    } else if (filename.includes('.mp4')) {
-      // MP4 file - uploaded directly to bucket root
-      filePath = `original_${cleanBaseName}.mp4`;
-      contentType = 'video/mp4';
-      console.log(`📋 User streaming: Detected MP4 file: ${filePath}`);
-    } else if (filename.includes('.vtt')) {
-      // Subtitle file - from shared subtitle directory
-      filePath = `${actualResourcePath}/subtitles/${cleanBaseName}/${filename}`;
-      contentType = 'text/vtt';
-      console.log(`📋 User streaming: Detected subtitle file: ${filename} (${cleanBaseName})`);
-      console.log(`📝 User streaming: Streaming subtitle file: ${filename} (${cleanBaseName})`);
-    } else {
-      return res.status(400).json({ error: 'Unsupported file type' });
-    }
-
-    console.log(`📁 User streaming: File path: ${filePath}`);
-
-    // Optimized S3 request with connection pooling
-    const headCommand = new GetObjectCommand({
-      Bucket: process.env.DO_SPACESBUCKET,
-      Key: filePath
-    });
-
-    const headResponse = await s3UserRequestQueue.add(()=> s3Client.send(headCommand));
-    const fileSize = parseInt(headResponse.ContentLength);
-    
-    console.log(`📊 User streaming: File size: ${fileSize} bytes`);
-
-    // Handle range requests with optimization
-    const rangeInfo = handleUserRangeRequest(range, fileSize, contentType, filename);
-    
-    if (rangeInfo) {
-      console.log(`📦 User streaming: Streaming optimized chunk: ${rangeInfo.start}-${rangeInfo.end}/${fileSize} (${rangeInfo.chunkSize} bytes)`);
-
-      // Set optimized headers for range request
-      const headers = {
-        'Content-Type': contentType,
-        
-        // Enhanced CORS headers for subtitle files
-        // ...(contentType === 'text/vtt' && {
-        //   'Access-Control-Allow-Credentials': 'true',
-        //   'Access-Control-Max-Age': '86400'
-        // }),
-        ...getUserCacheHeaders(filename)
-      };
-
-      headers['Content-Range'] = `bytes ${rangeInfo.start}-${rangeInfo.end}/${fileSize}`;
-      headers['Content-Length'] = rangeInfo.chunkSize;
-
-
-      res.writeHead(206, headers);
-
-      // Stream the specific range with optimized buffer and connection pooling
-      const getCommand = new GetObjectCommand({
-        Bucket: process.env.DO_SPACESBUCKET,
-        Key: filePath,
-        Range: `bytes=${rangeInfo.start}-${rangeInfo.end}`
-      });
-
-      const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand));
-      
-      // Optimize the stream with proper buffering and connection reuse
-      const optimizedStream = stream.Body;
-      optimizedStream.on('error', (error) => {
-        console.error('❌ User streaming stream error:', error);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Streaming failed' });
-        }
-      });
-
-      // Pipe with optimized buffer settings and connection pooling
-      optimizedStream.pipe(res, {
-        highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
-      });
-
-    } else {
-      // Full file request with optimization
-      console.log(`📦 User streaming: Streaming full file: ${fileSize} bytes`);
-
-      const headers = {
-        'Content-Type': contentType,
-       
-        // Enhanced CORS headers for subtitle files
-        // ...(contentType === 'text/vtt' && {
-        //   'Access-Control-Allow-Credentials': 'true',
-        //   'Access-Control-Max-Age': '86400'
-        // }),
-        ...getUserCacheHeaders(filename)
-      };
-
-      headers['Content-Length'] = fileSize;
-
-      res.writeHead(200, headers);
-
-      const getCommand = new GetObjectCommand({
-        Bucket: process.env.DO_SPACESBUCKET,
-        Key: filePath
-      });
-
-      const stream = await s3UserRequestQueue.add(()=> s3Client.send(getCommand));
-      
-      // Optimize the stream with connection pooling
-      const optimizedStream = stream.Body;
-      optimizedStream.on('error', (error) => {
-        console.error('❌ User streaming stream error:', error);
-        if (!res.headersSent) {
-          res.status(500).json({ error: 'Streaming failed' });
-        }
-      });
-
-      // Pipe with optimized buffer settings and connection reuse
-      optimizedStream.pipe(res, {
-        highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
-      });
-    }
+    console.log(`🎬 User streaming: Generated trailer URLs for ${resourceId}:`, response.streamingUrls);
+    res.json(response);
 
   } catch (error) {
-    console.error('Streaming error:', error);
-    if (!req.aborted && !res.headersSent) {
-      handleStreamError(error, res);
-    } else {
-      console.log('⚠️ Error occurred after client disconnected:', error.message);
-    }
-  }finally {
-     // Clean up S3 response
-     if (s3Response && s3Response.Body && typeof s3Response.Body.destroy === 'function') {
-        s3Response.Body.destroy();
-      }
+    console.error('❌ User streaming error getting trailer:', error);
+    res.status(500).json({ 
+      error: 'Failed to get trailer streaming URLs', 
+      details: error.message 
+    });
   }
 });
 
-
-/**
- * OPTIONS endpoint for regular video CORS preflight requests
- */
-router.options('/stream/video/:resourceId/:videoId/:filename', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Accept-Encoding, Content-Type'); // FIXED: Added missing headers
-    res.setHeader('Access-Control-Max-Age', '86400');
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length'); 
-    res.status(200).end();
-});
-
-/**
- * OPTIONS endpoint for trailer CORS preflight requests
- */
-router.options('/stream/trailer/:resourceId/:videoId/:filename', (req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Accept-Encoding, Content-Type'); // FIXED
-  res.setHeader('Access-Control-Max-Age', '86400');
-  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length'); // Add this
-  res.status(200).end();
-  });
 
 /**
  * Get subtitle files for a video resource
@@ -1704,6 +1200,607 @@ router.get('/subtitles/:resourceId', async (req, res) => {
   }
 });
 
+//Main streaming endpoint
+/**
+ * Stream regular video files for user consumption
+ */
+router.get('/stream/video/:resourceId/:videoId/:filename', async (req, res) => {
+  let s3Response = null;
+try {
+  const { resourceId, videoId, filename } = req.params;
+  const range = req.headers.range;
+      // Handle client abort gracefully
+      req.on('close', () => {
+        console.log('⚠️ Client closed connection (likely seeking)');
+        // Clean up any ongoing operations
+      });
+  // Verify token from query parameter or Authorization header
+  const tokenInfo = verifyStreamingToken(req);
+  if (!tokenInfo.isValid) {
+    return res.status(401).json({ error: 'Unauthorized', message: 'Invalid or missing token' });
+  }
+  
+  const userId = tokenInfo.userId;
+ 
+
+  console.log(`🎬 User streaming: Video request: ${resourceId}/${videoId}/${filename} from user: ${userId}`);
+  console.log(`📡 Range: ${range}`);
+
+  // Check access permissions before streaming
+  let hasAccess = false;
+  let isFree = false;
+  
+  // Check if it's a film
+  const film = await prisma.film.findUnique({
+    where: { id: resourceId },
+    include: {
+      purchase: { 
+        where: { 
+          userId: userId, 
+          valid: true,
+          expiresAt: { gt: new Date() }
+        } 
+      }
+    }
+  });
+  
+  if (film) {
+    // Check if film is free through the access property
+    isFree = film.access === 'free';
+    
+    // Check if user has valid purchase
+    hasAccess = isFree || film.purchase.length > 0;
+    
+    console.log(`🎬 User streaming: Film "${film.title}" - Access: ${film.access}, Free: ${isFree}, Has Access: ${hasAccess}`);
+  } else {
+    // Check if it's an episode
+    const episode = await prisma.episode.findUnique({
+      where: { id: resourceId },
+      include: {
+        season: {
+          include: {
+            pricing: {
+              include: { priceList: true }
+            },
+            purchase: { 
+              where: { 
+                userId: userId, 
+                valid: true,
+                expiresAt: { gt: new Date() }
+              } 
+            }
+          }
+        }
+      }
+    });
+    
+    if (episode) {
+       // Check if episode's season is free through the access property
+       isFree = episode.season.access === 'free';
+      // Check if user has valid purchase for the season
+      hasAccess = isFree || episode.season.purchase.length > 0;
+      
+      console.log(`🎬 User streaming: Episode "${episode.title}" from season "${episode.season.title}" - Free: ${isFree}, Has Access: ${hasAccess}`);
+    } else {
+      // Check if it's a season
+      const season = await prisma.season.findUnique({
+        where: { id: resourceId },
+        include: {
+          pricing: {
+            include: { priceList: true }
+          },
+          purchase: { 
+            where: { 
+              userId: userId, 
+              valid: true,
+              expiresAt: { gt: new Date() }
+            } 
+          }
+        }
+      });
+      
+      if (season) {
+          // Check if season is free through the access property
+          isFree = season.access === 'free';
+        // Check if user has valid purchase
+        hasAccess = isFree || season.purchase.length > 0;
+        
+        console.log(`🎬 User streaming: Season "${season.title}" - Free: ${isFree}, Has Access: ${hasAccess}`);
+      } else {
+        return res.status(404).json({ error: 'Resource not found' });
+      }
+    }
+  }
+  
+  // If user doesn't have access, return error
+  if (!hasAccess) {
+    console.log(`🚫 User streaming: Access denied for user ${userId} to resource ${resourceId}`);
+    return res.status(403).json({ 
+      error: 'Access denied', 
+      message: 'This content requires purchase or is not available',
+      resourceId
+    });
+  }
+
+  // Query database to get the specific video
+  const video = await prisma.video.findFirst({
+    where: {
+      id: videoId,
+      OR: [
+        { filmId: resourceId },
+        { episodeId: resourceId },
+        { seasonId: resourceId }
+      ]
+    },
+    select: {
+      name: true,
+      resolution: true,
+      format: true,
+      url: true,
+      hlsUrl: true,
+      episode:{
+        select:{
+          id:true,
+          season:{
+            select:{
+              id:true,
+              filmId:true
+            }
+          }
+        }
+      },
+      seasonId:true,
+      season: {
+        select: {
+          id: true,
+          filmId: true
+        }
+      }
+    }
+  });
+
+  if (!video) {
+    return res.status(404).json({ error: 'Video not found' });
+  }
+
+  console.log(`📋 User streaming: Found video: ${video.name} (${video.resolution})`);
+
+  // Extract base video name from the video
+  const baseVideoName = video.name.replace(/\.(m3u8|mp4)$/, ''); // Remove extension
+  const cleanBaseName = baseVideoName.replace(/^(SD_|HD_|FHD_|UHD_|master_)/, ''); // Remove resolution and master prefixes
+  
+  console.log(`🎬 User streaming: Base video name: ${cleanBaseName}`);
+  console.log(`🎬 User streaming: Video resolution: ${video.resolution}`);
+
+  // Determine file path based on filename and video resolution
+  let filePath;
+  let contentType;
+  
+  console.log(`🔍 User streaming: Analyzing filename: ${filename}`);
+
+    // Determine the correct file path based on resource type
+    let actualResourcePath = resourceId;
+
+           // Special handling for seasons: use seriesId-seasonId format
+  if (video.season && video.season.filmId) {
+    actualResourcePath = `${video.season.filmId}-${video.season.id}`;
+    console.log(`🎬 Season trailer detected - using path: ${actualResourcePath} (seriesId-seasonId format)`);
+  } else if (video.episode && video.episode.season && video.episode.season.filmId) {
+    actualResourcePath = `${video.episode.season.filmId}-${video.episode.season.id}`;
+    console.log(`🎬 Episode trailer detected - using path: ${actualResourcePath} (seriesId-seasonId format)`);
+  }
+  
+  if (filename.includes('.m3u8')) {
+    // Check if this is a master playlist
+      filePath = `${actualResourcePath}/hls_${video.resolution}_${cleanBaseName}/${filename}`;
+      contentType = 'application/vnd.apple.mpegurl';
+      console.log(`📋 User streaming: Detected HLS playlist: ${filePath}`);
+    
+  } else if (filename.includes('.ts')) {
+    // HLS segment file - use video resolution from database
+    filePath = `${actualResourcePath}/hls_${video.resolution}_${cleanBaseName}/${filename}`;
+    contentType = 'video/mp2t';
+    console.log(`📋 User streaming: Detected HLS segment: ${filePath}`);
+  } else if (filename.includes('.mp4')) {
+    // MP4 file - uploaded directly to bucket root
+    filePath = `original_${cleanBaseName}.mp4`;
+    contentType = 'video/mp4';
+    console.log(`📋 User streaming: Detected MP4 file: ${filePath}`);
+  } else if (filename.includes('.vtt')) {
+    // Subtitle file - from shared subtitle directory
+    filePath = `${actualResourcePath}/subtitles/${cleanBaseName}/${filename}`;
+    contentType = 'text/vtt';
+    console.log(`📋 User streaming: Detected subtitle file: ${filename} (${cleanBaseName})`);
+    console.log(`📝 User streaming: Streaming subtitle file: ${filename} (${cleanBaseName})`);
+  } else {
+    return res.status(400).json({ error: 'Unsupported file type' });
+  }
+
+  console.log(`📁 User streaming: File path: ${filePath}`);
+
+  // Optimized S3 request with connection pooling
+  const headCommand = new GetObjectCommand({
+    Bucket: process.env.DO_SPACESBUCKET,
+    Key: filePath
+  });
+
+  const headResponse = await s3UserRequestQueue.add(()=> s3Client.send(headCommand));
+  const fileSize = parseInt(headResponse.ContentLength);
+  
+  console.log(`📊 User streaming: File size: ${fileSize} bytes`);
+
+  // Handle range requests with optimization
+  const rangeInfo = handleUserRangeRequest(range, fileSize, contentType, filename);
+  
+  if (rangeInfo) {
+    console.log(`📦 User streaming: Streaming optimized chunk: ${rangeInfo.start}-${rangeInfo.end}/${fileSize} (${rangeInfo.chunkSize} bytes)`);
+
+    // Set optimized headers for range request
+    const headers = {
+      'Content-Type': contentType,
+      
+      // Enhanced CORS headers for subtitle files
+      // ...(contentType === 'text/vtt' && {
+      //   'Access-Control-Allow-Credentials': 'true',
+      //   'Access-Control-Max-Age': '86400'
+      // }),
+      ...getUserCacheHeaders(filename)
+    };
+
+    headers['Content-Range'] = `bytes ${rangeInfo.start}-${rangeInfo.end}/${fileSize}`;
+    headers['Content-Length'] = rangeInfo.chunkSize;
+
+
+    res.writeHead(206, headers);
+
+    // Stream the specific range with optimized buffer and connection pooling
+    const getCommand = new GetObjectCommand({
+      Bucket: process.env.DO_SPACESBUCKET,
+      Key: filePath,
+      Range: `bytes=${rangeInfo.start}-${rangeInfo.end}`
+    });
+
+    const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand), 'high');
+    
+    // Optimize the stream with proper buffering and connection reuse
+    const optimizedStream = stream.Body;
+    optimizedStream.on('error', (error) => {
+      console.error('❌ User streaming stream error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Streaming failed' });
+      }
+    });
+
+    // Pipe with optimized buffer settings and connection pooling
+    optimizedStream.pipe(res, {
+      highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
+    });
+
+  } else {
+    // Full file request with optimization
+    console.log(`📦 User streaming: Streaming full file: ${fileSize} bytes`);
+
+    const headers = {
+      'Content-Type': contentType,
+     
+      // Enhanced CORS headers for subtitle files
+      // ...(contentType === 'text/vtt' && {
+      //   'Access-Control-Allow-Credentials': 'true',
+      //   'Access-Control-Max-Age': '86400'
+      // }),
+      ...getUserCacheHeaders(filename)
+    };
+
+    headers['Content-Length'] = fileSize;
+
+    res.writeHead(200, headers);
+
+    const getCommand = new GetObjectCommand({
+      Bucket: process.env.DO_SPACESBUCKET,
+      Key: filePath
+    });
+
+    const stream = await s3UserRequestQueue.add(()=> s3Client.send(getCommand));
+    
+    // Optimize the stream with connection pooling
+    const optimizedStream = stream.Body;
+    optimizedStream.on('error', (error) => {
+      console.error('❌ User streaming stream error:', error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Streaming failed' });
+      }
+    });
+
+    // Pipe with optimized buffer settings and connection reuse
+    optimizedStream.pipe(res, {
+      highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
+    });
+  }
+
+} catch (error) {
+  console.error('Streaming error:', error);
+  if (!req.aborted && !res.headersSent) {
+    handleStreamError(error, res);
+  } else {
+    console.log('⚠️ Error occurred after client disconnected:', error.message);
+  }
+}finally {
+   // Clean up S3 response
+   if (s3Response && s3Response.Body && typeof s3Response.Body.destroy === 'function') {
+      s3Response.Body.destroy();
+    }
+}
+});
+
+/**
+ * Stream trailer files for user consumption
+ */
+router.get('/stream/trailer/:resourceId/:videoId/:filename', async (req, res) => {
+  let requestId = null;
+  let s3Response = null;
+  try {
+    const { resourceId, videoId, filename } = req.params;
+   
+    const range = req.headers.range;
+
+    // Generate unique request ID
+    requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+     // Store request info for potential cancellation
+     activeStreamRequests.set(requestId, {
+      url: req.url,
+      startTime: Date.now(),
+      userId: req.userId,
+      resourceId: req.params.resourceId
+    });
+
+    console.log(`🎬 User streaming: Trailer request: ${resourceId}/${videoId}/${filename} `);
+    console.log(`📡 Range: ${range}`);
+
+    // Handle client abort gracefully
+    req.on('close', () => {
+      console.log('⚠️ Client closed connection (likely seeking)');
+      // Clean up any ongoing operations
+      // Cancel the S3 request from queue
+      // if (requestId) {
+      //   s3UserRequestQueue.cancelRequest(requestId);
+      //   activeStreamRequests.delete(requestId);
+      // }
+      
+      // Clean up S3 response if it exists
+      // if (s3Response && s3Response.Body && typeof s3Response.Body.destroy === 'function') {
+      //   s3Response.Body.destroy();
+      // }
+    });
+
+    // Query database to get the specific trailer video
+    const video = await prisma.video.findFirst({
+      where: {
+        id: videoId,
+        OR: [
+          { filmId: resourceId },
+          { episodeId: resourceId },
+          { seasonId: resourceId }
+        ],
+        isTrailer: true
+      },
+      select: {
+       url: true,
+       name: true,
+        hlsUrl: true,
+            season: {
+          select: {
+            id: true,
+            filmId: true
+          }
+        },
+        size: true,
+       
+        format: true
+      }
+    });
+
+    if (!video) {
+      return res.status(404).json({ error: 'Trailer not found' });
+    }
+
+    console.log(`📋 User streaming: Found trailer: ${video.name}`);
+
+     // Determine the correct file path based on resource type
+     let actualResourcePath = resourceId;
+
+       // Special handling for seasons: use seriesId-seasonId format
+    if (video.season && video.season.filmId) {
+      actualResourcePath = `${video.season.filmId}-${video.season.id}`;
+    }
+
+     // Extract base trailer name from the video
+     const baseTrailerName = video.name.replace(/\.(m3u8|mp4)$/, ''); // Remove extension
+     const cleanBaseName = baseTrailerName.replace(/^(HD_|trailer_)/, ''); // Remove HD_ and trailer_ prefixes
+
+     console.log(`🎬 Base trailer name: ${cleanBaseName}`);
+
+      // Determine file path based on filename for trailer structure
+    let filePath;
+    let contentType;
+
+    console.log(`🔍 Analyzing trailer filename: ${filename}`);
+    
+    if (filename.includes('.m3u8')) {
+      // Trailer HLS playlist - use the correct resource path (seriesId-seasonId for seasons)
+      filePath = `${actualResourcePath}/hls_trailer/${filename}`;
+      contentType = 'application/vnd.apple.mpegurl';
+      console.log(`📋 Detected trailer HLS playlist: ${filePath}`);
+      
+    } else if (filename.includes('.ts')) {
+      // Trailer HLS segment file - use the correct resource path (seriesId-seasonId for seasons)
+      filePath = `${actualResourcePath}/hls_trailer/${filename}`;
+      contentType = 'video/mp2t';
+      console.log(`📋 Detected trailer HLS segment: ${filePath}`);
+    } else {
+      return res.status(400).json({ error: 'Unsupported trailer file type' });
+    }
+
+    
+
+    console.log(`📁 User streaming: Extracted file path: ${filePath} from bucket`);
+
+     // Check if client already disconnected
+     if (req.aborted) {
+      console.log('⚠️ Request aborted before streaming');
+      return;
+    }
+
+    // Get file info from S3
+    const headCommand = new GetObjectCommand({
+      Bucket: process.env.DO_SPACESBUCKET,
+      Key: filePath
+    });
+
+    const headResponse = await s3UserRequestQueue.add(()=>s3Client.send(headCommand));
+    const fileSize = parseInt(headResponse.ContentLength);
+    
+    console.log(`📊 User streaming: File size: ${fileSize} bytes`);
+
+   
+
+    // Handle range requests with optimization
+    const rangeInfo = handleUserRangeRequest(range, fileSize, contentType);
+    
+    if (rangeInfo) {
+      console.log(`📦 User streaming: Streaming optimized chunk: ${rangeInfo.start}-${rangeInfo.end}/${fileSize} (${rangeInfo.chunkSize} bytes)`);
+
+      // Set optimized headers for range request
+      const headers = {
+        'Content-Type': contentType,
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        ...getUserCacheHeaders(filename)
+      };
+
+      headers['Content-Range'] = `bytes ${rangeInfo.start}-${rangeInfo.end}/${fileSize}`;
+      headers['Content-Length'] = rangeInfo.chunkSize;
+
+      res.writeHead(206, headers);
+
+      // Stream the specific range with optimized buffer and connection pooling
+      const getCommand = new GetObjectCommand({
+        Bucket: process.env.DO_SPACESBUCKET,
+        Key: filePath,
+        Range: `bytes=${rangeInfo.start}-${rangeInfo.end}`
+      });
+
+      const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand));
+      
+      s3Response = stream;
+      // Optimize the stream with proper buffering and connection reuse
+      const optimizedStream = stream.Body;
+      optimizedStream.on('error', (error) => {
+        console.error('❌ User streaming stream error:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Streaming failed' });
+        }
+      });
+
+      // Pipe with optimized buffer settings and connection pooling
+      optimizedStream.pipe(res, {
+        highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
+      });
+
+    } else {
+      // Full file request with optimization
+      console.log(`📦 User streaming: Streaming full file: ${fileSize} bytes`);
+
+      const headers = {
+        'Content-Type': contentType,
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        ...getUserCacheHeaders(filename)
+      };
+
+      headers['Content-Length'] = fileSize;
+
+      res.writeHead(200, headers);
+
+      const getCommand = new GetObjectCommand({
+        Bucket: process.env.DO_SPACESBUCKET,
+        Key: filePath
+      });
+
+      const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand));
+      
+      s3Response = stream;
+      // Optimize the stream with connection pooling
+      const optimizedStream = stream.Body;
+      optimizedStream.on('error', (error) => {
+        console.error('❌ User streaming stream error:', error);
+        if (!res.headersSent) {
+          res.status(500).json({ error: 'Streaming failed' });
+        }
+      });
+
+      // Pipe with optimized buffer settings and connection reuse
+      optimizedStream.pipe(res, {
+        highWaterMark: USER_STREAMING_CONFIG.HIGH_WATER_MARK
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ User streaming trailer error:', error);
+    
+    if (error.name === 'NoSuchKey') {
+      return res.status(404).json({ error: 'File not found' });
+    }
+    
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Trailer streaming failed', details: error.message });
+    }
+    if (!req.aborted && !res.headersSent) {
+      handleStreamError(error, res);
+    } else {
+      console.log('⚠️ Error occurred after client disconnected:', error.message);
+    }
+  }finally {
+    // Clean up request tracking
+    // if (requestId) {
+    //   activeStreamRequests.delete(requestId);
+    // }
+    
+    // Clean up S3 response
+    // if (s3Response && s3Response.Body && typeof s3Response.Body.destroy === 'function') {
+    //   s3Response.Body.destroy();
+    // }
+  }
+});
+
+
+
+/**
+ * OPTIONS endpoint for regular video CORS preflight requests
+ */
+router.options('/stream/video/:resourceId/:videoId/:filename', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Accept-Encoding, Content-Type'); // FIXED: Added missing headers
+    res.setHeader('Access-Control-Max-Age', '86400');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length'); 
+    res.status(200).end();
+});
+
+/**
+ * OPTIONS endpoint for trailer CORS preflight requests
+ */
+router.options('/stream/trailer/:resourceId/:videoId/:filename', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Accept-Encoding, Content-Type'); // FIXED
+  res.setHeader('Access-Control-Max-Age', '86400');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length'); // Add this
+  res.status(200).end();
+  });
+
+
+
 
 // Add aggressive caching for subtitles
 const getSubtitleCacheHeaders = (filename) => {
@@ -1731,7 +1828,7 @@ const getSubtitleCacheHeaders = (filename) => {
 router.get('/subtitle/:resourceId/:subtitleId/:filename', async (req, res) => {
   try {
     const { resourceId, subtitleId, filename } = req.params;
-    
+    const range = req.headers.range;
     // Verify token from query parameter or Authorization header
     const tokenInfo = verifyStreamingToken(req);
     if (!tokenInfo.isValid) {
@@ -1739,7 +1836,7 @@ router.get('/subtitle/:resourceId/:subtitleId/:filename', async (req, res) => {
     }
     
     const userId = tokenInfo.userId;
-    const range = req.headers.range;
+   
 
     console.log(`🎬 User streaming: Subtitle streaming request: ${resourceId}/${subtitleId}/${filename} from user: ${userId}`);
     console.log(`📡 Range: ${range}`);
@@ -1787,7 +1884,7 @@ router.get('/subtitle/:resourceId/:subtitleId/:filename', async (req, res) => {
     console.log(`📊 User streaming: File size: ${fileSize} bytes`);
 
     // Handle range requests with optimization
-    const rangeInfo = handleUserRangeRequest(range, fileSize, 'text/vtt'); // Subtitle is always text/vtt
+    const rangeInfo = handleUserRangeRequest(range, fileSize, 'text/vtt', filename); // Subtitle is always text/vtt
     
     if (rangeInfo) {
       console.log(`📦 User streaming: Streaming optimized chunk: ${rangeInfo.start}-${rangeInfo.end}/${fileSize} (${rangeInfo.chunkSize} bytes)`);
@@ -1812,7 +1909,7 @@ router.get('/subtitle/:resourceId/:subtitleId/:filename', async (req, res) => {
         Range: `bytes=${rangeInfo.start}-${rangeInfo.end}`
       });
 
-      const stream = await s3UserSubtitleQueue.add(()=> s3Client.send(getCommand));
+      const stream = await s3UserSubtitleQueue.add(()=> s3Client.send(getCommand), 'high');
       
       // Optimize the stream with proper buffering and connection reuse
       const optimizedStream = stream.Body;
@@ -1847,7 +1944,7 @@ router.get('/subtitle/:resourceId/:subtitleId/:filename', async (req, res) => {
         Key: filePath
       });
 
-      const stream = await s3UserSubtitleQueue.add(()=>s3Client.send(getCommand));
+      const stream = await s3UserSubtitleQueue.add(()=>s3Client.send(getCommand), 'high');
       
       // Optimize the stream with connection pooling
       const optimizedStream = stream.Body;
@@ -1887,45 +1984,46 @@ router.options('/subtitle/:resourceId/:subtitleId/:filename', (req, res) => {
     res.end();
 });
 
-// Performance monitoring for high concurrency user streaming
-let userConnectionCount = 0;
-let userRequestCount = 0;
-let userErrorCount = 0;
+// Add middleware to track and log requests
+router.use((req, res, next) => {
+  const startTime = Date.now();
+  const requestId = Math.random().toString(36).substr(2, 9);
 
-// Request tracking middleware for high concurrency user streaming
-const trackUserRequest = (req, res, next) => {
-  userRequestCount++;
-  userConnectionCount++;
-  
-  // Track request start time
-  req.startTime = Date.now();
-  
-  // Track response completion
+  console.log(`➡️ [${requestId}] ${req.method} ${req.url} - Started`);
+
   res.on('finish', () => {
-    userConnectionCount--;
-    const duration = Date.now() - req.startTime;
-    
-    // Log slow requests
-    if (duration > 5000) { // 5 seconds
-      console.log(`🐌 User streaming: Slow request: ${req.method} ${req.url} - ${duration}ms`);
-    }
-    
-    // Log high concurrency warnings
-    if (userConnectionCount > 1500) {
-      console.log(`⚠️ User streaming: High concurrency: ${userConnectionCount} active connections`);
-    }
+    const duration = Date.now() - startTime;
+    console.log(`✅ [${requestId}] ${req.method} ${req.url} - Completed in ${duration}ms`);
   });
-  
-  // Track errors
-  res.on('error', () => {
-    userErrorCount++;
-  });
-  
-  next();
-};
 
-// Apply tracking to all user streaming routes
-router.use(trackUserRequest);
+  res.on('close', () => {
+    const duration = Date.now() - startTime;
+    console.log(`⚠️ [${requestId}] ${req.method} ${req.url} - Client closed connection after ${duration}ms`);
+  });
+
+  next();
+});
+
+// Add connection timeout with better handling
+router.use((req, res, next) => {
+  // Set timeout for streaming requests (15 seconds - shorter for better seeking)
+  if (req.url.includes('/video/') || req.url.includes('/trailer/')) {
+    const timeout = 15000; // 15 seconds
+
+    req.setTimeout(timeout, () => {
+      console.log(`⏰ [${Math.random().toString(36).substr(2, 9)}] Request timeout after ${timeout}ms`);
+      if (!res.headersSent) {
+        res.status(408).json({ error: 'Request timeout' });
+      }
+    });
+
+    // Handle timeout errors gracefully
+    res.on('timeout', () => {
+      console.log('⚠️ Response timeout occurred');
+    });
+  }
+  next();
+});
 
 // Memory pressure handling for high concurrency user streaming
 const handleUserMemoryPressure = () => {

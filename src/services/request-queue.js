@@ -179,7 +179,7 @@ export const s3RequestQueue = new RequestQueue(12, 15000);
 export const s3SubtitleRequestQueue = new RequestQueue(30, 20000); // Higher concurrency for subtitles
 
 // User-facing queues (NEW - for user streaming)
-export const s3UserRequestQueue = new RequestQueue(25, 15000); //25 concurrent
+export const s3UserRequestQueue = new RequestQueue(12, 15000); //25 concurrent
 
 export const s3UserSubtitleQueue = new RequestQueue(40, 20000); // 40 concurrent
 

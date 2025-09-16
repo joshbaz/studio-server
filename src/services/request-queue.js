@@ -32,29 +32,16 @@ class RequestQueue {
             this.circuitState = 'HALF_OPEN';
         }
         return new Promise((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-                this.removeRequest(id); // Clean up
-                reject(new Error('Request timeout'));
-            }, this.timeoutMs);
-
             const priorityValue = priority === 'high' ? 1 : 2;
             console.log("these queued", this.queue.length)
 
             this.queue.push({
                 id,
-                requestFn, resolve: (result) => {
-                    clearTimeout(timeoutId);
-                    this.removeRequest(id);
-                    this._recordSuccess();
-                    resolve(result);
-                }, reject: (error) => {
-                    clearTimeout(timeoutId);
-                    this.removeRequest(id);
-                    this._recordFailure();
-                    reject(error);
-                },
+                requestFn, 
+                resolve, 
+                reject,
                 priority: priorityValue,
-                timeoutId
+                addedAt: Date.now()
             });
              // Sort by priority (lower number = higher priority)
              this.queue.sort((a, b) => a.priority - b.priority);
@@ -81,6 +68,7 @@ class RequestQueue {
         if (this.failureCount >= 5 && this.circuitState === 'CLOSED') {
             this.circuitState = 'OPEN';
             this.circuitOpenUntil = Date.now() + 30000; // 30 second cooldown
+            this.resetCircuit()
             console.log('🚨 Circuit breaker opened for 30 seconds');
         }
     }
@@ -127,24 +115,42 @@ class RequestQueue {
         this.processing++;
         const item = this.queue.shift();
 
+
+         // Set timeout for the actual processing, not just queue time
+         const timeoutId = setTimeout(() => {
+            if (this.activeRequests.has(item.id)) {
+                this.activeRequests.delete(item.id);
+                this.processing--;
+                item.reject(new Error('Request timeout'));
+                this._recordFailure();
+                this.process(); // Process next item
+            }
+        }, this.timeoutMs);
+
          // Track as active request
          this.activeRequests.set(item.id, {
+            timeoutId,
             startTime: Date.now(),
-            timeoutId: item.timeoutId
         });
 
 
 
        try {
             const result = await item.requestFn();
-            item.resolve(result);
-        } catch (error) {
-            item.reject(error);
-        } finally {
-            this.processing--;
+            clearTimeout(timeoutId);
             this.activeRequests.delete(item.id);
-            this.process();
-        }
+            this.processing--;
+            item.resolve(result);
+            this._recordSuccess();
+            this.process(); // Process next item
+        } catch (error) {
+            clearTimeout(timeoutId);
+            this.activeRequests.delete(item.id);
+            this.processing--;
+            item.reject(error);
+            this._recordFailure();
+            this.process(); // Process next item
+        } 
     }
 
     getStats() {
@@ -173,13 +179,15 @@ class RequestQueue {
 // Studio/internal queues (from before)
 //create a shared queue instance
 // Main video request queue - optimized for large media files
-export const s3RequestQueue = new RequestQueue(12, 15000);
+export const s3RequestQueue = new RequestQueue(12, 30000);
 
 // Dedicated subtitle request queue - optimized for small text files
 export const s3SubtitleRequestQueue = new RequestQueue(30, 20000); // Higher concurrency for subtitles
 
 // User-facing queues (NEW - for user streaming)
-export const s3UserRequestQueue = new RequestQueue(12, 15000); //25 concurrent
+export const s3UserRequestQueue = new RequestQueue(12, 30000); //25 concurrent
+
+export const s3UserTrailerRequestQueue = new RequestQueue(12, 30000); //25 concurrent
 
 export const s3UserSubtitleQueue = new RequestQueue(40, 20000); // 40 concurrent
 

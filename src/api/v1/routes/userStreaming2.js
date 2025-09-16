@@ -10,7 +10,7 @@ import jwt from 'jsonwebtoken';
 import { verifyToken } from '../middleware/verifyToken.js';
 import {pipeline} from 'stream/promises';
 import rateLimit from "express-rate-limit";
-import { s3UserRequestQueue, s3UserSubtitleQueue } from '@/services/request-queue.js';
+import { s3UserRequestQueue, s3UserSubtitleQueue, s3UserTrailerRequestQueue } from '@/services/request-queue.js';
 
 dotenv.config();
 
@@ -259,8 +259,8 @@ const verifyStreamingToken = (req) => {
   if (queryToken && typeof queryToken === 'string') {
     try {
       const decoded = jwt.verify(queryToken, process.env.SECRETVA);
-      console.log(`🔐 User streaming: Token verified from query parameter for user: ${decoded.userId}`);
-      return { userId: decoded.userId, isValid: true };
+      console.log(`🔐 User streaming: Token verified from query parameter for user: ${decoded.id}`);
+      return { userId: decoded.id, isValid: true };
     } catch (error) {
       console.log(`❌ User streaming: Invalid token from query parameter:`, error.message);
       return { userId: null, isValid: false };
@@ -273,8 +273,8 @@ const verifyStreamingToken = (req) => {
     try {
       const token = authHeader.substring(7);
       const decoded = jwt.verify(token, process.env.SECRETVA);
-      console.log(`🔐 User streaming: Token verified from Authorization header for user: ${decoded.userId}`);
-      return { userId: decoded.userId, isValid: true };
+      console.log(`🔐 User streaming: Token verified from Authorization header for user: ${decoded.id}`);
+      return { userId: decoded.id, isValid: true };
     } catch (error) {
       console.log(`❌ User streaming: Invalid token from Authorization header:`, error.message);
       return { userId: null, isValid: false };
@@ -518,6 +518,19 @@ const getUserCacheHeaders = (filename, rangeInfo) => {
 };
 
 router.use('/stream/video/:resourceId/:videoId/:filename', (req, res, next)=> {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Accept-Encoding, Content-Type');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  if(req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+})
+
+router.use('/stream/trailer/:resourceId/:videoId/:filename', (req, res, next)=> {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Range, Accept, Accept-Encoding, Content-Type');
@@ -1657,7 +1670,7 @@ router.get('/stream/trailer/:resourceId/:videoId/:filename', async (req, res) =>
       Key: filePath
     });
 
-    const headResponse = await s3UserRequestQueue.add(()=>s3Client.send(headCommand));
+    const headResponse = await s3UserTrailerRequestQueue.add(()=>s3Client.send(headCommand));
     const fileSize = parseInt(headResponse.ContentLength);
     
     console.log(`📊 User streaming: File size: ${fileSize} bytes`);
@@ -1690,7 +1703,7 @@ router.get('/stream/trailer/:resourceId/:videoId/:filename', async (req, res) =>
         Range: `bytes=${rangeInfo.start}-${rangeInfo.end}`
       });
 
-      const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand));
+      const stream = await s3UserTrailerRequestQueue.add(()=>s3Client.send(getCommand));
       
       s3Response = stream;
       // Optimize the stream with proper buffering and connection reuse
@@ -1727,7 +1740,7 @@ router.get('/stream/trailer/:resourceId/:videoId/:filename', async (req, res) =>
         Key: filePath
       });
 
-      const stream = await s3UserRequestQueue.add(()=>s3Client.send(getCommand));
+      const stream = await s3UserTrailerRequestQueue.add(()=>s3Client.send(getCommand));
       
       s3Response = stream;
       // Optimize the stream with connection pooling

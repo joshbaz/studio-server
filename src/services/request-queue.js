@@ -24,13 +24,13 @@ class RequestQueue {
          const id = requestId || Date.now() + '-' + Math.random().toString(36).substr(2, 9);
 
         // Check circuit breaker
-        if (this.circuitState === 'OPEN') {
-            if (Date.now() < this.circuitOpenUntil) {
-                throw new Error('Circuit breaker open - service unavailable');
-            }
-            // Try to half-open the circuit
-            this.circuitState = 'HALF_OPEN';
-        }
+        // if (this.circuitState === 'OPEN') {
+        //     if (Date.now() < this.circuitOpenUntil) {
+        //         throw new Error('Circuit breaker open - service unavailable');
+        //     }
+        //     // Try to half-open the circuit
+        //     this.circuitState = 'HALF_OPEN';
+        // }
         return new Promise((resolve, reject) => {
             const priorityValue = priority === 'high' ? 1 : 2;
             console.log("these queued", this.queue.length)

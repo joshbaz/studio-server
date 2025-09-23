@@ -981,7 +981,7 @@ router.get('/urls/:resourceId', verifyToken, async (req, res) => {
             if (video.resolution && video.resolution.toLowerCase() !== 'master') {
               const resKey = video.resolution.toLowerCase();
               const resLabel = video.resolution.toUpperCase();
-              availableHlsUrls[resKey] = `${baseUrl}/stream/video/${resourceId}/${video.id}/${resLabel}_${cleanBaseName}.m3u8`;
+              availableHlsUrls[resKey] = `${baseUrl}/video/${resourceId}/${video.id}/${resLabel}_${cleanBaseName}.m3u8`;
               console.log(`🆓 User streaming: Added ${resKey} resolution URL for video ${video.id} with name: ${video.name}`);
             }
           });
@@ -1007,7 +1007,7 @@ router.get('/urls/:resourceId', verifyToken, async (req, res) => {
             if (video.resolution && video.resolution.toLowerCase() !== 'master') {
               const resKey = video.resolution.toLowerCase();
               const resLabel = video.resolution.toUpperCase();
-              availableHlsUrls[resKey] = `${baseUrl}/stream/video/${resourceId}/${video.id}/${resLabel}_${cleanBaseName}.m3u8`;
+              availableHlsUrls[resKey] = `${baseUrl}/video/${resourceId}/${video.id}/${resLabel}_${cleanBaseName}.m3u8`;
               console.log(`💰 User streaming: Generated URLs for ${Object.keys(availableHlsUrls).length - 1} purchased resolutions`);
               console.log(`💰 User streaming: Final availableHlsUrls:`, Object.keys(availableHlsUrls));
             }

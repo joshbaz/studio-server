@@ -41,7 +41,7 @@ export const createUser = async (req, res, next) => {
                 },
             });
 
-            if (user) returnError('You are already registered, Proceed to Login', 400);
+            if (user) returnError('You are already registered, Proceed to Login', 409);
         } else {
             const user = await prisma.user.findFirst({
                 where: {
@@ -55,7 +55,7 @@ export const createUser = async (req, res, next) => {
                 },
             });
 
-            if (user) returnError('You are already registered, Proceed to Login', 400);
+            if (user) returnError('You are already registered, Proceed to Login', 409);
         }
         const hashedPassword = await bcrypt.hash(password, 10);
 

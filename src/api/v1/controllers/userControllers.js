@@ -41,7 +41,7 @@ export const createUser = async (req, res, next) => {
                 },
             });
 
-            if (user) returnError('Something went wrong', 400);
+            if (user) returnError('You are already registered, Proceed to Login', 400);
         } else {
             const user = await prisma.user.findFirst({
                 where: {
@@ -55,7 +55,7 @@ export const createUser = async (req, res, next) => {
                 },
             });
 
-            if (user) returnError('Something went wrong', 400);
+            if (user) returnError('You are already registered, Proceed to Login', 400);
         }
         const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -98,7 +98,7 @@ export const loginUser = async (req, res, next) => {
         });
 
         if (!existingUser) {
-            return res.status(404).json({ message: 'Invalid Credentials' });
+            return res.status(404).json({ message: 'Invalid Credentials, user not found' });
         }
 
         const comparePassword = await bcrypt.compare(
@@ -106,7 +106,7 @@ export const loginUser = async (req, res, next) => {
             existingUser.password
         );
 
-        if (!comparePassword) returnError('Invalid Credentials', 400);
+        if (!comparePassword) returnError('Invalid Credentials - Passkey', 400);
 
         const token = jwt.sign(
             {

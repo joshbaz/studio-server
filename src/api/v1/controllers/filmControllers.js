@@ -329,7 +329,7 @@ export const fetchFilm = async (req, res, next) => {
  */
 export const fetchSeason = async (req, res, next) => {
     try {
-        const { userId } = req.userId;
+        const userId = req.userId;
         const { seasonId } = req.params;
         if (!seasonId) returnError('Season ID is required', 400);
 
@@ -345,6 +345,15 @@ export const fetchSeason = async (req, res, next) => {
                     include: { priceList: true },
                 },
                 likes: { where: { userId } },
+                watchlist: {
+                    where: { userId, seasonId },
+                    select: {
+                        id: true,
+                        seasonId: true,
+                        type: true,
+                        userId: true,
+                    },
+                },
                 episodes: {
                     orderBy: { episode: 'asc' },
                     include: {
@@ -898,7 +907,7 @@ export const purchaseFilm = async (req, res, next) => {
         if (!resource) returnError('Could not find film or season', 404);
 
         // get the pricing for the resolution that was sent
-        const priceItem = resource.pricing.priceList.find(
+        const priceItem = resource.pricing[0]?.priceList.find(
             (price) => price.resolution === resolution
         );
 
@@ -1085,7 +1094,7 @@ export const purchaseFilm = async (req, res, next) => {
                                 userId,
                                 type: 'PURCHASE',
                                 amount: priceItem.price.toString(),
-                                currency: resource.pricing.currency,
+                                currency: resource.pricing[0]?.currency,
                                 status: 'PENDING',
                                 paymentMethodType: 'PesaPal',
                                 orderTrackingId:

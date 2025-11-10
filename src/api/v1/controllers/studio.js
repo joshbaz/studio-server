@@ -1348,12 +1348,32 @@ export const getPurchaseHistory = async (req, res, next) => {
             },
         });
 
+        const failedtransactions = await prisma.transaction.findMany({
+            where: {
+                type: 'PURCHASE',
+                status: { in: ['FAILED'] },
+            },
+            include: {
+                user: {
+                    select: {
+                        id: true,
+                        firstname: true,
+                        lastname: true,
+                        email: true,
+                    },
+                },
+                purchase: {
+                    include: { film: true, season: true },
+                },
+            },
+        });
+
         const totalAmount = transactions.reduce((acc, transaction) => {
             acc += parseFloat(transaction.amount);
             return acc;
         }, 0);
 
-        return res.status(200).json({ transactions, totalAmount });
+        return res.status(200).json({ transactions, totalAmount, failedtransactions });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

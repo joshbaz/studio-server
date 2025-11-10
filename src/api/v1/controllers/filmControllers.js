@@ -1494,13 +1494,17 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 include: { purchase: true },
                             });
 
+                            console.log('updated', updated)
                             if (transaction.type === 'PURCHASE') {
+                                console.log('deleting purchase')
                                 // delete the purchase
                                 await prisma.purchase.delete({
                                     where: {
                                         id: existingTransaction.purchaseId,
                                     },
                                 });
+
+                                console.log('deleted purchae')
                             }
 
                             if (transaction.type === 'DONATION') {
@@ -1511,6 +1515,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 });
                             }
 
+                            console.log('On transaction phase')
                             await prisma.watchlist.delete({
                                 where: {
                                     OR: [
@@ -1526,6 +1531,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     type: 'PURCHASED',
                                 },
                             });
+                            console.log('here phase')
 
                             res.status(200).json({
                                 status: 'FAILED',

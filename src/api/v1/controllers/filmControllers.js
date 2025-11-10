@@ -1495,7 +1495,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                             });
 
                             console.log('updated', updatedTransaction)
-                            if (updatedTransaction.type === 'PURCHASE') {
+                            if (updatedTransaction.type === 'PURCHASE' && updatedTransaction?.purchase?.id) {
                                 console.log('deleting purchase', existingTransaction.purchaseId, updatedTransaction?.purchase?.id, )
                                 // delete the purchase
                                 await prisma.purchase.delete({
@@ -1507,7 +1507,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 console.log('deleted purchae')
                             }
 
-                            if (updatedTransaction.type === 'DONATION') {
+                            if (updatedTransaction.type === 'DONATION' && existingTransaction.id) {
                                 await prisma.donation.delete({
                                     where: {
                                         transactionsId: existingTransaction.id,
@@ -1520,7 +1520,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 where: {
                                     OR: [
                                         {
-                                            film: updatedTransaction?.purchase?.filmId,
+                                            filmId: updatedTransaction?.purchase?.filmId,
                                         },
                                         {
                                             seasonId:
@@ -1546,7 +1546,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 }
                             );
 
-                            if (transaction.type === 'PURCHASE') {
+                            if (transaction.type === 'PURCHASE' && transaction?.purchase?.id) {
                                 // delete the purchase
                                 await prisma.purchase.delete({
                                     where: {
@@ -1555,7 +1555,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 });
                             }
 
-                            if (transaction.type === 'DONATION') {
+                            if (transaction.type === 'DONATION' && existingTransaction.id) {
                                 await prisma.donation.delete({
                                     where: {
                                         transactionsId: existingTransaction.id,
@@ -1567,7 +1567,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 where: {
                                     OR: [
                                         {
-                                            film: transaction?.purchase?.filmId,
+                                            filmId: transaction?.purchase?.filmId,
                                         },
                                         {
                                             seasonId:

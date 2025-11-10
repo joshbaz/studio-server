@@ -1496,11 +1496,11 @@ export const checkPaymentStatus = async (req, res, next) => {
 
                             console.log('updated', updatedTransaction)
                             if (updatedTransaction.type === 'PURCHASE') {
-                                console.log('deleting purchase', existingTransaction.purchaseId)
+                                console.log('deleting purchase', existingTransaction.purchaseId, updatedTransaction?.purchase?.id, )
                                 // delete the purchase
                                 await prisma.purchase.delete({
                                     where: {
-                                        id: existingTransaction.purchaseId,
+                                        id: updatedTransaction?.purchase?.id,
                                     },
                                 });
 
@@ -1550,7 +1550,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 // delete the purchase
                                 await prisma.purchase.delete({
                                     where: {
-                                        id: existingTransaction.purchaseId,
+                                        id: transaction?.purchase?.id,
                                     },
                                 });
                             }

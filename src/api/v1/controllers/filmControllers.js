@@ -8,6 +8,7 @@ import { env } from '@/env.mjs';
 import { checkPaymentStatus as checkMtnStatus } from '@/services/mtnpayments.js';
 import { addDays } from 'date-fns';
 import { resSelector } from '@/utils/resSelector.js';
+import { formatNumber } from '@/utils/formatNumber.js';
 
 /**
  * @name streamVideo
@@ -1415,6 +1416,8 @@ export const checkPaymentStatus = async (req, res, next) => {
                         token: req.mtn_access_token,
                     });
 
+                    console.log('status', status)
+
                     if (!status) {
                         returnError('Payment failed', 400);
                     }
@@ -1873,3 +1876,54 @@ export const checkPesapalPaymentStatus = async (req, res, next) => {
         next(error);
     }
 };
+
+/**
+ * @name getFilmDonations
+ * @description function to get donations for a film
+ */
+
+export const getFilmDonations = async (req,res,next)=> {
+    try {
+        const { filmId } = req.params;
+
+        // Check for film
+          const film = await prisma.film.findUnique({
+            where: { id: filmId },
+        });
+
+        if(!film){
+            returnError('Film not found', 404);
+        }
+
+        // check for Any sucessful donations made to the film
+         const filmDonations = (await prisma.donation.findMany({
+            where: {status: 'SUCCESS', filmId: filmId },
+            include: {
+                transaction: {
+                    select: {
+                        amount: true,
+                        type: true,
+                        status: true
+                    }
+                }
+            }
+         })) ?? []
+
+         const totalFilmDonations = filmDonations.reduce((acc, donation)=>{
+            acc += donation.transaction.amount;
+            return acc
+         }, 0);
+
+         return res.status(200).json({
+            totalDonors: filmDonations?.length > 0 ? filmDonations?.length : 0,
+            totalFilmDonations: formatNumber(totalFilmDonations)
+         })
+
+    } catch (error) {
+        console.log('error', error)
+        if(!error.statusCode){
+            error.statusCode = 500
+        }
+        next(error);
+    }
+}

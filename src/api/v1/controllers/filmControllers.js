@@ -1494,6 +1494,9 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 include: { purchase: true },
                             });
 
+                            const filmResourceId = updatedTransaction?.purchase?.filmId 
+                            const seasonResourceId = updatedTransaction.purchase?.seasonId
+
                             console.log('updated', updatedTransaction)
                             if (updatedTransaction.type === 'PURCHASE' && updatedTransaction?.purchase?.id) {
                                 console.log('deleting purchase', existingTransaction.purchaseId, updatedTransaction?.purchase?.id, )
@@ -1516,21 +1519,24 @@ export const checkPaymentStatus = async (req, res, next) => {
                             }
 
                             console.log('On transaction phase')
-                            await prisma.watchlist.delete({
-                                where: {
-                                    OR: [
-                                        {
-                                            filmId: updatedTransaction?.purchase?.filmId,
-                                        },
-                                        {
-                                            seasonId:
-                                                updatedTransaction.purchase?.seasonId,
-                                        },
-                                    ],
-                                    userId: updatedTransaction.userId,
-                                    type: 'PURCHASED',
-                                },
-                            });
+                            if(filmResourceId || seasonResourceId){
+                                await prisma.watchlist.delete({
+                                    where: {
+                                        OR: [
+                                            {
+                                                filmId: updatedTransaction?.purchase?.filmId,
+                                            },
+                                            {
+                                                seasonId:
+                                                    updatedTransaction.purchase?.seasonId,
+                                            },
+                                        ],
+                                        userId: updatedTransaction.userId,
+                                        type: 'PURCHASED',
+                                    },
+                                });
+                            }
+                      
                             console.log('here phase')
 
                             res.status(200).json({
@@ -1545,6 +1551,8 @@ export const checkPaymentStatus = async (req, res, next) => {
                                     include: { purchase: true },
                                 }
                             );
+
+                           
 
                             if (transaction.type === 'PURCHASE' && transaction?.purchase?.id) {
                                 // delete the purchase
@@ -1563,21 +1571,24 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 });
                             }
 
-                            await prisma.watchlist.delete({
-                                where: {
-                                    OR: [
-                                        {
-                                            filmId: transaction?.purchase?.filmId,
-                                        },
-                                        {
-                                            seasonId:
-                                                transaction.purchase?.seasonId,
-                                        },
-                                    ],
-                                    userId: transaction.userId,
-                                    type: 'PURCHASED',
-                                },
-                            });
+                            if(transaction?.purchase?.filmId || transaction.purchase?.seasonId){
+                                await prisma.watchlist.delete({
+                                    where: {
+                                        OR: [
+                                            {
+                                                filmId: transaction?.purchase?.filmId,
+                                            },
+                                            {
+                                                seasonId:
+                                                    transaction.purchase?.seasonId,
+                                            },
+                                        ],
+                                        userId: transaction.userId,
+                                        type: 'PURCHASED',
+                                    },
+                                });
+                            }
+                        
 
                             res.status(200).json({
                                 status: 'TIMEOUT',

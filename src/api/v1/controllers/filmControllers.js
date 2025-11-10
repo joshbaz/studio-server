@@ -1488,15 +1488,15 @@ export const checkPaymentStatus = async (req, res, next) => {
                             break;
                         case 'Transaction has Failed':
                         case 'Transaction Rejected':
-                            const updated = await prisma.transaction.update({
+                            const updatedTransaction = await prisma.transaction.update({
                                 where: { id: existingTransaction.id },
                                 data: { status: 'FAILED' },
                                 include: { purchase: true },
                             });
 
-                            console.log('updated', updated)
-                            if (transaction.type === 'PURCHASE') {
-                                console.log('deleting purchase')
+                            console.log('updated', updatedTransaction)
+                            if (updatedTransaction.type === 'PURCHASE') {
+                                console.log('deleting purchase', existingTransaction.purchaseId)
                                 // delete the purchase
                                 await prisma.purchase.delete({
                                     where: {
@@ -1507,7 +1507,7 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 console.log('deleted purchae')
                             }
 
-                            if (transaction.type === 'DONATION') {
+                            if (updatedTransaction.type === 'DONATION') {
                                 await prisma.donation.delete({
                                     where: {
                                         transactionsId: existingTransaction.id,
@@ -1520,14 +1520,14 @@ export const checkPaymentStatus = async (req, res, next) => {
                                 where: {
                                     OR: [
                                         {
-                                            film: updated?.purchase?.filmId,
+                                            film: updatedTransaction?.purchase?.filmId,
                                         },
                                         {
                                             seasonId:
-                                                updated.purchase?.seasonId,
+                                                updatedTransaction.purchase?.seasonId,
                                         },
                                     ],
-                                    userId: updated.userId,
+                                    userId: updatedTransaction.userId,
                                     type: 'PURCHASED',
                                 },
                             });

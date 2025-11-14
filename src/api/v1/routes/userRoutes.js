@@ -46,7 +46,7 @@ router.post('/sendotp', otpLimiter, validateData(otpSchema), sendOTP);
 router.post(
     '/verifyotp',
     otpLimiter,
-    verifyToken,
+    // verifyToken,
     validateData(verifyOtpSchema),
     verifyOTP
 );

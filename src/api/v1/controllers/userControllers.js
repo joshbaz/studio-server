@@ -458,14 +458,16 @@ export const verifyOTP = async (req, res, next) => {
     try {
         const { otp, contact, type } = req.data; // type could be auth or resetpassword
 
+        console.log('user')
         if (!otp || !contact) {
             returnError('An issue occured while requesting and OTP', 400);
         }
 
         // check if the user exists
         const user = await prisma.user.findFirst({
-            where: { id: req.userId },
+            where: { email: contact },
         });
+        console.log('user', user)
 
         if (!user) {
             returnError('An issue occured while verifying OTP', 404);
@@ -537,6 +539,7 @@ export const verifyOTP = async (req, res, next) => {
                     env.SECRETVA,
                     { expiresIn: '15m' }
                 );
+                console.log('forgot verify', token)
 
                 res.status(200).json({
                     authToken: token, // set it as a bearer token in the frontend
@@ -552,6 +555,7 @@ export const verifyOTP = async (req, res, next) => {
         }
         // delete the cookie
     } catch (error) {
+        console.log('error', error)
         if (!error.statusCode) {
             error.statusCode = 500;
         }

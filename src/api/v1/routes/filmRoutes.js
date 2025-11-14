@@ -17,6 +17,7 @@ import {
     fetchFeaturedFilms,
     lookupFilms,
     manageWatchlist,
+    getFilmDonations
 } from '../controllers/filmControllers.js';
 import { verifyToken } from '../middleware/verifyToken.js';
 import { generateMTNAuthTk } from '../middleware/generateMTNAuthTK.js';
@@ -53,6 +54,7 @@ router.post(
     generateMTNAuthTk,
     donateToFilm
 );
+
 router.post('/likerate', verifyToken, validateData(likeSchema), likeRateFilm);
 
 // GET
@@ -80,5 +82,6 @@ router.get(
     generatePesaAuthTk,
     checkPesapalPaymentStatus
 );
+router.get('/filmdonations/:filmId', getFilmDonations)
 
 export default router;

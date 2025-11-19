@@ -664,6 +664,7 @@ export const getWatchList = async (req, res, next) => {
                         title: true,
                         posters: true,
                         film: { select: { type: true } },
+                        filmId: true
                     },
                 },
             },
@@ -695,6 +696,7 @@ export const getWatchList = async (req, res, next) => {
                         title: curr.season.title,
                         poster: curr.season?.posters[0] ?? null,
                         type: 'season',
+                        filmId: curr.season?.filmId
                     };
 
                     acc[curr.type].push(season);

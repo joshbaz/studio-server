@@ -326,7 +326,7 @@ export const createFilm = async (req, res, next) => {
 export const uploadPoster = async (req, res, next) => {
     try {
         const { resourceId } = req.params;
-        const { isCover, isBackdrop, type } = req.body;
+        const { isCover, isBackdrop, isEpisodeThumbnail, type } = req.body;
 
         if (!resourceId) returnError('FilmID is required', 400);
 
@@ -394,6 +394,7 @@ export const uploadPoster = async (req, res, next) => {
             type: poster.mimetype,
             isCover: isCover === 'true' ? true : false,
             isBackdrop: isBackdrop === 'true' ? true : false,
+            isEpisodeThumbnail: isEpisodeThumbnail === 'true' ? true : false,
         };
 
         if (type === 'film') {
@@ -608,7 +609,7 @@ export const createEpisode = async (req, res, next) => {
 export const uploadEpisodePoster = async (req, res, next) => {
     try {
         const { episodeId } = req.params;
-        const { isCover, isBackdrop } = req.body;
+        const { isCover, isBackdrop, isEpisodeThumbnail } = req.body;
 
         if (!episodeId) returnError('No episode selected', 400);
 
@@ -654,6 +655,7 @@ export const uploadEpisodePoster = async (req, res, next) => {
             type: poster.mimetype,
             isCover: isCover === 'true' ? true : false,
             isBackdrop: isBackdrop === 'true' ? true : false,
+            isEpisodeThumbnail: isEpisodeThumbnail === 'true' ? true : false,
             episodeId,
         };
 

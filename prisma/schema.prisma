@@ -179,6 +179,7 @@ model poster {
   url        String
   isCover    Boolean @default(false)
   isBackdrop Boolean @default(false)
+  isEpisodeThumbnail Boolean @default(false)
 
   film      film?    @relation(fields: [filmId], references: [id], onDelete: Cascade)
   filmId    String?  @db.ObjectId

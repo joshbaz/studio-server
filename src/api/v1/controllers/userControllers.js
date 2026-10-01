@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '@/env.mjs';
 import prisma from '@/utils/db.mjs';
-// import { resend } from '@/services/resend.js';
+
 import { sendZohoMail } from '@/services/zohoMail.js';
 import { at, sendSMS } from '@/services/sms.js';
 import { generate as generateOtp } from 'otp-generator';

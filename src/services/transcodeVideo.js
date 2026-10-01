@@ -96,13 +96,13 @@ function formatFileSize(size) {
  */
 const generateHLSPlaylist = async (inputPath, outputDir, filename, label, clientId) => {
     console.log(`🎬 Generating HLS for ${label} with subtitle support...`);
-    
+
     const hlsOutputDir = path.join(outputDir, `hls_${label}_${filename}`);
     fs.mkdirSync(hlsOutputDir, { recursive: true });
-    
+
     const playlistPath = path.join(hlsOutputDir, `${label}_${filename}.m3u8`);
     const subtitlePaths = [];
-    
+
     return new Promise((resolve, reject) => {
         const resolution = resolutionsArray.find(r => r.label === label);
         if (!resolution) {
@@ -118,7 +118,7 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
         const extractSubtitles = async () => {
             try {
                 console.log(`📝 Extracting subtitle tracks for ${label}...`);
-                
+
                 return new Promise((resolveSubtitles, rejectSubtitles) => {
                     Ffmpeg(inputPath)
                         .ffprobe((err, metadata) => {
@@ -127,21 +127,21 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
                                 resolveSubtitles([]);
                                 return;
                             }
-                            
+
                             // More comprehensive subtitle detection - look for ALL subtitle streams
-                            const subtitleStreams = metadata.streams.filter(stream => 
+                            const subtitleStreams = metadata.streams.filter(stream =>
                                 stream.codec_type === 'subtitle'
                             );
-                            
-                            console.log(`📝 Found ${subtitleStreams.length} subtitle tracks:`, 
-                                subtitleStreams.map(s => ({ 
-                                    index: s.index, 
-                                    language: s.tags?.language || s.tags?.title || `subtitle_${s.index}`, 
+
+                            console.log(`📝 Found ${subtitleStreams.length} subtitle tracks:`,
+                                subtitleStreams.map(s => ({
+                                    index: s.index,
+                                    language: s.tags?.language || s.tags?.title || `subtitle_${s.index}`,
                                     codec: s.codec_name,
                                     disposition: s.disposition
                                 }))
                             );
-                            
+
                             resolveSubtitles(subtitleStreams);
                         });
                 });
@@ -153,13 +153,13 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
 
         const generateHLSWithSubtitles = async (subtitleStreams) => {
             const command = Ffmpeg(inputPath);
-            
+
             // Add subtitle input streams
             subtitleStreams.forEach((stream, index) => {
                 command.input(inputPath);
                 command.inputOptions([`-map 0:s:${index}`]);
             });
-            
+
             // Start with basic HLS options
             command
                 .outputOptions(`-c:v libx264`)
@@ -199,12 +199,12 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
                 })
                 .on('end', () => {
                     console.log(`✅ HLS generation completed for ${label}`);
-                    
+
                     // Check for generated subtitle files
                     const subtitleFiles = fs.readdirSync(hlsOutputDir)
                         .filter(file => file.endsWith('.vtt'))
                         .map(file => path.join(hlsOutputDir, file));
-                    
+
                     // Professional approach: Rename subtitle files to remove resolution prefix
                     const professionalSubtitlePaths = [];
                     for (const subtitleFile of subtitleFiles) {
@@ -212,7 +212,7 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
                         // Remove resolution prefix (e.g., FHD_, UHD_) for professional approach
                         const cleanFileName = fileName.replace(/^(SD_|HD_|FHD_|UHD_)/, '');
                         const professionalPath = path.join(hlsOutputDir, cleanFileName);
-                        
+
                         try {
                             // Rename the file to remove resolution prefix
                             fs.renameSync(subtitleFile, professionalPath);
@@ -223,10 +223,10 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
                             professionalSubtitlePaths.push(subtitleFile); // Use original path if rename fails
                         }
                     }
-                    
+
                     subtitlePaths.push(...professionalSubtitlePaths);
                     console.log(`📝 Found ${professionalSubtitlePaths.length} professional subtitle files for ${label}:`, professionalSubtitlePaths.map(f => path.basename(f)));
-                    
+
                     // Verify subtitle files exist and are readable
                     for (const subtitleFile of professionalSubtitlePaths) {
                         if (fs.existsSync(subtitleFile)) {
@@ -236,7 +236,7 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
                             console.warn(`⚠️ Subtitle file missing: ${subtitleFile}`);
                         }
                     }
-                    
+
                     // Restore original working directory
                     process.chdir(originalCwd);
                     resolve({ playlistPath, subtitlePaths });
@@ -316,12 +316,12 @@ const generateHLSPlaylist = async (inputPath, outputDir, filename, label, client
  */
 const generateHLSPlaylistWithoutSubtitles = async (inputPath, outputDir, filename, label, clientId) => {
     console.log(`🎬 Generating HLS for ${label} without subtitle extraction...`);
-    
+
     const hlsOutputDir = path.join(outputDir, `hls_${label}_${filename}`);
     fs.mkdirSync(hlsOutputDir, { recursive: true });
-    
+
     const playlistPath = path.join(hlsOutputDir, `${label}_${filename}.m3u8`);
-    
+
     return new Promise((resolve, reject) => {
         const resolution = resolutionsArray.find(r => r.label === label);
         if (!resolution) {
@@ -335,7 +335,7 @@ const generateHLSPlaylistWithoutSubtitles = async (inputPath, outputDir, filenam
 
         // Generate HLS without subtitle extraction
         const command = Ffmpeg(inputPath);
-        
+
         command
             .outputOptions(`-c:v libx264`)
             .outputOptions(`-preset fast`)
@@ -374,7 +374,7 @@ const generateHLSPlaylistWithoutSubtitles = async (inputPath, outputDir, filenam
             })
             .on('end', () => {
                 console.log(`✅ HLS generation completed for ${label}`);
-                
+
                 // Restore original working directory
                 process.chdir(originalCwd);
                 resolve({ playlistPath });
@@ -399,13 +399,13 @@ const generateHLSPlaylistWithoutSubtitles = async (inputPath, outputDir, filenam
  */
 const generateMasterPlaylist = async (outputDir, filename, bucketName, subtitleLanguages = []) => {
     const masterPlaylistPath = path.join(outputDir, `master_${filename}.m3u8`);
-    
+
     let masterPlaylist = '#EXTM3U\n#EXT-X-VERSION:3\n\n';
-    
+
     // Shared approach: Add subtitle group definition once for all resolutions
     if (subtitleLanguages.length > 0) {
         console.log(`📝 Adding subtitle group for ${subtitleLanguages.length} languages to master playlist`);
-        
+
         subtitleLanguages.forEach(lang => {
             // Shared approach: Use shared subtitle directory for all resolutions
             const subtitleUrl = `subtitles/${filename}/${filename}_${lang}.vtt`;
@@ -413,27 +413,27 @@ const generateMasterPlaylist = async (outputDir, filename, bucketName, subtitleL
         });
         masterPlaylist += '\n';
     }
-    
+
     // Add video streams with subtitle references
     const resolutions = ['SD', 'HD', 'FHD', 'UHD'];
     const bandwidths = [500000, 1000000, 2000000, 4000000]; // 500k, 1M, 2M, 4M
     const videoResolutions = ['854x480', '1280x720', '1920x1080', '3840x2160'];
-    
+
     resolutions.forEach((resolution, index) => {
         const bandwidth = bandwidths[index];
         const videoResolution = videoResolutions[index];
         const playlistUrl = `${resolution}_${filename}.m3u8`;
-        
+
         // Shared approach: All resolutions reference the same subtitle group
         const subtitleReference = subtitleLanguages.length > 0 ? `,SUBTITLES="subs"` : '';
-        
+
         masterPlaylist += `#EXT-X-STREAM-INF:BANDWIDTH=${bandwidth},RESOLUTION=${videoResolution}${subtitleReference}\n`;
         masterPlaylist += `${playlistUrl}\n`;
     });
-    
+
     fs.writeFileSync(masterPlaylistPath, masterPlaylist);
     console.log(`✅ Master playlist generated with shared subtitle approach: ${masterPlaylistPath}`);
-    
+
     return masterPlaylistPath;
 };
 
@@ -455,7 +455,7 @@ const generateMasterPlaylist = async (outputDir, filename, bucketName, subtitleL
  * @description Function to transcode a video into multiple resolutions using ffmpeg and upload them to DigitalOcean spaces
  * @example
  * ```javascript
- * import { transcodeVideo } from "@/services/transcodeVideo";
+ * 
  *
  * const filePath = "/path/to/video.mp4";
  * const fileName = "my-video.mp4";
@@ -492,7 +492,7 @@ const splitVideoIntoSegments = async (filePath, segmentFolder, clientId, filenam
 
         Ffmpeg(filePath)
             .outputOptions([
-              '-c:v copy', // Copy video without re-encoding
+                '-c:v copy', // Copy video without re-encoding
                 '-c:a aac', // Encode audio as AAC for compatibility
                 '-map 0:v:0', // Ensure video is included
                 '-map 0:a:0?', // Include first audio track (if available)
@@ -508,10 +508,10 @@ const splitVideoIntoSegments = async (filePath, segmentFolder, clientId, filenam
             .on('end', () => resolve())
             .on('progress', (progress) => {
                 console.log(`Splitting progress: ${progress.percent}%`);
-                io.to(clientId).emit('SplittingProgress', { 
-                    progress: Math.round(progress.percent), 
+                io.to(clientId).emit('SplittingProgress', {
+                    progress: Math.round(progress.percent),
                     stage: 'splitting',
-                    clientId 
+                    clientId
                 });
             })
             .on('error', reject)
@@ -523,7 +523,7 @@ const splitVideoIntoSegments = async (filePath, segmentFolder, clientId, filenam
 const transcodeSegment = async (inputPath, outputPath, height, clientId, label, indexNum) => {
     return new Promise((resolve, reject) => {
         Ffmpeg(inputPath)
-             .videoCodec('libx264')
+            .videoCodec('libx264')
             .audioCodec('copy')
             .outputOptions([
                 '-preset ultrafast', // Prioritize speed over compression
@@ -608,7 +608,7 @@ const onPreTranscode2 = async (resolutions, type, resourceId) => {
                 where: { filmId: resourceId, isTrailer: false },
                 select: { id: true, resolution: true },
             });
-            
+
         }
 
         if (type === 'episode') {
@@ -656,7 +656,7 @@ const onUploadComplete2 = async (data, resourceId, type) => {
 const checkJobCancellation = async (jobId) => {
     try {
         const job = await prisma.videoProcessingJob.findFirst({
-            where: { 
+            where: {
                 jobId: jobId,
                 status: 'cancelled'
             }
@@ -678,12 +678,12 @@ const checkJobCancellation = async (jobId) => {
  */
 const generateTrailerHLS = async (inputPath, outputDir, filename, clientId) => {
     console.log(`🎬 Generating HLS for trailer: ${filename}`);
-    
+
     const hlsOutputDir = path.join(outputDir, `hls_trailer_${filename}`);
     fs.mkdirSync(hlsOutputDir, { recursive: true });
-    
+
     const playlistPath = path.join(hlsOutputDir, `trailer_${filename}.m3u8`);
-    
+
     return new Promise((resolve, reject) => {
         // Use 720p HD resolution for trailers - good balance of quality and file size
         const trailerResolution = { width: 1280, height: 720, bitrate: 2500 };
@@ -694,7 +694,7 @@ const generateTrailerHLS = async (inputPath, outputDir, filename, clientId) => {
 
         // Generate HLS optimized for trailers
         const command = Ffmpeg(inputPath);
-        
+
         command
             .outputOptions(`-c:v libx264`)
             .outputOptions(`-preset fast`)
@@ -733,7 +733,7 @@ const generateTrailerHLS = async (inputPath, outputDir, filename, clientId) => {
             })
             .on('end', () => {
                 console.log(`✅ Trailer HLS generation completed for ${filename}`);
-                
+
                 // Restore original working directory
                 process.chdir(originalCwd);
                 resolve({ playlistPath, hlsUrl: `trailer_${filename}.m3u8` });
@@ -758,19 +758,19 @@ const generateTrailerHLS = async (inputPath, outputDir, filename, clientId) => {
  */
 const uploadTrailerHLSToBucket = async (hlsDir, bucketName, filename, clientId) => {
     console.log(`📤 Uploading trailer HLS files to bucket: ${bucketName}`);
-    
+
     const files = fs.readdirSync(hlsDir);
     const hlsFiles = files.filter(file => file.endsWith('.m3u8') || file.endsWith('.ts'));
-    
+
     console.log(`📦 Found ${hlsFiles.length} HLS files to upload for trailer`);
-    
+
     let uploadedCount = 0;
     let hlsUrl = null;
-    
+
     for (const file of hlsFiles) {
         const filePath = path.join(hlsDir, file);
         const key = `hls_trailer/${file}`; // Store in hls/ folder in bucket
-        
+
         try {
             const bucketParams = {
                 bucketName,
@@ -779,29 +779,29 @@ const uploadTrailerHLSToBucket = async (hlsDir, bucketName, filename, clientId) 
                 contentType: file.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t',
                 isPublic: true
             };
-            
+
             const uploadResult = await uploadToBucket(bucketParams);
-            
+
             if (file.endsWith('.m3u8')) {
                 hlsUrl = uploadResult.url;
                 console.log(`📺 Trailer HLS playlist uploaded: ${hlsUrl}`);
             }
-            
+
             uploadedCount++;
             const progress = Math.round((uploadedCount / hlsFiles.length) * 100);
-            
+
             broadcastProgress({
                 progress,
                 clientId,
                 content: { type: 'trailer_hls_upload', filename }
             });
-            
+
         } catch (error) {
             console.error(`❌ Failed to upload ${file}:`, error);
             throw error;
         }
     }
-    
+
     console.log(`✅ All trailer HLS files uploaded successfully`);
     return { hlsUrl };
 };
@@ -819,7 +819,7 @@ const uploadTrailerHLSToBucket = async (hlsDir, bucketName, filename, clientId) 
 export const processTrailerToHLS = async ({ filePath, outputDir, filename, bucketName, clientId }) => {
     try {
         console.log(`🎬 Starting trailer HLS processing for: ${filename}`);
-        
+
         // Get video metadata
         const metadata = await new Promise((resolve, reject) => {
             Ffmpeg(filePath).ffprobe((err, data) => {
@@ -827,55 +827,55 @@ export const processTrailerToHLS = async ({ filePath, outputDir, filename, bucke
                 else resolve(data.format);
             });
         });
-        
+
         console.log(`📊 Trailer metadata:`, {
             duration: metadata.duration,
             size: metadata.size,
             bitrate: metadata.bit_rate
         });
-        
+
         // Generate HLS files
         broadcastProgress({
             progress: 10,
             clientId,
             content: { type: 'trailer_processing', stage: 'hls_generation' }
         });
-        
+
         const { playlistPath } = await generateTrailerHLS(filePath, outputDir, filename, clientId);
-        
+
         // Upload HLS files to bucket
         broadcastProgress({
             progress: 60,
             clientId,
             content: { type: 'trailer_processing', stage: 'uploading' }
         });
-        
+
         const hlsDir = path.dirname(playlistPath);
         const { hlsUrl } = await uploadTrailerHLSToBucket(hlsDir, bucketName, filename, clientId);
-        
+
         // Clean up local HLS files
         broadcastProgress({
             progress: 90,
             clientId,
             content: { type: 'trailer_processing', stage: 'cleanup' }
         });
-        
+
         fs.rmSync(hlsDir, { recursive: true, force: true });
-        
+
         broadcastProgress({
             progress: 100,
             clientId,
             content: { type: 'trailer_processing', stage: 'completed' }
         });
-        
+
         console.log(`✅ Trailer HLS processing completed: ${hlsUrl}`);
-        
+
         return {
             hlsUrl,
             size: formatFileSize(metadata.size),
             duration: Math.round(metadata.duration)
         };
-        
+
     } catch (error) {
         console.error(`❌ Trailer HLS processing failed:`, error);
         throw error;
@@ -895,7 +895,7 @@ export async function transcodeVideo2({
     bucketName,
     jobId,
 }) {
-    
+
     if (onPreTranscode2) {
         RESOLUTIONS = await onPreTranscode2(RESOLUTIONS, type, resourceId);
     }
@@ -921,27 +921,27 @@ export async function transcodeVideo2({
                 resolve({ subtitleStreams: [], subtitleLanguages: [], subtitleTypes: [] });
                 return;
             }
-            
+
             // More comprehensive subtitle detection - look for ALL subtitle streams
-            const subtitleStreams = metadata.streams.filter(stream => 
+            const subtitleStreams = metadata.streams.filter(stream =>
                 stream.codec_type === 'subtitle'
             );
-            
-            console.log(`📝 Found ${subtitleStreams.length} subtitle streams:`, 
-                subtitleStreams.map(s => ({ 
-                    index: s.index, 
-                    language: s.tags?.language || s.tags?.title || 'Unknown', 
+
+            console.log(`📝 Found ${subtitleStreams.length} subtitle streams:`,
+                subtitleStreams.map(s => ({
+                    index: s.index,
+                    language: s.tags?.language || s.tags?.title || 'Unknown',
                     codec: s.codec_name,
                     disposition: s.disposition
                 }))
             );
-            
-            const subtitleLanguages = subtitleStreams.map(stream => 
+
+            const subtitleLanguages = subtitleStreams.map(stream =>
                 stream.tags?.language || stream.tags?.title || `subtitle_${stream.index}`
             );
-            
+
             const subtitleTypes = subtitleStreams.map(stream => stream.codec_name);
-            
+
             console.log(`📝 Subtitle languages:`, subtitleLanguages);
             console.log(`📝 Subtitle types:`, subtitleTypes);
             resolve({ subtitleStreams, subtitleLanguages, subtitleTypes });
@@ -952,32 +952,32 @@ export async function transcodeVideo2({
     const extractedSubtitlePaths = [];
     if (subtitleInfo.subtitleStreams.length > 0) {
         console.log('📝 Extracting subtitle files before transcoding...');
-        
+
         // Create subtitle directory with proper structure
         const subtitleDir = path.join(outputDir, 'subtitles', filename);
         fs.mkdirSync(subtitleDir, { recursive: true });
-        
+
         // Extract each subtitle track
         for (let i = 0; i < subtitleInfo.subtitleStreams.length; i++) {
             const stream = subtitleInfo.subtitleStreams[i];
             const language = subtitleInfo.subtitleLanguages[i];
             const subtitleType = subtitleInfo.subtitleTypes[i];
-            
+
             // Check for cancellation before each subtitle extraction
             if (await checkJobCancellation(jobId)) {
                 throw new Error('Job was cancelled during subtitle extraction');
             }
-            
+
             try {
                 const subtitlePath = await new Promise((resolve, reject) => {
                     // Create a clean filename for the subtitle
                     const cleanLanguage = language.replace(/[^a-zA-Z0-9]/g, '_');
                     const outputSubtitlePath = path.join(subtitleDir, `${filename}_${cleanLanguage}.vtt`);
-                    
+
                     console.log(`📝 Extracting subtitle ${i + 1}/${subtitleInfo.subtitleStreams.length}: ${language} (${subtitleType})`);
-                    
+
                     const ffmpegCommand = Ffmpeg(filePath);
-                    
+
                     // Handle different subtitle codecs
                     if (subtitleType === 'webvtt') {
                         // Already in WebVTT format, just extract
@@ -990,7 +990,7 @@ export async function transcodeVideo2({
                             .outputOptions([`-map 0:s:${i}`, '-c:s webvtt'])
                             .output(outputSubtitlePath);
                     }
-                    
+
                     ffmpegCommand
                         .on('end', () => {
                             console.log(`✅ Extracted subtitle: ${language} → ${path.basename(outputSubtitlePath)}`);
@@ -1002,49 +1002,49 @@ export async function transcodeVideo2({
                         })
                         .run();
                 });
-                
+
                 extractedSubtitlePaths.push({
                     path: subtitlePath,
                     language: language,
                     type: subtitleType
                 });
-                
+
             } catch (error) {
                 console.warn(`⚠️ Skipping subtitle extraction for ${language}:`, error.message);
             }
         }
-        
+
         console.log(`✅ Extracted ${extractedSubtitlePaths.length} subtitle files to: ${subtitleDir}`);
     } else {
         // Fallback: Check if there are any existing subtitle files in the output directory
         console.log('📝 No subtitle streams detected, checking for existing subtitle files...');
-        
+
         // Create subtitle directory with proper structure
         const subtitleDir = path.join(outputDir, 'subtitles', filename);
         fs.mkdirSync(subtitleDir, { recursive: true });
-        
+
         // Look for any .vtt files that might have been generated
         const outputDirContents = fs.readdirSync(outputDir, { withFileTypes: true });
         const vttFiles = outputDirContents
             .filter(item => item.isFile() && item.name.endsWith('.vtt'))
             .map(item => path.join(outputDir, item.name));
-        
+
         if (vttFiles.length > 0) {
             console.log(`📝 Found ${vttFiles.length} existing subtitle files:`, vttFiles.map(f => path.basename(f)));
-            
+
             for (let i = 0; i < vttFiles.length; i++) {
                 const vttFile = vttFiles[i];
                 const fileName = path.basename(vttFile);
-                
+
                 // Create a clean filename for the subtitle
                 const cleanFileName = fileName.replace(/^(SD_|HD_|FHD_|UHD_)/, ''); // Remove resolution prefix
                 const newSubtitlePath = path.join(subtitleDir, cleanFileName);
-                
+
                 try {
                     // Move the subtitle file to the proper location
                     fs.renameSync(vttFile, newSubtitlePath);
                     console.log(`✅ Moved subtitle file: ${fileName} → ${cleanFileName}`);
-                    
+
                     extractedSubtitlePaths.push({
                         path: newSubtitlePath,
                         language: cleanFileName.replace('.vtt', ''),
@@ -1054,7 +1054,7 @@ export async function transcodeVideo2({
                     console.warn(`⚠️ Failed to move subtitle file ${fileName}:`, error.message);
                 }
             }
-            
+
             console.log(`✅ Moved ${extractedSubtitlePaths.length} subtitle files to: ${subtitleDir}`);
         }
     }
@@ -1090,10 +1090,10 @@ export async function transcodeVideo2({
 
     try {
         console.log('🚀 Starting HLS transcoding with shared subtitle approach...');
-        
+
         // STEP 4: Generate HLS playlists for each resolution (without subtitle extraction)
         const hlsPlaylists = [];
-        
+
         for (const [label, height] of Object.entries(RESOLUTIONS)) {
             console.log(`🎬 Processing ${label} resolution...`);
 
@@ -1121,7 +1121,7 @@ export async function transcodeVideo2({
                 // Generate HLS without subtitle extraction (since we already extracted them)
                 const result = await generateHLSPlaylistWithoutSubtitles(filePath, outputDir, filename, label, clientId);
                 hlsPlaylists.push(result);
-                
+
                 // Check for cancellation before upload
                 if (await checkJobCancellation(jobId)) {
                     // Clean up created HLS files
@@ -1167,18 +1167,18 @@ export async function transcodeVideo2({
         // STEP 6: Upload extracted subtitle files separately (shared approach)
         if (extractedSubtitlePaths.length > 0) {
             console.log(`📤 Uploading ${extractedSubtitlePaths.length} subtitle files using shared approach...`);
-            
+
             for (const subtitleInfo of extractedSubtitlePaths) {
                 if (await checkJobCancellation(jobId)) {
                     throw new Error('Job was cancelled during subtitle upload');
                 }
-                
+
                 // Verify the subtitle file exists before queuing upload
                 if (!fs.existsSync(subtitleInfo.path)) {
                     console.warn(`⚠️ Subtitle file not found, skipping: ${subtitleInfo.path}`);
                     continue;
                 }
-                
+
                 try {
                     // Create subtitle metadata for database creation
                     const languageNames = {
@@ -1235,16 +1235,16 @@ export async function transcodeVideo2({
                         'may': 'Malay',
                         'tgl': 'Tagalog'
                     };
-                    
+
                     const subtitleLabel = languageNames[subtitleInfo.language] || subtitleInfo.language.toUpperCase();
-                    
+
                     const subtitleMetadata = {
                         filename: path.basename(subtitleInfo.path),
                         language: subtitleInfo.language,
                         label: subtitleLabel,
                         fileSize: fs.statSync(subtitleInfo.path).size
                     };
-                    
+
                     await hlsUploadQueue.add("upload-subtitle-to-s3", {
                         subtitlePath: subtitleInfo.path,
                         filename,
@@ -1286,12 +1286,12 @@ export async function transcodeVideo2({
         }
 
         const masterPlaylistPath = await generateMasterPlaylist(
-            outputDir, 
-            filename, 
-            bucketName, 
+            outputDir,
+            filename,
+            bucketName,
             subtitleInfo.subtitleLanguages
         );
-        
+
         // Upload master playlist
         console.log(`📤 Adding master playlist upload job...`);
         await masterPlaylistQueue.add("upload-master-playlist", {
@@ -1307,12 +1307,12 @@ export async function transcodeVideo2({
 
         // Note: Don't clean up subtitle directory here - let the upload workers handle cleanup
         // The subtitle directory will be cleaned up by the upload workers after successful upload
-        
+
         // Only remove the original video file
         if (fs.existsSync(filePath)) {
-         fs.unlinkSync(filePath);
+            fs.unlinkSync(filePath);
         }
-         console.log("🗑️ Original video deleted");
+        console.log("🗑️ Original video deleted");
 
         console.log('✅ All HLS streams generated with shared subtitle approach and queued for upload.');
     } catch (error) {
@@ -1325,19 +1325,19 @@ export async function transcodeVideo2({
                     fs.rmSync(hlsDir, { recursive: true, force: true });
                 }
             }
-            
+
             // Clean up subtitle directory
             const subtitleDir = path.join(outputDir, 'subtitles', filename);
             if (fs.existsSync(subtitleDir)) {
                 fs.rmSync(subtitleDir, { recursive: true, force: true });
             }
-            
+
             // Clean up master playlist
             const masterPlaylistPath = path.join(outputDir, `master_${filename}.m3u8`);
             if (fs.existsSync(masterPlaylistPath)) {
                 fs.unlinkSync(masterPlaylistPath);
             }
-            
+
             // Clean up original file
             if (fs.existsSync(filePath)) {
                 fs.unlinkSync(filePath);
@@ -1365,24 +1365,24 @@ export async function uploadHLSToDO({
 }) {
     try {
         console.log(`📤 Uploading HLS files for ${label}...`);
-        
+
         // List all files in the HLS directory
         const files = fs.readdirSync(hlsDir);
         console.log(`📄 Files in HLS directory: ${files.join(', ')}`);
-        
+
         // Find the playlist file (.m3u8)
         const playlistFile = files.find(file => file.endsWith('.m3u8'));
         if (!playlistFile) {
             throw new Error('No playlist file found in HLS directory');
         }
-        
+
         const playlistPath = path.join(hlsDir, playlistFile);
-        
+
         // Note: In the new approach, subtitles are uploaded separately and referenced in the master playlist
         // Individual resolution playlists don't need subtitle references
-        
+
         const playlistStream = fs.createReadStream(playlistPath);
-        
+
         // Upload playlist with public-read permissions
         const playlistParams = {
             bucketName,
@@ -1405,16 +1405,16 @@ export async function uploadHLSToDO({
         });
 
         console.log(`✅ Playlist uploaded: ${playlistData.url}`);
-        
+
         // Upload all segment files (.ts) with public-read permissions
         const segmentFiles = files.filter(file => file.endsWith('.ts'));
         console.log(`📤 Uploading ${segmentFiles.length} segments...`);
-        
+
         for (let i = 0; i < segmentFiles.length; i++) {
             const segmentFile = segmentFiles[i];
             const segmentPath = path.join(hlsDir, segmentFile);
             const segmentStream = fs.createReadStream(segmentPath);
-            
+
             const segmentParams = {
                 bucketName,
                 key: `hls_${label}_${filename}/${segmentFile}`,
@@ -1457,7 +1457,7 @@ export async function uploadHLSToDO({
         };
 
         console.log('HLS videoData:', videoData);
-        
+
         // Save to database
         if (onUploadComplete2) {
             await onUploadComplete2(videoData, resourceId, type);
@@ -1472,7 +1472,7 @@ export async function uploadHLSToDO({
         }
 
         console.log(`✅ HLS upload completed for ${label}`);
-        
+
     } catch (error) {
         console.error('HLS upload error:', error);
         throw error;
@@ -1496,28 +1496,28 @@ export async function uploadSubtitleToDO({
     try {
         console.log(`📤 Uploading subtitle file: ${path.basename(subtitlePath)}`);
         console.log(`📁 Full subtitle path: ${subtitlePath}`);
-        
+
         if (!fs.existsSync(subtitlePath)) {
             console.warn(`⚠️ Subtitle file not found: ${subtitlePath}`);
             console.warn(`⚠️ Current working directory: ${process.cwd()}`);
             console.warn(`⚠️ Directory contents:`, fs.readdirSync(path.dirname(subtitlePath) || '.'));
             return;
         }
-        
+
         // Verify file is readable
         const stats = fs.statSync(subtitlePath);
         console.log(`📄 Subtitle file stats: ${stats.size} bytes, last modified: ${stats.mtime}`);
-        
+
         const subtitleStream = fs.createReadStream(subtitlePath);
         const subtitleFileName = path.basename(subtitlePath);
-        
+
         // Shared approach: Use shared subtitle directory for all resolutions
-        const subtitleKey = uploadPath 
+        const subtitleKey = uploadPath
             ? `${uploadPath}${subtitleFileName}`
             : `subtitles/${filename}/${subtitleFileName}`;
-        
+
         console.log(`📤 Uploading to DigitalOcean path: ${subtitleKey}`);
-        
+
         const subtitleParams = {
             bucketName,
             key: subtitleKey,
@@ -1540,10 +1540,10 @@ export async function uploadSubtitleToDO({
 
         console.log(`✅ Subtitle uploaded: ${subtitleData.url}`);
         console.log(`📁 Shared subtitle path: ${subtitleKey}`);
-        
+
         // Handle database operations
         let finalSubtitleId = subtitleId;
-        
+
         if (subtitleMetadata && !subtitleId) {
             // Create new subtitle record
             try {
@@ -1573,12 +1573,12 @@ export async function uploadSubtitleToDO({
                 const updateData = {
                     s3Url: subtitleData.url
                 };
-                
+
                 // Add label to update if provided in metadata
                 if (subtitleMetadata && subtitleMetadata.label) {
                     updateData.label = subtitleMetadata.label;
                 }
-                
+
                 await prisma.subtitle.update({
                     where: { id: subtitleId },
                     data: updateData
@@ -1589,16 +1589,16 @@ export async function uploadSubtitleToDO({
                 // Don't throw error as the upload was successful
             }
         }
-        
+
         // Clean up local subtitle file after successful upload
         try {
             fs.unlinkSync(subtitlePath);
             console.log(`🗑️ Cleaned up local subtitle file: ${subtitlePath}`);
-            
+
             // Check if this was the last subtitle file in the directory
             const subtitleDir = path.dirname(subtitlePath);
             const remainingFiles = fs.readdirSync(subtitleDir);
-            
+
             // If no more files in the subtitle directory, remove the entire directory
             if (remainingFiles.length === 0) {
                 fs.rmdirSync(subtitleDir);
@@ -1609,10 +1609,10 @@ export async function uploadSubtitleToDO({
         }
 
         console.log(`✅ Subtitle upload completed: ${subtitleFileName}`);
-        
+
         // Return the subtitle ID for reference
         return { subtitleId: finalSubtitleId, s3Url: subtitleData.url };
-        
+
     } catch (error) {
         console.error('Subtitle upload error:', error);
         console.error('Error details:', {
@@ -1644,9 +1644,9 @@ export async function uploadMasterPlaylist({
 }) {
     try {
         console.log('📤 Uploading master playlist with shared subtitle approach...');
-        
+
         const playlistStream = fs.createReadStream(masterPlaylistPath);
-        
+
         const playlistParams = {
             bucketName,
             key: `master_${filename}.m3u8`,
@@ -1668,7 +1668,7 @@ export async function uploadMasterPlaylist({
         });
 
         console.log('✅ Master playlist uploaded:', playlistData.url);
-        
+
         // Save master playlist URL to database with subtitle information
         const masterPlaylistData = {
             resolution: 'MASTER',
@@ -1695,7 +1695,7 @@ export async function uploadMasterPlaylist({
         }
 
         console.log(`✅ Master playlist upload completed with ${subtitleLanguages.length} subtitle languages (shared approach)`);
-        
+
     } catch (error) {
         console.error('Master playlist upload error:', error);
         throw error;
@@ -1712,70 +1712,70 @@ export async function uploadtoDO({
     clientId,
     type,
     initialMetadata
-}){
+}) {
     console.warn('⚠️ uploadtoDO is deprecated. Use uploadHLSToDO instead.');
-    
+
     const ffstream = fs.createReadStream(mergedFilePath);
     const name = `${label}_${filename}.mp4`;
     const bucketParams = {
-      bucketName,
-      key: name,
-      buffer: ffstream,
-      contentType: 'video/mp4',
-      isPublic: true,
-  };
+        bucketName,
+        key: name,
+        buffer: ffstream,
+        contentType: 'video/mp4',
+        isPublic: true,
+    };
 
-  await  uploadToBucket(bucketParams, (progress) => {
-      io.to(clientId).emit('uploadProgress', {
-          progress,
-          content: {
-              type,
-              resolution: label,
-          },
-          clientId,
-      });
-  }).then(async (data) => {
-      // ffprobe the transcoded stream
-      const finalMetadata = await new Promise(
-          (resolve, reject) => {
-              Ffmpeg(mergedFilePath).ffprobe(
-                  (err, data) => {
-                      if (err) reject(err);
-                      else resolve(data.format);
-                  }
-              );
-          }
-      );
+    await uploadToBucket(bucketParams, (progress) => {
+        io.to(clientId).emit('uploadProgress', {
+            progress,
+            content: {
+                type,
+                resolution: label,
+            },
+            clientId,
+        });
+    }).then(async (data) => {
+        // ffprobe the transcoded stream
+        const finalMetadata = await new Promise(
+            (resolve, reject) => {
+                Ffmpeg(mergedFilePath).ffprobe(
+                    (err, data) => {
+                        if (err) reject(err);
+                        else resolve(data.format);
+                    }
+                );
+            }
+        );
 
-      let metadata = {
-          ...initialMetadata,
-          ...finalMetadata,
-      };
+        let metadata = {
+            ...initialMetadata,
+            ...finalMetadata,
+        };
 
-      const videoData = {
-          resolution: label,
-          name: bucketParams.key,
-          format: 'video/mp4',
-          url: data.url,
-          encoding: 'libx264',
-          size: metadata.size.toString(),
-          duration: metadata.duration,
-          bitrate: formatBitrate(
-              metadata.bit_rate ?? 0
-          ),
-      };
+        const videoData = {
+            resolution: label,
+            name: bucketParams.key,
+            format: 'video/mp4',
+            url: data.url,
+            encoding: 'libx264',
+            size: metadata.size.toString(),
+            duration: metadata.duration,
+            bitrate: formatBitrate(
+                metadata.bit_rate ?? 0
+            ),
+        };
 
-      console.log('videoData',videoData);
-       // callback function to handle the completion
-       if (onUploadComplete2) {
-         await onUploadComplete2(videoData, resourceId, type);
-      }
+        console.log('videoData', videoData);
+        // callback function to handle the completion
+        if (onUploadComplete2) {
+            await onUploadComplete2(videoData, resourceId, type);
+        }
 
-      // remove the local copy of the video after uploading it to s3
-      await fs.promises.rm(mergedFilePath);
-      
-  })
-  .catch((uploadError) => 
- console.log('upload error',uploadError)
-  );
+        // remove the local copy of the video after uploading it to s3
+        await fs.promises.rm(mergedFilePath);
+
+    })
+        .catch((uploadError) =>
+            console.log('upload error', uploadError)
+        );
 }

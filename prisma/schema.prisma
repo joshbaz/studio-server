@@ -124,6 +124,8 @@ model watchlist {
 model film {
   id                   String         @id @default(auto()) @map("_id") @db.ObjectId
   title                String
+  slug                 String?        @unique
+  slugHistory          String[]       @default([])
   overview             String
   plotSummary          String
   releaseDate          DateTime

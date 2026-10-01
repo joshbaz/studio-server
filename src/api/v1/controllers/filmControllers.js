@@ -9,6 +9,7 @@ import { checkPaymentStatus as checkMtnStatus } from '@/services/mtnpayments.js'
 import { addDays } from 'date-fns';
 import { resSelector } from '@/utils/resSelector.js';
 import { formatNumber } from '@/utils/formatNumber.js';
+import { resolveFilmId } from '@/utils/resolveFilm.js';
 
 /**
  * @name streamVideo
@@ -209,51 +210,58 @@ export const fetchFilm = async (req, res, next) => {
             returnError('No film id provided', 400);
         }
 
-        let film = await prisma.film.findUnique({
-            where: { id: filmId },
-            include: {
-                posters: true,
-                pricing: {
-                    include: { priceList: true },
-                },
-                purchase: { where: { userId: req.userId, valid: true } },
-                video: true,
-                season: {
-                    include: {
-                        trailers: true,
-                        posters: true,
-                        pricing: {
-                            include: { priceList: true },
-                        },
-                        purchase: {
-                            where: { userId: req.userId, valid: true },
-                        },
-                        likes: { where: { userId: req.userId } },
-                        episodes: {
-                            include: {
-                                posters: true,
-                                video: true,
-                            },
-                        },
-                    },
-                },
-                watchlist: {
-                    where: { userId: req.userId, filmId },
-                    select: {
-                        id: true,
-                        filmId: true,
-                        type: true,
-                        userId: true,
-                    },
-                },
-                likes: {
-                    where: { userId: req.userId, filmId },
-                },
-                views: true,
+        // the path param may be a slug, but the watchlist and likes filters key
+        // on the film id, so resolve the id before building the query
+        const resolvedFilmId = await resolveFilmId(prisma, filmId);
+
+        if (!resolvedFilmId) returnError('Film not found', 404);
+
+        const filmInclude = {
+            posters: true,
+            pricing: {
+                include: { priceList: true },
             },
+            purchase: { where: { userId: req.userId, valid: true } },
+            video: true,
+            season: {
+                include: {
+                    trailers: true,
+                    posters: true,
+                    pricing: {
+                        include: { priceList: true },
+                    },
+                    purchase: {
+                        where: { userId: req.userId, valid: true },
+                    },
+                    likes: { where: { userId: req.userId } },
+                    episodes: {
+                        include: {
+                            posters: true,
+                            video: true,
+                        },
+                    },
+                },
+            },
+            watchlist: {
+                where: { userId: req.userId, filmId: resolvedFilmId },
+                select: {
+                    id: true,
+                    filmId: true,
+                    type: true,
+                    userId: true,
+                },
+            },
+            likes: {
+                where: { userId: req.userId, filmId: resolvedFilmId },
+            },
+            views: true,
+        };
+
+        let film = await prisma.film.findUnique({
+            where: { id: resolvedFilmId },
+            include: filmInclude,
         });
 
-        // check if
         if (!film) returnError('Film not found', 404);
 
         const validPurchase = film?.purchase[0];
@@ -267,49 +275,11 @@ export const fetchFilm = async (req, res, next) => {
 
             film = await prisma.film.update({
                 where: {
-                    id: filmId,
+                    id: resolvedFilmId,
                     purchase: { some: { id: validPurchase.id } },
                 },
                 data: { purchase: { update: { data: { valid: false } } } },
-                include: {
-                    posters: true,
-                    pricing: {
-                        include: { priceList: true },
-                    },
-                    purchase: { where: { userId: req.userId, valid: true } },
-                    video: true,
-                    season: {
-                        include: {
-                            posters: true,
-                            pricing: {
-                                include: { priceList: true },
-                            },
-                            purchase: {
-                                where: { userId: req.userId, valid: true },
-                            },
-                            likes: { where: { userId: req.userId } },
-                            episodes: {
-                                include: {
-                                    posters: true,
-                                    video: true,
-                                },
-                            },
-                        },
-                    },
-                    watchlist: {
-                        where: { userId: req.userId, filmId },
-                        select: {
-                            id: true,
-                            filmId: true,
-                            type: true,
-                            userId: true,
-                        },
-                    },
-                    likes: {
-                        where: { userId: req.userId, filmId },
-                    },
-                    views: true,
-                },
+                include: filmInclude,
             });
         }
 

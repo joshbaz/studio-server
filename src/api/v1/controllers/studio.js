@@ -14,6 +14,7 @@ import fsExtra from 'fs-extra';
 import path from 'path';
 import { videoQueue, hlsUploadQueue, masterPlaylistQueue } from '@/services/queueWorkers.js';
 import { formatNumber } from '@/utils/formatNumber.js';
+import { ensureUniqueSlug } from '@/utils/slugify.js';
 import { DeleteObjectsCommand } from '@aws-sdk/client-s3';
 
 // Configure HTTPS agent for high concurrency S3 operations
@@ -151,6 +152,7 @@ export const getFilms = async (_, res, next) => {
             select: {
                 id: true,
                 title: true,
+                slug: true,
                 releaseDate: true,
                 type: true,
                 genre: true,
@@ -297,9 +299,16 @@ export const getFilm = async (req, res, next) => {
  */
 export const createFilm = async (req, res, next) => {
     try {
+        // the slug is always derived server-side so a client cannot claim
+        // another film's url before that film exists
+        const { slug: clientSlug, ...filmData } = req.data;
+
+        const slug = await ensureUniqueSlug(filmData.title, prisma);
+
         const newFilm = await prisma.film.create({
             data: {
-                ...req.data,
+                ...filmData,
+                slug,
                 releaseDate: new Date(req.data.releaseDate),
             },
         });
@@ -779,7 +788,39 @@ export const updateFilm = async (req, res, next) => {
             update.releaseDate = new Date(update.releaseDate);
         }
 
-        await prisma.film.update({
+        // retire the previous slug instead of dropping it, so links that were
+        // already shared keep resolving to this film
+        const slugHistory = film.slugHistory ?? [];
+        let slugWasAdjusted = false;
+        let requestedSlug = null;
+        if (
+            typeof update.slug === 'string' &&
+            update.slug.length > 0 &&
+            update.slug !== film.slug
+        ) {
+            // `update` aliases req.data, so read the requested value before
+            // overwriting it with the resolved slug
+            requestedSlug = update.slug;
+            const previousSlug = film.slug;
+
+            update.slug = await ensureUniqueSlug(requestedSlug, prisma, filmId);
+            // ensureUniqueSlug falls back to a suffixed slug when the requested
+            // one is already taken, so only call the change intentional when it
+            // actually came back as requested
+            slugWasAdjusted = update.slug !== requestedSlug;
+
+            // drop any entry that is being reused, otherwise reclaiming an old
+            // slug of this same film leaves it behind as a stale history entry
+            update.slugHistory = [
+                ...new Set(
+                    [...slugHistory, previousSlug].filter(
+                        (entry) => entry && entry !== update.slug
+                    )
+                ),
+            ];
+        }
+
+        const updatedFilm = await prisma.film.update({
             where: { id: filmId },
             data: {
                 ...update,
@@ -787,7 +828,12 @@ export const updateFilm = async (req, res, next) => {
             },
         });
 
-        res.status(200).json({ message: 'Film updated successfully' });
+        res.status(200).json({
+            message: slugWasAdjusted
+                ? `Link "${requestedSlug}" was already in use, so the link is now "${updatedFilm.slug}"`
+                : 'Film updated successfully',
+            film: updatedFilm,
+        });
     } catch (error) {
         if (!error.statusCode) {
             error.statusCode = 500;

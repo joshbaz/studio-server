@@ -87,6 +87,16 @@ export const filmSchema = z.object({
 
 export const updateFilmSchema = z.object({
     title: z.string().optional(),
+    slug: z
+        .string()
+        .trim()
+        .min(1, 'Slug is required')
+        .max(80, 'Slug is too long')
+        .regex(
+            /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+            'Slug can only contain lowercase letters, numbers and hyphens'
+        )
+        .optional(),
     overview: z.string().optional(),
     plotSummary: z.string().optional(),
     releaseDate: z

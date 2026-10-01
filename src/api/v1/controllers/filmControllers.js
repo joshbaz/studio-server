@@ -9,7 +9,7 @@ import { checkPaymentStatus as checkMtnStatus } from '@/services/mtnpayments.js'
 import { addDays } from 'date-fns';
 import { resSelector } from '@/utils/resSelector.js';
 import { formatNumber } from '@/utils/formatNumber.js';
-import { resolveFilmId } from '@/utils/resolveFilm.js';
+import { resolveFilmId, resolveSeasonId, resolveEpisodeId } from '@/utils/resolveRecord.js';
 
 /**
  * @name streamVideo
@@ -304,8 +304,12 @@ export const fetchSeason = async (req, res, next) => {
         const { seasonId } = req.params;
         if (!seasonId) returnError('Season ID is required', 400);
 
+        // /segments/:id carries either the ObjectId or the slug
+        const resolvedSeasonId = await resolveSeasonId(prisma, seasonId);
+        if (!resolvedSeasonId) returnError('Season not found', 404);
+
         const season = await prisma.season.findUnique({
-            where: { id: seasonId },
+            where: { id: resolvedSeasonId },
             include: {
                 // filmId: true,
               
@@ -317,7 +321,7 @@ export const fetchSeason = async (req, res, next) => {
                 },
                 likes: { where: { userId } },
                 watchlist: {
-                    where: { userId, seasonId },
+                    where: { userId, seasonId: resolvedSeasonId },
                     select: {
                         id: true,
                         seasonId: true,
@@ -387,8 +391,13 @@ export const fetchSeasons = async (_, res, next) => {
 export const fetchEpisode = async (req, res, next) => {
     try {
         const { episodeId } = req.params;
+
+        // /episode/:episodeid/... carries either the ObjectId or the slug
+        const resolvedEpisodeId = await resolveEpisodeId(prisma, episodeId);
+        if (!resolvedEpisodeId) returnError('Episode not found', 404);
+
         const episode = await prisma.episode.findUnique({
-            where: { id: episodeId },
+            where: { id: resolvedEpisodeId },
             include: {
                 video: true,
                 posters: true,

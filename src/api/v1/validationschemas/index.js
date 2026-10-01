@@ -85,18 +85,25 @@ export const filmSchema = z.object({
     featured: z.boolean().optional().default(false),
 });
 
+/**
+ * Shared slug rule. Admin supplied on update, server owned on create, so it is
+ * always optional. Kept in one place so film, season and episode cannot drift
+ * apart and diverge from isValidSlug in utils/slugify.js.
+ */
+const slugField = z
+    .string()
+    .trim()
+    .min(1, 'Slug is required')
+    .max(80, 'Slug is too long')
+    .regex(
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        'Slug can only contain lowercase letters, numbers and hyphens'
+    )
+    .optional();
+
 export const updateFilmSchema = z.object({
     title: z.string().optional(),
-    slug: z
-        .string()
-        .trim()
-        .min(1, 'Slug is required')
-        .max(80, 'Slug is too long')
-        .regex(
-            /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-            'Slug can only contain lowercase letters, numbers and hyphens'
-        )
-        .optional(),
+    slug: slugField,
     overview: z.string().optional(),
     plotSummary: z.string().optional(),
     releaseDate: z
@@ -160,6 +167,7 @@ export const updateFilmSchema = z.object({
 export const episodeSchema = z.object({
     seasonId: z.string({ message: 'Season ID is required' }).optional(),
     title: z.string({ message: 'Episode title is required' }).min(1),
+    slug: slugField,
     episode: z.number({ message: 'Episode number is required' }).min(1),
     overview: z.string({ message: 'Episode overview is required' }).min(1),
     plotSummary: z
@@ -213,12 +221,14 @@ export const seasonSchema = z.object({
     title: z
         .string({ message: 'Season title is required' })
         .min(1, { message: 'Season title is required' }),
+    slug: slugField,
     season: z.number({ message: 'Season number is required' }).min(1),
     filmId: z.string({ message: 'Film ID is required' }).optional(),
 });
 
 export const seasonUpdateSchema = z.object({
     title: z.string({ message: 'Season title is required' }).optional(),
+    slug: slugField,
     season: z.number().optional(),
     overview: z.string().optional(),
     audienceTarget: z.string().optional().default(''),

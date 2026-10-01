@@ -18,26 +18,31 @@ export const slugify = (value) =>
 /**
  * @name ensureUniqueSlug
  * @description Append a numeric suffix until the slug is free. Also treats any
- * slug this film used to own as taken, so an old slug never silently moves to
- * a different film.
+ * slug this record used to own as taken, so an old shared link never silently
+ * moves to a different record.
  * @param {string} base desired slug
  * @param {import('@prisma/client').PrismaClient} prisma
- * @param {string} [excludeFilmId] the film being updated, allowed to keep its own slug
+ * @param {{model?: 'film'|'season'|'episode', excludeId?: string}} [options]
+ *   model is the prisma delegate to search, excludeId is the record being
+ *   updated, which is allowed to keep its own slug
  * @returns {Promise<string>} an available slug
  */
-export const ensureUniqueSlug = async (base, prisma, excludeFilmId) => {
-    const root = slugify(base) || 'film';
+export const ensureUniqueSlug = async (base, prisma, options = {}) => {
+    const { model = 'film', excludeId } = options;
+    const delegate = prisma[model];
+
+    const root = slugify(base) || model;
 
     const isTaken = async (candidate) => {
-        // a candidate is unavailable if any *other* film currently owns it, or
-        // if any film previously used it, so a shared link never silently
-        // lands on a different film after a rename
+        // a candidate is unavailable if any *other* record currently owns it, or
+        // if any record previously used it, so a shared link never silently
+        // lands on a different record after a rename
         // findFirst rather than findUnique so this also works while the unique
         // index is still being built during a backfill
-        const existing = await prisma.film.findFirst({
+        const existing = await delegate.findFirst({
             where: {
                 OR: [{ slug: candidate }, { slugHistory: { has: candidate } }],
-                ...(excludeFilmId ? { NOT: { id: excludeFilmId } } : {}),
+                ...(excludeId ? { NOT: { id: excludeId } } : {}),
             },
             select: { id: true },
         });
@@ -56,8 +61,20 @@ export const ensureUniqueSlug = async (base, prisma, excludeFilmId) => {
 };
 
 /**
+ * @name buildSeasonSlug
+ * @description Default slug for a season. Scoped to the parent film's slug so
+ * that two series can each have a "season-1" without colliding, and so a shared
+ * season link is self describing.
+ * @param {string} filmSlug slug of the parent film
+ * @param {number|string} seasonNumber
+ * @returns {string} e.g. "tuko-pamoja-season-2"
+ */
+export const buildSeasonSlug = (filmSlug, seasonNumber) =>
+    `${slugify(filmSlug) || 'series'}-season-${slugify(seasonNumber) || '1'}`;
+
+/**
  * @name isValidSlug
- * @description Mirrors the zod rule on the film update schema
+ * @description Mirrors the zod rule on the slug-enabled update schemas
  * @param {string} value
  * @returns {boolean}
  */

@@ -235,6 +235,8 @@ model views {
 model season {
   id               String    @id @default(auto()) @map("_id") @db.ObjectId
   title            String
+  slug             String?   @unique
+  slugHistory      String[]  @default([])
   season           Int
   overview         String?   @default("")
   audienceTarget   String?
@@ -266,6 +268,8 @@ model season {
 model episode {
   id                String    @id @default(auto()) @map("_id") @db.ObjectId
   title             String
+  slug              String?   @unique
+  slugHistory       String[]  @default([])
   overview          String
   episode           Int       @default(1)
   plotSummary       String

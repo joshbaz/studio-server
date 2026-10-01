@@ -14,7 +14,11 @@ import fsExtra from 'fs-extra';
 import path from 'path';
 import { videoQueue, hlsUploadQueue, masterPlaylistQueue } from '@/services/queueWorkers.js';
 import { formatNumber } from '@/utils/formatNumber.js';
-import { ensureUniqueSlug } from '@/utils/slugify.js';
+import {
+    ensureUniqueSlug,
+    buildSeasonSlug,
+} from '@/utils/slugify.js';
+import { applySlugChange, slugAdjustedMessage } from '@/utils/applySlugChange.js';
 import { DeleteObjectsCommand } from '@aws-sdk/client-s3';
 
 // Configure HTTPS agent for high concurrency S3 operations
@@ -445,10 +449,21 @@ export const createSeason = async (req, res, next) => {
         if (!film) returnError('Film not found', 404);
         if (film.type !== 'series') returnError('Film is not a series', 400);
 
+        // the slug is always derived server-side so a client cannot claim
+        // another season's url before that season exists
+        const { slug: clientSlug, ...seasonData } = req.data;
+
+        const base = buildSeasonSlug(
+            film.slug || film.title,
+            seasonData.season
+        );
+        const slug = await ensureUniqueSlug(base, prisma, { model: 'season' });
+
         const newSeason = await prisma.season.create({
             data: {
                 filmId,
-                ...req.data,
+                ...seasonData,
+                slug,
             },
         });
 
@@ -483,14 +498,24 @@ export const updateSeason = async (req, res, next) => {
 
         if (!season) returnError('Season not found', 404);
 
-        const update = await prisma.season.update({
+        // `update` aliases req.data, so the helper mutates it in place
+        const update = req.data;
+        const slugOutcome = await applySlugChange(
+            update,
+            season,
+            prisma,
+            'season'
+        );
+
+        const updatedSeason = await prisma.season.update({
             where: { id: seasonId },
-            data: { ...req.data },
+            data: { ...update },
         });
 
         res.status(201).json({
-            message: 'Season info updated',
-            update,
+            message: slugAdjustedMessage(slugOutcome, 'Season info updated'),
+            season: updatedSeason,
+            update: updatedSeason,
         });
     } catch (error) {
         if (!error.statusCode) {
@@ -589,10 +614,19 @@ export const createEpisode = async (req, res, next) => {
 
         if (!season) returnError('Season not found', 404);
 
+        // the slug is always derived server-side so a client cannot claim
+        // another episode's url before that episode exists
+        const { slug: clientSlug, ...episodeData } = req.data;
+
+        const slug = await ensureUniqueSlug(episodeData.title, prisma, {
+            model: 'episode',
+        });
+
         const newEpisode = await prisma.episode.create({
             data: {
                 seasonId,
-                ...req.data,
+                ...episodeData,
+                slug,
                 releaseDate: new Date(req.data.releaseDate),
             },
         });
@@ -690,16 +724,40 @@ export const updateEpisode = async (req, res, next) => {
     try {
         const { episodeId } = req.params;
 
-        const update = await prisma.episode.update({
+        // `update` aliases req.data, so the helper mutates it in place
+        const update = req.data;
+
+        const episode = await prisma.episode.findUnique({
+            where: { id: episodeId },
+            select: { id: true, slug: true, slugHistory: true },
+        });
+
+        if (!episode) returnError('Episode not found', 404);
+
+        // episodeSchema still carries releaseDate, and prisma rejects the raw
+        // string, so coerce it the same way createEpisode does
+        if (update.releaseDate) {
+            update.releaseDate = new Date(update.releaseDate);
+        }
+
+        const slugOutcome = await applySlugChange(
+            update,
+            episode,
+            prisma,
+            'episode'
+        );
+
+        const updatedEpisode = await prisma.episode.update({
             where: {
                 id: episodeId,
             },
-            data: { ...req.data },
+            data: { ...update },
         });
 
         res.status(201).json({
-            message: 'Episode info updated',
-            update,
+            message: slugAdjustedMessage(slugOutcome, 'Episode info updated'),
+            episode: updatedEpisode,
+            update: updatedEpisode,
         });
     } catch (error) {
         if (!error.statusCode) {
@@ -790,35 +848,7 @@ export const updateFilm = async (req, res, next) => {
 
         // retire the previous slug instead of dropping it, so links that were
         // already shared keep resolving to this film
-        const slugHistory = film.slugHistory ?? [];
-        let slugWasAdjusted = false;
-        let requestedSlug = null;
-        if (
-            typeof update.slug === 'string' &&
-            update.slug.length > 0 &&
-            update.slug !== film.slug
-        ) {
-            // `update` aliases req.data, so read the requested value before
-            // overwriting it with the resolved slug
-            requestedSlug = update.slug;
-            const previousSlug = film.slug;
-
-            update.slug = await ensureUniqueSlug(requestedSlug, prisma, filmId);
-            // ensureUniqueSlug falls back to a suffixed slug when the requested
-            // one is already taken, so only call the change intentional when it
-            // actually came back as requested
-            slugWasAdjusted = update.slug !== requestedSlug;
-
-            // drop any entry that is being reused, otherwise reclaiming an old
-            // slug of this same film leaves it behind as a stale history entry
-            update.slugHistory = [
-                ...new Set(
-                    [...slugHistory, previousSlug].filter(
-                        (entry) => entry && entry !== update.slug
-                    )
-                ),
-            ];
-        }
+        const slugOutcome = await applySlugChange(update, film, prisma, 'film');
 
         const updatedFilm = await prisma.film.update({
             where: { id: filmId },
@@ -829,9 +859,10 @@ export const updateFilm = async (req, res, next) => {
         });
 
         res.status(200).json({
-            message: slugWasAdjusted
-                ? `Link "${requestedSlug}" was already in use, so the link is now "${updatedFilm.slug}"`
-                : 'Film updated successfully',
+            message: slugAdjustedMessage(
+                slugOutcome,
+                'Film updated successfully'
+            ),
             film: updatedFilm,
         });
     } catch (error) {

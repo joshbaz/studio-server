@@ -31,6 +31,13 @@ export const env = createEnv({
         }),
         CLIENT_URL: z.string().optional(),
 
+        // Public consumer app, used to build canonical and og:url values
+        PUBLIC_APP_URL: z.string().optional().default(''),
+
+        // Built index.html of the consumer SPA, used as the shell that social
+        // preview tags are injected into
+        SPA_SHELL_PATH: z.string().optional().default(''),
+
         // Africas Talking SMS API
         AT_API_KEY: z.string({ message: 'AT_API_KEY is required' }),
 

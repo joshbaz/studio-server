@@ -97,6 +97,7 @@ const publicUrl = (pathname) => {
 const SELECT = {
     film: {
         slug: true,
+        visibility: true,
         title: true,
         overview: true,
         plotSummary: true,
@@ -105,6 +106,7 @@ const SELECT = {
     },
     season: {
         slug: true,
+        visibility: true,
         title: true,
         overview: true,
         season: true,
@@ -112,6 +114,7 @@ const SELECT = {
     },
     episode: {
         slug: true,
+        visibility: true,
         title: true,
         overview: true,
         episode: true,
@@ -151,7 +154,14 @@ const renderPreview = async (model, slug, pathname) => {
             ? await prisma[model].findUnique({ where: { id }, select: SELECT[model] })
             : null;
 
-        if (record) {
+        // an unpublished record must not leak its title or artwork to a crawler,
+        // so it falls through to the brand defaults like an unknown slug does.
+        // Matched exactly: "not published" contains the word, which is the
+        // opposite of the intent.
+        const isPublished =
+            String(record?.visibility || '').trim().toLowerCase() === 'published';
+
+        if (record && isPublished) {
             // episodes read as "1. Title", seasons as "Season 3"
             const decoratedTitle =
                 model === 'episode'
@@ -228,19 +238,38 @@ const sendShell = async (res, slug, model, pathname) => {
 export const previewFilm = async (req, res) =>
     sendShell(res, req.params.slug, 'film', req.path);
 
-/** GET /preview/season/:slug — the public path is /segments/:slug */
-export const previewSeason = async (req, res) =>
-    sendShell(res, req.params.slug, 'season', req.path);
-
 /**
- * GET /preview/episode/:slug/:seriesSlug/:seasonSlug
- * The public path carries all three so the episode page can fetch its film;
- * only the episode is previewed.
+ * GET /preview/segments/:slug
+ * The public path is /segments/:slug, which covers both the season page itself
+ * and an episode opened on it as /segments/:slug?ep=:episodeSlug. When ?ep= is
+ * present the episode is previewed, otherwise the season is.
  */
-export const previewEpisode = async (req, res) =>
-    sendShell(
-        res,
-        req.params.slug,
-        'episode',
-        req.path.replace('/preview', '')
-    );
+export const previewSeason = async (req, res) => {
+    const episodeSlug = req.query?.ep;
+
+    if (episodeSlug) {
+        // the episode has to belong to the season in the path, otherwise a
+        // mismatched pair would preview an episode the url does not actually show
+        const seasonId = await resolveRecordId(prisma, req.params.slug, 'season');
+        const episodeId = await resolveRecordId(prisma, episodeSlug, 'episode');
+        const belongsToSeason = seasonId && episodeId
+            ? await prisma.episode.findFirst({
+                where: { id: episodeId, seasonId },
+                select: { id: true },
+            })
+            : null;
+
+        if (belongsToSeason) {
+            // req.path drops the query string, so it is reattached here to keep
+            // the canonical url identical to the one the consumer app serves
+            return sendShell(
+                res,
+                episodeSlug,
+                'episode',
+                `${req.path}?ep=${encodeURIComponent(episodeSlug)}`
+            );
+        }
+    }
+
+    return sendShell(res, req.params.slug, 'season', req.path);
+};

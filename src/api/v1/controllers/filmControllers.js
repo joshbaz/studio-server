@@ -737,6 +737,17 @@ export const likeRateFilm = async (req, res, next) => {
                 }
                 break;
             case 'season':
+                // the film branch checks the resource exists before writing,
+                // and without this a wrong id is stored as seasonId. Prisma on
+                // mongo does not enforce the relation, so it would land
+                // silently as a row pointing at nothing
+                const seasonRecord = await prisma.season.findUnique({
+                    where: { id: resourceId },
+                    select: { id: true },
+                });
+
+                if (!seasonRecord) returnError('Season was not found', 404);
+
                 const seasonExists = await prisma.likes.findFirst({
                     where: {
                         userId,
